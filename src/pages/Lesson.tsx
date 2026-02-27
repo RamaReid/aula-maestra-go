@@ -91,27 +91,45 @@ export default function Lesson() {
   };
 
   const handleRegenerateTeaching = async () => {
-    // Invalidate reading material on teaching regeneration
-    if (readingMaterial) {
-      await supabase
-        .from("reading_materials")
-        .update({ status: "INVALIDATED" })
-        .eq("lesson_id", lessonId);
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-materials", {
+        body: { lesson_id: lessonId, regenerate_only: "teaching" },
+      });
+      if (error) {
+        toast({ title: "Error al regenerar", description: error.message, variant: "destructive" });
+        return;
+      }
+      if (data?.error) {
+        toast({ title: "Error", description: data.error, variant: "destructive" });
+        return;
+      }
+      toast({ title: "Material didáctico regenerado" });
+      fetchData();
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+      fetchData();
     }
-    // Reset brief to trigger regeneration
-    await supabase
-      .from("lesson_briefs")
-      .update({ status: "READY_FOR_PRODUCTION" })
-      .eq("lesson_id", lessonId);
-    handleGenerate();
   };
 
   const handleRegenerateReading = async () => {
-    await supabase
-      .from("lesson_briefs")
-      .update({ status: "READY_FOR_PRODUCTION" })
-      .eq("lesson_id", lessonId);
-    handleGenerate();
+    try {
+      const { data, error } = await supabase.functions.invoke("generate-materials", {
+        body: { lesson_id: lessonId, regenerate_only: "reading" },
+      });
+      if (error) {
+        toast({ title: "Error al regenerar", description: error.message, variant: "destructive" });
+        return;
+      }
+      if (data?.error) {
+        toast({ title: "Error", description: data.error, variant: "destructive" });
+        return;
+      }
+      toast({ title: "Material de lectura regenerado" });
+      fetchData();
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+      fetchData();
+    }
   };
 
   const handleDepthChange = async (level: "BAJO" | "MEDIO" | "ALTO") => {
