@@ -1,83 +1,58 @@
 
 
-# PRD 1.2 Foundation SOD — Plan de Implementación
-
-## Paso 1: Habilitar Backend (Lovable Cloud)
-- Activar Lovable Cloud (Supabase) en región `america`
-- Esto nos da: Auth, Database, RLS, Edge Functions
-
-## Paso 2: Arquitectura de Seguridad
-- Consultar al agente de seguridad para diseñar RLS correctamente
-- Definir función `has_role()` security definer
-- Enum `app_role` con valores `docente`, `admin`
-
-## Paso 3: Modelo de Datos (Migración)
-Crear todas las tablas en orden de dependencias:
-1. `profiles` (con trigger auto-create al signup)
-2. `user_roles` (separada, con enum `docente | admin`)
-3. `schools` (nombre, distrito, localidad, tipo, user_created)
-4. `curriculum_documents` (province, subject, cycle, year_level, status)
-5. `curriculum_nodes` (árbol jerárquico: eje→unidad→bloque→contenido)
-6. `courses` (con constraint único user+school+subject+year+academic_year)
-7. `plans` (1 por course, status incomplete/validated)
-8. `plan_objectives` (4-8 por plan)
-9. `plan_content_mappings` (curriculum_node → plan)
-10. `plan_lessons` (28 fijas por plan, con flags integrative/recovery)
-11. `plan_lesson_content_links` (tabla puente)
-12. `lessons` (28 reales por curso)
-13. `lesson_shift_events` (log de cambios de fecha)
-
-## Paso 4: Políticas RLS
-- Docente: CRUD solo sobre sus propios courses, plans, lessons
-- Admin: gestión de curriculum_documents, curriculum_nodes, schools oficiales
-- Schools oficiales: read-only para docentes, pueden crear las propias
-- Curriculum: inmutable para docentes
+# Pasos 5 y 6: Seed de Escuelas PBA + Auth UI + Dashboard
 
 ## Paso 5: Seed de Escuelas PBA
-- Insertar escuelas representativas de Provincia de Buenos Aires
-- Marcadas como `user_created = false`
 
-## Paso 6: Auth UI (Login/Registro)
-- Páginas de login y registro con email + contraseña
-- Redirección post-login al dashboard
-- Protección de rutas autenticadas
+Migración SQL que inserta escuelas representativas de Provincia de Buenos Aires en la tabla `schools`:
+- ~20 escuelas de distintos distritos (La Plata, Quilmes, Avellaneda, San Isidro, etc.)
+- Mix de tipos COMUN y TECNICA
+- Todas con `user_created = false` y `created_by = NULL` (oficiales, no editables por docentes)
 
-## Paso 7: Dashboard del Docente
-- Lista de cursos activos con estado del plan
-- Sección de cursos archivados (solo lectura)
-- Botón para crear nuevo curso
+## Paso 6: Auth UI + Protección de Rutas + Dashboard
 
-## Paso 8: Panel Admin de Currículo
-- Acceso solo para rol ADMIN
-- CRUD de CurriculumDocument (crear/editar documentos verificados)
-- CRUD de CurriculumNode (árbol jerárquico de contenidos)
-- Vista de árbol para organizar nodos
+### Archivos nuevos a crear
 
-## Paso 9: Wizard de Creación de Curso (8 pasos)
-- Flujo paso a paso: Provincia → Materia → Ciclo → Año → Escuela → Tipo → Orientación/Especialidad
-- Matching exacto con CurriculumDocument VERIFIED
-- Validación de unicidad
-- Auto-creación de Plan + 28 PlanLessons al confirmar
+1. **`src/contexts/AuthContext.tsx`** — Context de autenticación
+   - Listener `onAuthStateChange` para sesión
+   - Estado de usuario, loading, y funciones login/signup/logout
+   - Hook `useAuth()` para acceso desde cualquier componente
 
-## Paso 10: Editor de Plan
-- Secciones: Fundamentación, Objetivos, Estrategias, Evaluación marco
-- Organización de contenidos (mapeo de CurriculumNodes)
-- Editor de 28 PlanLessons (theme, subtitle, justification, learning_outcome)
-- Asignación de contenidos a cada lección
-- Botón VALIDAR con todas las validaciones bloqueantes del PRD
-- Al validar: crear 28 Lessons reales automáticamente
+2. **`src/components/ProtectedRoute.tsx`** — Wrapper de rutas protegidas
+   - Redirige a `/login` si no hay sesión
+   - Muestra loading mientras verifica
 
-## Paso 11: Agenda (solo si Plan VALIDATED)
-- Vista lista/calendario de 28 Lessons
-- Asignar/cambiar fechas, cambiar status (PLANNED → TAUGHT)
-- Log automático de cambios de fecha (LessonShiftEvent)
-- Botón "Iniciar 2º cuatrimestre" (bloquea edición de lecciones 1-14)
+3. **`src/pages/Login.tsx`** — Página de login
+   - Formulario email + contraseña
+   - Link a registro
+   - Redirección al dashboard post-login
+   - Mensaje de error en caso de credenciales incorrectas
 
-## Paso 12: Enforcement de Estados
-- Lesson LOCKED: no editable
-- Course ARCHIVED: todo read-only, botón para archivar
+4. **`src/pages/Register.tsx`** — Página de registro
+   - Formulario con nombre, email, contraseña
+   - Link a login
+   - Mensaje post-registro indicando verificar email
+   - El nombre se pasa como `raw_user_meta_data` para el trigger `handle_new_user`
 
-## Paso 13: Navegación del Curso
-- Vista detalle con tabs: Datos del curso | Plan | Agenda
-- Indicadores visuales de estado y progreso
+5. **`src/pages/Dashboard.tsx`** — Dashboard del docente (Paso 7 inicial)
+   - Lista de cursos activos con estado del plan (INCOMPLETE/VALIDATED)
+   - Sección de cursos archivados (solo lectura)
+   - Botón "Crear nuevo curso" (placeholder por ahora)
+   - Nombre del usuario en header
+   - Botón de logout
 
+### Modificaciones
+
+6. **`src/App.tsx`** — Actualizar rutas
+   - Envolver todo en `AuthProvider`
+   - Ruta `/login` y `/register` (públicas)
+   - Ruta `/` redirige a `/dashboard` si autenticado
+   - Ruta `/dashboard` protegida con `ProtectedRoute`
+
+### Detalles Tecnicos
+
+- Auth usa `supabase.auth.signUp()` con `options.data.name` para pasar el nombre al trigger
+- Login usa `supabase.auth.signInWithPassword()`
+- NO se habilita auto-confirm de email (el usuario debe verificar)
+- El dashboard consulta `courses` con join a `schools` y `plans` para mostrar estado
+- Se usan componentes shadcn/ui existentes (Card, Button, Input, Label, Form)
