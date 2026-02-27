@@ -23,11 +23,11 @@ const statusVariant = (s: string): "default" | "secondary" | "destructive" => {
 };
 
 export default function ReadingMaterialView({ material }: ReadingMaterialViewProps) {
-  // Remove data-ref spans for display
-  const displayHtml = material.content_html.replace(
-    /<span\s+data-ref="[^"]*"\s*><\/span>/gi,
-    ""
-  );
+  // Clean markdown artifacts and remove data-ref spans for display
+  const displayHtml = material.content_html
+    .replace(/```(?:html|HTML)?\s*/gi, "")
+    .replace(/<span\s+data-ref="[^"]*"\s*><\/span>/gi, "")
+    .trim();
 
   return (
     <div className="space-y-4">
