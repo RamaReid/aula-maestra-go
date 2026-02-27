@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { PDFDocument, StandardFonts, rgb } from "https://esm.sh/pdf-lib@1.17.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -28,7 +29,7 @@ function validateReadingMaterial(
 ): { valid: boolean; reasons: string[] } {
   const reasons: string[] = [];
 
-  if (/<ul[\s>]/i.test(html) || /<ol[\s>]/i.test(html) || /<li[\s>]/i.test(html)) {
+  if (/<ul\b/i.test(html) || /<ol\b/i.test(html) || /<li\b/i.test(html)) {
     reasons.push("Contiene listas HTML prohibidas");
   }
   if (/^\d+\./m.test(stripHtml(html))) {
@@ -53,10 +54,20 @@ function validateReadingMaterial(
     subjectLower.includes("geografía") ||
     subjectLower.includes("ciudadan")
   ) {
-    const paragraphs = html.split(/<\/p>/i).filter((p) => p.trim().length > 0);
+    // Extract real paragraphs from <p>...</p> tags
+    const pMatches = html.match(/<p[^>]*>([\s\S]*?)<\/p>/gi) || [];
+    const paragraphs = pMatches
+      .map((p) => stripHtml(p))
+      .filter((t) => t.length > 0);
     if (paragraphs.length > 0) {
-      const lastParagraph = stripHtml(paragraphs[paragraphs.length - 1]).toLowerCase();
-      const closurePhrases = ["en conclusión", "por lo tanto", "en definitiva"];
+      const lastParagraph = paragraphs[paragraphs.length - 1].toLowerCase();
+      const closurePhrases = [
+        "en conclusión",
+        "por lo tanto",
+        "en definitiva",
+        "se puede afirmar que",
+        "así se demuestra que",
+      ];
       for (const phrase of closurePhrases) {
         if (lastParagraph.includes(phrase)) {
           reasons.push(`Cierre prohibido en Sociales: "${phrase}"`);
@@ -78,6 +89,86 @@ function validateReadingMaterial(
   }
 
   return { valid: reasons.length === 0, reasons };
+}
+
+// ── PDF generation with pdf-lib ──
+
+async function generatePdfFromHtml(html: string): Promise<{ pdfBytes: Uint8Array; pageCount: number }> {
+  // Remove data-ref spans before rendering
+  const cleanHtml = html.replace(/<span\s+data-ref="[^"]*"\s*><\/span>/gi, "");
+  
+  // Extract paragraphs
+  const pMatches = cleanHtml.match(/<p[^>]*>([\s\S]*?)<\/p>/gi) || [];
+  const paragraphs = pMatches
+    .map((p) => stripHtml(p))
+    .filter((t) => t.length > 0);
+
+  const pdfDoc = await PDFDocument.create();
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+
+  const PAGE_WIDTH = 595.28;
+  const PAGE_HEIGHT = 841.89;
+  const MARGIN = 72; // ~2.5cm
+  const FONT_SIZE = 12;
+  const LINE_HEIGHT = FONT_SIZE * 1.2; // 14.4pt
+  const USABLE_WIDTH = PAGE_WIDTH - 2 * MARGIN;
+  const PARAGRAPH_SPACING = LINE_HEIGHT * 0.8;
+
+  let page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+  let cursorY = PAGE_HEIGHT - MARGIN;
+
+  function wrapText(text: string): string[] {
+    const words = text.split(/\s+/);
+    const lines: string[] = [];
+    let currentLine = "";
+
+    for (const word of words) {
+      const testLine = currentLine ? `${currentLine} ${word}` : word;
+      const testWidth = font.widthOfTextAtSize(testLine, FONT_SIZE);
+      if (testWidth > USABLE_WIDTH && currentLine) {
+        lines.push(currentLine);
+        currentLine = word;
+      } else {
+        currentLine = testLine;
+      }
+    }
+    if (currentLine) lines.push(currentLine);
+    return lines;
+  }
+
+  for (const paragraph of paragraphs) {
+    const lines = wrapText(paragraph);
+
+    // Check if we need a new page for at least the first line
+    if (cursorY - LINE_HEIGHT < MARGIN) {
+      page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+      cursorY = PAGE_HEIGHT - MARGIN;
+    }
+
+    for (const line of lines) {
+      if (cursorY - LINE_HEIGHT < MARGIN) {
+        page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+        cursorY = PAGE_HEIGHT - MARGIN;
+      }
+
+      page.drawText(line, {
+        x: MARGIN,
+        y: cursorY - FONT_SIZE,
+        size: FONT_SIZE,
+        font,
+        color: rgb(0.1, 0.1, 0.1),
+      });
+
+      cursorY -= LINE_HEIGHT;
+    }
+
+    cursorY -= PARAGRAPH_SPACING;
+  }
+
+  const pdfBytes = await pdfDoc.save();
+  const pageCount = pdfDoc.getPageCount();
+
+  return { pdfBytes: new Uint8Array(pdfBytes), pageCount };
 }
 
 // ── AI call helper ──
@@ -231,7 +322,7 @@ serve(async (req) => {
       );
     }
 
-    // Get brief — accept READY_FOR_PRODUCTION or PRODUCED (for selective regeneration)
+    // Get brief
     const { data: brief } = await userClient
       .from("lesson_briefs")
       .select("*")
@@ -266,7 +357,7 @@ serve(async (req) => {
     const bibliographyIds = (nodes || []).map((n: any) => n.id);
 
     // ── 4. Generate TeachingMaterial (skip if regenerate_only === "reading") ──
-    let teachingStatus = "GENERATED";
+    let teachingStatus = "VALIDATED";
 
     if (regenerateOnly !== "reading") {
       const teachingSystemPrompt = `Sos un experto en diseño de secuencias didácticas para nivel secundario en Argentina.
@@ -375,7 +466,7 @@ CANON OBLIGATORIO - Debe incluir todas estas secciones:
           achievement_criteria: teachingArgs.achievement_criteria,
           differentiation: teachingArgs.differentiation,
           closure: teachingArgs.closure,
-          status: "GENERATED",
+          status: "VALIDATED",
         },
         { onConflict: "lesson_id" }
       );
@@ -390,9 +481,11 @@ CANON OBLIGATORIO - Debe incluir todas estas secciones:
     }
 
     // ── 5. Generate ReadingMaterial (skip if regenerate_only === "teaching") ──
-    let readingStatus = "GENERATED";
+    let readingStatus = "VALIDATED";
     let wordCount = 0;
     let lastReasons: string[] = [];
+    let pdfPageCount = 0;
+    let pdfUrl: string | null = null;
 
     if (regenerateOnly !== "teaching") {
       const readingSystemPrompt = `Sos un redactor académico experto para nivel secundario en Argentina.
@@ -412,7 +505,7 @@ REGLAS OBLIGATORIAS:
 3. NO incluir consignas ni preguntas al alumno.
 4. NO incluir meta-explicaciones ("en este texto vamos a...").
 5. Para cada contenido curricular referenciado, incluir al menos un tag invisible: <span data-ref="ID_DEL_NODO"></span> en algún punto relevante del texto.
-6. ${course.subject.toLowerCase().includes("social") || course.subject.toLowerCase().includes("historia") ? "En el último párrafo NO usar 'En conclusión', 'Por lo tanto', 'En definitiva'." : ""}
+6. ${course.subject.toLowerCase().includes("social") || course.subject.toLowerCase().includes("historia") ? "En el último párrafo NO usar 'En conclusión', 'Por lo tanto', 'En definitiva', 'Se puede afirmar que', 'Así se demuestra que'." : ""}
 7. ${course.subject.toLowerCase().includes("matemática") ? "NO resolver ejercicios. NO mostrar soluciones numéricas." : ""}
 8. Devolver el texto como HTML válido con tags <p> para cada párrafo.
 9. Los tags <span data-ref="..."></span> deben estar DENTRO de los párrafos, como elementos inline invisibles.`;
@@ -443,13 +536,51 @@ REGLAS OBLIGATORIAS:
 
         readingHtml = cleanMarkdownArtifacts(readingResult.choices[0].message.content || "");
 
+        // Step 1: Structural validation
         const validation = validateReadingMaterial(readingHtml, bibliographyIds, course.subject);
-        readingValid = validation.valid;
-        lastReasons = validation.reasons;
+        
+        if (!validation.valid) {
+          lastReasons = validation.reasons;
+          readingValid = false;
+          continue;
+        }
+
+        // Step 2: Generate PDF and validate page count
+        try {
+          const { pdfBytes, pageCount } = await generatePdfFromHtml(readingHtml);
+          pdfPageCount = pageCount;
+
+          if (pageCount < 2 || pageCount > 4) {
+            lastReasons = [`Conteo de páginas fuera de rango: ${pageCount} (debe ser 2-4)`];
+            readingValid = false;
+            continue;
+          }
+
+          // Step 3: Upload PDF to storage
+          const storagePath = `${lessonId}/reading-material.pdf`;
+          await adminClient.storage
+            .from("reading-materials-pdf")
+            .upload(storagePath, pdfBytes, {
+              contentType: "application/pdf",
+              upsert: true,
+            });
+
+          const { data: publicUrlData } = adminClient.storage
+            .from("reading-materials-pdf")
+            .getPublicUrl(storagePath);
+
+          pdfUrl = publicUrlData.publicUrl;
+          lastReasons = [];
+          readingValid = true;
+        } catch (pdfErr) {
+          lastReasons = [`Error generando PDF: ${pdfErr instanceof Error ? pdfErr.message : "desconocido"}`];
+          readingValid = false;
+          continue;
+        }
       }
 
       wordCount = countWords(stripHtml(readingHtml));
-      readingStatus = readingValid ? "GENERATED" : "INVALIDATED";
+      readingStatus = readingValid ? "VALIDATED" : "INVALIDATED";
 
       await adminClient.from("reading_materials").upsert(
         {
@@ -458,6 +589,7 @@ REGLAS OBLIGATORIAS:
           content_html: readingHtml,
           status: readingStatus,
           validation_reasons: readingValid ? [] : lastReasons,
+          pdf_url: pdfUrl,
         },
         { onConflict: "lesson_id" }
       );
@@ -480,6 +612,8 @@ REGLAS OBLIGATORIAS:
         teaching_status: regenerateOnly === "reading" ? "skipped" : teachingStatus,
         reading_status: regenerateOnly === "teaching" ? "skipped" : readingStatus,
         reading_word_count: wordCount,
+        reading_pdf_pages: pdfPageCount,
+        reading_pdf_url: pdfUrl,
         reading_validation_issues: lastReasons,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
