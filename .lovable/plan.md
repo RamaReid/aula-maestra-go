@@ -1,102 +1,153 @@
 
-# Completar PRD 2 - Pendientes
 
-## 3 funcionalidades pendientes
+# PRD 2.3 — PATCH CRITICO
 
-### 1. Regeneracion selectiva (solo lectura sin tocar didactico)
+## Resumen de cambios
 
-**Problema actual:** Ambos botones del Copiloto ("Material didactico" y "Material de lectura") llaman a `handleGenerate()` que regenera TODO. El PRD dice que regenerar lectura no deberia tocar el material didactico.
-
-**Solucion:**
-- Agregar parametro `regenerate_only?: "teaching" | "reading"` al body del edge function `generate-materials`
-- Si `regenerate_only === "reading"`, saltar la generacion de teaching material y solo regenerar reading
-- Si `regenerate_only === "teaching"`, regenerar teaching, invalidar reading existente, y regenerar reading tambien (cascada)
-- Sin parametro: comportamiento actual (genera ambos)
-- En `Lesson.tsx`, `handleRegenerateReading` pasa `{ lesson_id, regenerate_only: "reading" }` y no resetea el brief a READY_FOR_PRODUCTION (ya esta PRODUCED, solo necesita regenerar)
-- En `Lesson.tsx`, `handleRegenerateTeaching` pasa `{ lesson_id, regenerate_only: "teaching" }` (la cascada de invalidar reading la hace el edge function)
-
-**Archivos:**
-- `supabase/functions/generate-materials/index.ts` -- agregar logica condicional segun `regenerate_only`
-- `src/pages/Lesson.tsx` -- pasar parametro en cada handler
-
-### 2. Feedback de validacion en UI
-
-**Problema actual:** Cuando el reading material queda `INVALIDATED` despues de 3 intentos, el docente solo ve el badge "Invalidado" sin saber por que.
-
-**Solucion:**
-- Agregar columna `validation_reasons text[] default '{}'` a `reading_materials` via migracion
-- En el edge function, guardar `lastReasons` en esa columna al hacer upsert
-- En `ReadingMaterialView.tsx`, mostrar un alert/banner con las razones cuando `status === "INVALIDATED"` y hay razones
-
-**Archivos:**
-- Migracion SQL: agregar columna `validation_reasons`
-- `supabase/functions/generate-materials/index.ts` -- guardar razones en upsert
-- `src/components/lesson/ReadingMaterialView.tsx` -- mostrar razones
-
-### 3. Generacion de PDF
-
-**Problema actual:** `pdf_url` siempre es null. El bucket `reading-materials-pdf` ya existe.
-
-**Solucion:**
-- Generar PDF del lado del cliente usando la API nativa del navegador (window.print con CSS de impresion), ya que generar PDFs en Deno edge functions es complejo y poco confiable
-- Agregar boton "Descargar PDF" en `ReadingMaterialView` que abre el contenido HTML en una ventana optimizada para impresion/guardado como PDF
-- Alternativa: usar una libreria ligera como `html2canvas` + `jsPDF` del lado del cliente para generar el PDF y subirlo al bucket
-
-Dado la complejidad de PDF server-side en Deno, la solucion mas pragmatica es **client-side print-to-PDF** con un boton dedicado. No requiere cambios en el backend.
-
-**Archivos:**
-- `src/components/lesson/ReadingMaterialView.tsx` -- agregar boton de descarga/impresion PDF
+7 correcciones al edge function `generate-materials` y al componente `ReadingMaterialView`. No se toca PRD 1.2.
 
 ---
 
-## Secuencia de implementacion
+## 1. PDF server-side con `pdf-lib`
 
-1. Migracion: agregar columna `validation_reasons` a `reading_materials`
-2. Edge function: agregar `regenerate_only` y guardar `validation_reasons`
-3. `Lesson.tsx`: pasar parametro correcto en cada handler de regeneracion
-4. `ReadingMaterialView.tsx`: mostrar razones de invalidacion + boton PDF print
+**Archivo:** `supabase/functions/generate-materials/index.ts`
 
-## Detalle tecnico
+Se agrega una funcion `generatePdfFromHtml(html: string)` que:
 
-### Edge function - cambios clave
+1. Importa `pdf-lib` via `https://cdn.skypack.dev/pdf-lib@^1.11.1?dts`
+2. Limpia el HTML: elimina `<span data-ref="..."></span>` tags
+3. Convierte HTML a texto plano via `stripHtml()`
+4. Separa en parrafos (split por `</p>`)
+5. Renderiza cada parrafo con:
+   - Pagina A4 (595.28 x 841.89 pts)
+   - Fuente Helvetica 12pt (embebida por defecto en pdf-lib)
+   - Interlineado 1.2 (14.4pt)
+   - Margenes: 72pt (aprox 2.5cm) en cada lado
+   - Word-wrap manual: mide ancho de texto con `font.widthOfTextAtSize()`, corta lineas al ancho disponible
+6. Cuando el cursor Y baja del margen inferior, agrega nueva pagina
+7. Retorna `{ pdfBytes: Uint8Array, pageCount: number }`
+
+**Subida a Storage:**
+- Bucket existente: `reading-materials-pdf` (publico)
+- Path: `{lessonId}/reading-material.pdf`
+- Usa `adminClient.storage.from('reading-materials-pdf').upload(path, pdfBytes, { contentType: 'application/pdf', upsert: true })`
+- Obtiene URL publica con `getPublicUrl(path)`
+- Guarda en `reading_materials.pdf_url`
+
+**Conteo de paginas:**
+- `pdfDoc.getPageCount()` de pdf-lib retorna el numero real de paginas
+- Si `pageCount < 2 || pageCount > 4` → agrega razon de validacion y reintenta
+
+## 2. Reintentos: maximo 2 reintentos (3 intentos totales)
+
+**Ya esta correcto.** `maxAttempts = 3` significa 1 intento inicial + 2 reintentos. No hay cambio en la variable pero se agrega la validacion de paginas PDF al loop de reintentos.
+
+**Nuevo flujo del loop:**
 
 ```text
-// Aceptar regenerate_only del body
-const { lesson_id, regenerate_only } = body;
-
-// Aceptar brief en PRODUCED ademas de READY_FOR_PRODUCTION para regeneracion selectiva
-if (brief.status !== "READY_FOR_PRODUCTION" && brief.status !== "PRODUCED") { ... }
-
-// Condicional de generacion
-if (regenerate_only !== "reading") {
-  // generar teaching material
+while (!readingValid && attempts < 3) {
+  attempts++
+  1. Llamar AI para generar HTML
+  2. Validar estructura (listas, palabras, cierre, matematica, data-ref)
+  3. Si estructura valida → generar PDF → validar paginas (2-4)
+  4. Si paginas invalidas → agregar razon y reintentar
 }
-if (regenerate_only !== "teaching") {
-  // generar reading material  
+```
+
+La generacion de PDF solo se ejecuta si la validacion estructural pasa, para no desperdiciar recursos.
+
+## 3. Estados finales corregidos
+
+- Si reading pasa todas las validaciones (estructura + paginas) → `status = 'VALIDATED'`
+- Si falla despues de 3 intentos → `status = 'INVALIDATED'`
+- Se elimina el estado intermedio `GENERATED` como resultado final
+- Teaching material: se setea `status = 'VALIDATED'` al generarse exitosamente (en lugar de `GENERATED`)
+
+## 4. Validaciones corregidas
+
+### Listas HTML
+El regex actual `/<ul[\s>]/i` ya es correcto y funcional. Se confirma que detecta `<ul>`, `<ul class="...">`, `<ol>`, `<li>`.
+
+### Ultimo parrafo (cierre en Sociales)
+Se corrige la logica para obtener el ultimo parrafo real:
+
+```text
+// Antes (incorrecto): split por </p>, el ultimo elemento puede ser basura
+const paragraphs = html.split(/<\/p>/i).filter(p => p.trim().length > 0);
+
+// Despues (correcto): extraer contenido de cada <p>...</p>, filtrar vacios
+const pMatches = html.match(/<p[^>]*>([\s\S]*?)<\/p>/gi) || [];
+const paragraphs = pMatches
+  .map(p => stripHtml(p))
+  .filter(t => t.length > 0);
+const lastParagraph = paragraphs[paragraphs.length - 1]?.toLowerCase() || "";
+```
+
+Se agregan 2 frases prohibidas adicionales:
+- "se puede afirmar que"
+- "asi se demuestra que"
+
+## 5. Pipeline completo de validacion
+
+Orden dentro del loop de reintentos:
+
+```text
+1. Generar HTML via AI
+2. Limpiar markdown artifacts
+3. Validar estructura:
+   a. Sin listas HTML (<ul>, <ol>, <li>)
+   b. Sin listas numeradas en texto
+   c. Sin resolucion matematica
+   d. Conteo de palabras 1000-1300
+   e. Todos los data-ref presentes
+   f. Cierre en Sociales (ultimo parrafo real)
+4. Si estructura invalida → reintentar con hint
+5. Si estructura valida → generar PDF con pdf-lib
+6. Contar paginas del PDF
+7. Si paginas < 2 o > 4 → agregar razon, reintentar
+8. Si todo valida → subir PDF a storage, setear pdf_url, status VALIDATED
+```
+
+## 6. Respuesta del endpoint actualizada
+
+```text
+{
+  "success": true,
+  "teaching_status": "VALIDATED" | "skipped",
+  "reading_status": "VALIDATED" | "INVALIDATED" | "skipped",
+  "reading_word_count": 1234,
+  "reading_pdf_pages": 3,
+  "reading_pdf_url": "https://...",
+  "reading_validation_issues": []
 }
-
-// Solo actualizar brief a PRODUCED si no es regeneracion selectiva de reading
 ```
 
-### Lesson.tsx - handlers corregidos
+## 7. UI: ReadingMaterialView actualizado
 
-```text
-handleRegenerateTeaching:
-  - Llama edge function con { lesson_id, regenerate_only: "teaching" }
-  - No manipula brief status manualmente
+**Archivo:** `src/components/lesson/ReadingMaterialView.tsx`
 
-handleRegenerateReading:
-  - Llama edge function con { lesson_id, regenerate_only: "reading" }
-  - No manipula brief status manualmente
-```
+- Eliminar la funcion `handlePrintPDF` (window.print)
+- El boton "Descargar como PDF" ahora es un link `<a href={material.pdf_url}>` que abre/descarga el PDF real desde storage
+- Solo se muestra si `pdf_url` no es null
+- Se mantiene el badge de status y el alert de validacion (ya implementados)
 
-### ReadingMaterialView - validacion + PDF
+---
 
-```text
-- Si status === "INVALIDATED" y validation_reasons.length > 0:
-  Mostrar Alert destructive con lista de razones
+## Archivos a modificar
 
-- Boton "Descargar como PDF":
-  Abre nueva ventana con el HTML del material + CSS de impresion
-  El docente usa Ctrl+P / Cmd+P para guardar como PDF
-```
+| Archivo | Cambio |
+|---------|--------|
+| `supabase/functions/generate-materials/index.ts` | PDF server-side, pipeline validacion, estados VALIDATED, cierre corregido, respuesta actualizada |
+| `src/components/lesson/ReadingMaterialView.tsx` | Eliminar window.print, usar pdf_url real |
+
+## Confirmaciones
+
+- PDF ya no depende de window.print()
+- pdf_url se llena al validar exitosamente
+- Paginas 2-4 validadas por conteo real via pdf-lib
+- Reintentos automaticos = max 2 reintentos (3 intentos totales)
+- Status final = VALIDATED o INVALIDATED (nunca GENERATED)
+- Regex listas HTML confirmadas correctas
+- Cierre Sociales corregido: ultimo parrafo real via regex `<p>...</p>` + 5 frases prohibidas
+- PRD 1.2 no se modifica
+
