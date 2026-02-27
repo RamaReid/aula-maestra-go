@@ -601,6 +601,39 @@ export type Database = {
         }
         Relationships: []
       }
+      subscriptions: {
+        Row: {
+          created_at: string
+          end_date: string | null
+          id: string
+          plan_type: Database["public"]["Enums"]["plan_type"]
+          start_date: string
+          status: Database["public"]["Enums"]["subscription_status"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          plan_type?: Database["public"]["Enums"]["plan_type"]
+          start_date?: string
+          status?: Database["public"]["Enums"]["subscription_status"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          plan_type?: Database["public"]["Enums"]["plan_type"]
+          start_date?: string
+          status?: Database["public"]["Enums"]["subscription_status"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       teaching_materials: {
         Row: {
           achievement_criteria: string[]
@@ -650,6 +683,81 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      usage_counters: {
+        Row: {
+          created_at: string
+          id: string
+          sessions_used_this_week: number
+          updated_at: string
+          user_id: string
+          week_start_date: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          sessions_used_this_week?: number
+          updated_at?: string
+          user_id: string
+          week_start_date?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          sessions_used_this_week?: number
+          updated_at?: string
+          user_id?: string
+          week_start_date?: string
+        }
+        Relationships: []
+      }
+      user_entitlements: {
+        Row: {
+          auto_complete_forms_enabled: boolean
+          copiloto_mode: Database["public"]["Enums"]["copiloto_mode"]
+          created_at: string
+          history_enabled: boolean
+          id: string
+          max_classes_per_session: number
+          max_courses: number
+          max_students_per_course: number
+          max_weekly_sessions: number
+          persistent_storage_enabled: boolean
+          updated_at: string
+          user_id: string
+          watermark_enabled: boolean
+        }
+        Insert: {
+          auto_complete_forms_enabled?: boolean
+          copiloto_mode?: Database["public"]["Enums"]["copiloto_mode"]
+          created_at?: string
+          history_enabled?: boolean
+          id?: string
+          max_classes_per_session?: number
+          max_courses?: number
+          max_students_per_course?: number
+          max_weekly_sessions?: number
+          persistent_storage_enabled?: boolean
+          updated_at?: string
+          user_id: string
+          watermark_enabled?: boolean
+        }
+        Update: {
+          auto_complete_forms_enabled?: boolean
+          copiloto_mode?: Database["public"]["Enums"]["copiloto_mode"]
+          created_at?: string
+          history_enabled?: boolean
+          id?: string
+          max_classes_per_session?: number
+          max_courses?: number
+          max_students_per_course?: number
+          max_weekly_sessions?: number
+          persistent_storage_enabled?: boolean
+          updated_at?: string
+          user_id?: string
+          watermark_enabled?: boolean
+        }
+        Relationships: []
       }
       user_roles: {
         Row: {
@@ -704,10 +812,26 @@ export type Database = {
         Args: { _plan_id: string; _user_id: string }
         Returns: boolean
       }
+      recalculate_entitlements: {
+        Args: {
+          p_plan: Database["public"]["Enums"]["plan_type"]
+          p_user_id: string
+        }
+        Returns: undefined
+      }
+      reset_weekly_counters: { Args: never; Returns: undefined }
+      upgrade_user_plan: {
+        Args: {
+          p_new_plan: Database["public"]["Enums"]["plan_type"]
+          p_user_id: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role: "docente" | "admin"
       brief_status: "IN_PROGRESS" | "READY_FOR_PRODUCTION" | "PRODUCED"
+      copiloto_mode: "none" | "limited" | "full"
       course_status: "ACTIVE" | "ARCHIVED"
       curriculum_cycle: "BASIC" | "UPPER"
       curriculum_node_type: "EJE" | "UNIDAD" | "BLOQUE" | "CONTENIDO"
@@ -716,7 +840,9 @@ export type Database = {
       lesson_status: "PLANNED" | "TAUGHT" | "RESCHEDULED" | "LOCKED"
       material_status: "GENERATED" | "VALIDATED" | "INVALIDATED"
       plan_status: "INCOMPLETE" | "VALIDATED"
+      plan_type: "FREE" | "BASICO" | "PREMIUM"
       school_type: "COMUN" | "TECNICA"
+      subscription_status: "ACTIVE" | "CANCELED" | "EXPIRED"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -846,6 +972,7 @@ export const Constants = {
     Enums: {
       app_role: ["docente", "admin"],
       brief_status: ["IN_PROGRESS", "READY_FOR_PRODUCTION", "PRODUCED"],
+      copiloto_mode: ["none", "limited", "full"],
       course_status: ["ACTIVE", "ARCHIVED"],
       curriculum_cycle: ["BASIC", "UPPER"],
       curriculum_node_type: ["EJE", "UNIDAD", "BLOQUE", "CONTENIDO"],
@@ -854,7 +981,9 @@ export const Constants = {
       lesson_status: ["PLANNED", "TAUGHT", "RESCHEDULED", "LOCKED"],
       material_status: ["GENERATED", "VALIDATED", "INVALIDATED"],
       plan_status: ["INCOMPLETE", "VALIDATED"],
+      plan_type: ["FREE", "BASICO", "PREMIUM"],
       school_type: ["COMUN", "TECNICA"],
+      subscription_status: ["ACTIVE", "CANCELED", "EXPIRED"],
     },
   },
 } as const

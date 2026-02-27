@@ -8,6 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { LogOut, Plus, ChevronDown, BookOpen } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
+import { useEntitlements } from "@/hooks/useEntitlements";
 
 interface CourseWithDetails {
   id: string;
@@ -19,11 +21,19 @@ interface CourseWithDetails {
   plan: { status: string } | null;
 }
 
+const planBadgeVariant: Record<string, "default" | "secondary" | "outline"> = {
+  FREE: "outline",
+  BASICO: "secondary",
+  PREMIUM: "default",
+};
+
 export default function Dashboard() {
   const { profile, logout } = useAuth();
+  const { planType } = useEntitlements();
   const [courses, setCourses] = useState<CourseWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [archivedOpen, setArchivedOpen] = useState(false);
+  const [checkingLimit, setCheckingLimit] = useState(false);
 
   useEffect(() => {
     const fetchCourses = async () => {
@@ -50,6 +60,29 @@ export default function Dashboard() {
     fetchCourses();
   }, []);
 
+  const handleNewCourse = async () => {
+    setCheckingLimit(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("check-course-limit");
+      if (error) {
+        toast({ title: "Error", description: error.message, variant: "destructive" });
+        return;
+      }
+      if (!data.can_create) {
+        toast({
+          title: "Límite alcanzado",
+          description: `Alcanzaste el límite de cursos de tu plan (${data.current}/${data.max})`,
+          variant: "destructive",
+        });
+        return;
+      }
+      // TODO: navigate to course creation when implemented
+      toast({ title: "Podés crear un nuevo curso" });
+    } finally {
+      setCheckingLimit(false);
+    }
+  };
+
   const activeCourses = courses.filter((c) => c.status === "ACTIVE");
   const archivedCourses = courses.filter((c) => c.status === "ARCHIVED");
 
@@ -58,11 +91,16 @@ export default function Dashboard() {
       {/* Header */}
       <header className="border-b bg-card">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-4">
-          <div>
-            <h1 className="text-lg font-semibold text-foreground">
-              Hola, {profile?.name || "Docente"}
-            </h1>
-            <p className="text-sm text-muted-foreground">{profile?.email}</p>
+          <div className="flex items-center gap-3">
+            <div>
+              <h1 className="text-lg font-semibold text-foreground">
+                Hola, {profile?.name || "Docente"}
+              </h1>
+              <p className="text-sm text-muted-foreground">{profile?.email}</p>
+            </div>
+            <Badge variant={planBadgeVariant[planType] || "outline"} className="text-xs">
+              {planType}
+            </Badge>
           </div>
           <Button variant="ghost" size="sm" onClick={logout}>
             <LogOut className="mr-2 h-4 w-4" />
@@ -76,7 +114,7 @@ export default function Dashboard() {
         <section>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-semibold text-foreground">Mis cursos activos</h2>
-            <Button size="sm" disabled>
+            <Button size="sm" onClick={handleNewCourse} disabled={checkingLimit}>
               <Plus className="mr-2 h-4 w-4" />
               Nuevo curso
             </Button>

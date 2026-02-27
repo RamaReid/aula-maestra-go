@@ -2,7 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertTriangle, Download } from "lucide-react";
+import { AlertTriangle, Download, Eye } from "lucide-react";
 
 interface ReadingMaterialViewProps {
   material: {
@@ -12,6 +12,7 @@ interface ReadingMaterialViewProps {
     status: string;
     validation_reasons?: string[];
   };
+  pdfBase64?: string | null;
 }
 
 const statusLabel: Record<string, string> = {
@@ -26,7 +27,7 @@ const statusVariant = (s: string): "default" | "secondary" | "destructive" => {
   return "secondary";
 };
 
-export default function ReadingMaterialView({ material }: ReadingMaterialViewProps) {
+export default function ReadingMaterialView({ material, pdfBase64 }: ReadingMaterialViewProps) {
   const displayHtml = material.content_html
     .replace(/```(?:html|HTML)?\s*/gi, "")
     .replace(/<span\s+data-ref="[^"]*"\s*><\/span>/gi, "")
@@ -36,6 +37,19 @@ export default function ReadingMaterialView({ material }: ReadingMaterialViewPro
     material.status === "INVALIDATED" &&
     material.validation_reasons &&
     material.validation_reasons.length > 0;
+
+  const handleViewTempPdf = () => {
+    if (!pdfBase64) return;
+    const byteCharacters = atob(pdfBase64);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    const blob = new Blob([byteArray], { type: "application/pdf" });
+    const url = URL.createObjectURL(blob);
+    window.open(url, "_blank");
+  };
 
   return (
     <div className="space-y-4">
@@ -80,6 +94,21 @@ export default function ReadingMaterialView({ material }: ReadingMaterialViewPro
               <Download className="mr-1 h-3 w-3" />
               Descargar PDF
             </a>
+          </Button>
+        </div>
+      )}
+
+      {!material.pdf_url && pdfBase64 && (
+        <div className="space-y-2">
+          <Alert>
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription className="text-xs">
+              Este PDF no se guarda. Actualizá tu plan para almacenamiento permanente.
+            </AlertDescription>
+          </Alert>
+          <Button variant="outline" size="sm" className="text-xs" onClick={handleViewTempPdf}>
+            <Eye className="mr-1 h-3 w-3" />
+            Ver PDF (temporal)
           </Button>
         </div>
       )}

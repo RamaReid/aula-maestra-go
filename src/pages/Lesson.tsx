@@ -11,9 +11,11 @@ import TeachingMaterialView from "@/components/lesson/TeachingMaterialView";
 import ReadingMaterialView from "@/components/lesson/ReadingMaterialView";
 import CopilotPanel from "@/components/lesson/CopilotPanel";
 import GenerateButton from "@/components/lesson/GenerateButton";
+import { useEntitlements } from "@/hooks/useEntitlements";
 
 export default function Lesson() {
   const { lessonId } = useParams<{ lessonId: string }>();
+  const { entitlements } = useEntitlements();
   const [lesson, setLesson] = useState<any>(null);
   const [planLesson, setPlanLesson] = useState<any>(null);
   const [brief, setBrief] = useState<any>(null);
@@ -21,6 +23,7 @@ export default function Lesson() {
   const [readingMaterial, setReadingMaterial] = useState<any>(null);
   const [bibliographyNodes, setBibliographyNodes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [pdfBase64, setPdfBase64] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     if (!lessonId) return;
@@ -37,7 +40,6 @@ export default function Lesson() {
     }
     setLesson(lessonData);
 
-    // Parallel fetches
     const [planLessonRes, briefRes, teachingRes, readingRes] = await Promise.all([
       supabase.from("plan_lessons").select("*").eq("id", lessonData.plan_lesson_id).single(),
       supabase.from("lesson_briefs").select("*").eq("lesson_id", lessonId).maybeSingle(),
@@ -50,7 +52,6 @@ export default function Lesson() {
     setTeachingMaterial(teachingRes.data);
     setReadingMaterial(readingRes.data);
 
-    // Fetch bibliography nodes if brief has them
     if (briefRes.data?.bibliografia_confirmada?.length > 0) {
       const { data: nodes } = await supabase
         .from("curriculum_nodes")
@@ -80,6 +81,11 @@ export default function Lesson() {
       if (data?.error) {
         toast({ title: "Error", description: data.error, variant: "destructive" });
         return;
+      }
+
+      // Store pdf_base64 for FREE users
+      if (data?.reading_pdf_base64) {
+        setPdfBase64(data.reading_pdf_base64);
       }
 
       toast({ title: "Materiales generados correctamente" });
@@ -124,6 +130,9 @@ export default function Lesson() {
         toast({ title: "Error", description: data.error, variant: "destructive" });
         return;
       }
+      if (data?.reading_pdf_base64) {
+        setPdfBase64(data.reading_pdf_base64);
+      }
       toast({ title: "Material de lectura regenerado" });
       fetchData();
     } catch (err: any) {
@@ -142,7 +151,6 @@ export default function Lesson() {
     }
   };
 
-  // Extract referenced node IDs from reading material HTML
   const referencedNodeIds: string[] = [];
   if (readingMaterial?.content_html) {
     const regex = /data-ref="([^"]+)"/g;
@@ -202,9 +210,7 @@ export default function Lesson() {
 
       <main className="mx-auto max-w-6xl px-4 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-8">
-          {/* Main column */}
           <div className="space-y-8">
-            {/* PASO 1 */}
             <section>
               <h2 className="text-lg font-semibold mb-4">Paso 1 — Relevamiento</h2>
               <BriefForm
@@ -217,7 +223,6 @@ export default function Lesson() {
 
             <Separator />
 
-            {/* PASO 2 */}
             <section>
               <h2 className="text-lg font-semibold mb-4">Paso 2 — Generación</h2>
 
@@ -235,13 +240,12 @@ export default function Lesson() {
 
               {readingMaterial && (
                 <div className="mt-6">
-                  <ReadingMaterialView material={readingMaterial} />
+                  <ReadingMaterialView material={readingMaterial} pdfBase64={pdfBase64} />
                 </div>
               )}
             </section>
           </div>
 
-          {/* Copilot sidebar */}
           {(brief?.status === "READY_FOR_PRODUCTION" || brief?.status === "PRODUCED") && (
             <aside className="border rounded-lg p-4 h-fit sticky top-4">
               <CopilotPanel
@@ -253,6 +257,7 @@ export default function Lesson() {
                 onRegenerateReading={handleRegenerateReading}
                 isGenerating={lesson.is_generating}
                 isLocked={lesson.status === "LOCKED"}
+                copilotoMode={entitlements.copiloto_mode}
               />
             </aside>
           )}

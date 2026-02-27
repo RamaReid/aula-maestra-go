@@ -1,8 +1,10 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Lock } from "lucide-react";
+import type { CopilotoMode } from "@/hooks/useEntitlements";
 
 interface CurriculumNode {
   id: string;
@@ -19,6 +21,7 @@ interface CopilotPanelProps {
   onRegenerateReading: () => void;
   isGenerating: boolean;
   isLocked: boolean;
+  copilotoMode?: CopilotoMode;
 }
 
 export default function CopilotPanel({
@@ -30,12 +33,24 @@ export default function CopilotPanel({
   onRegenerateReading,
   isGenerating,
   isLocked,
+  copilotoMode = "full",
 }: CopilotPanelProps) {
+  const isDisabled = copilotoMode === "none";
+
   return (
     <div className="space-y-6">
       <div>
         <h3 className="text-sm font-semibold mb-3">Copiloto</h3>
       </div>
+
+      {isDisabled && (
+        <Alert>
+          <Lock className="h-4 w-4" />
+          <AlertDescription className="text-xs">
+            Actualizá tu plan para usar el Copiloto.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className="space-y-2">
         <Label className="text-xs">Bibliografía usada</Label>
@@ -61,7 +76,7 @@ export default function CopilotPanel({
 
       <div className="space-y-2">
         <Label className="text-xs">Nivel de profundidad</Label>
-        <Select value={depthLevel} onValueChange={(v) => onDepthChange(v as "BAJO" | "MEDIO" | "ALTO")} disabled={isGenerating || isLocked}>
+        <Select value={depthLevel} onValueChange={(v) => onDepthChange(v as "BAJO" | "MEDIO" | "ALTO")} disabled={isGenerating || isLocked || isDisabled}>
           <SelectTrigger className="h-8 text-xs">
             <SelectValue />
           </SelectTrigger>
@@ -80,7 +95,7 @@ export default function CopilotPanel({
             variant="outline"
             size="sm"
             onClick={onRegenerateTeaching}
-            disabled={isGenerating || isLocked}
+            disabled={isGenerating || isLocked || isDisabled}
             className="text-xs"
           >
             <RefreshCw className="mr-1 h-3 w-3" />
@@ -90,7 +105,7 @@ export default function CopilotPanel({
             variant="outline"
             size="sm"
             onClick={onRegenerateReading}
-            disabled={isGenerating || isLocked}
+            disabled={isGenerating || isLocked || isDisabled}
             className="text-xs"
           >
             <RefreshCw className="mr-1 h-3 w-3" />
