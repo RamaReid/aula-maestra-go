@@ -9,6 +9,10 @@ const corsHeaders = {
 
 // ── Validation helpers ──
 
+function cleanMarkdownArtifacts(text: string): string {
+  return text.replace(/```(?:html|HTML)?\s*/gi, "").trim();
+}
+
 function stripHtml(html: string): string {
   return html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
 }
@@ -429,7 +433,7 @@ REGLAS OBLIGATORIAS:
         ]
       );
 
-      readingHtml = readingResult.choices[0].message.content || "";
+      readingHtml = cleanMarkdownArtifacts(readingResult.choices[0].message.content || "");
 
       const validation = validateReadingMaterial(readingHtml, bibliographyIds, course.subject);
       readingValid = validation.valid;
