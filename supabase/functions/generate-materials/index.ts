@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { PDFDocument, StandardFonts, rgb } from "https://esm.sh/pdf-lib@1.17.1";
+import { PDFDocument, StandardFonts, rgb, degrees } from "https://esm.sh/pdf-lib@1.17.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -54,7 +54,6 @@ function validateReadingMaterial(
     subjectLower.includes("geografía") ||
     subjectLower.includes("ciudadan")
   ) {
-    // Extract real paragraphs from <p>...</p> tags
     const pMatches = html.match(/<p[^>]*>([\s\S]*?)<\/p>/gi) || [];
     const paragraphs = pMatches
       .map((p) => stripHtml(p))
@@ -94,10 +93,8 @@ function validateReadingMaterial(
 // ── PDF generation with pdf-lib ──
 
 async function generatePdfFromHtml(html: string): Promise<{ pdfBytes: Uint8Array; pageCount: number }> {
-  // Remove data-ref spans before rendering
   const cleanHtml = html.replace(/<span\s+data-ref="[^"]*"\s*><\/span>/gi, "");
   
-  // Extract paragraphs
   const pMatches = cleanHtml.match(/<p[^>]*>([\s\S]*?)<\/p>/gi) || [];
   const paragraphs = pMatches
     .map((p) => stripHtml(p))
@@ -108,9 +105,9 @@ async function generatePdfFromHtml(html: string): Promise<{ pdfBytes: Uint8Array
 
   const PAGE_WIDTH = 595.28;
   const PAGE_HEIGHT = 841.89;
-  const MARGIN = 72; // ~2.5cm
+  const MARGIN = 72;
   const FONT_SIZE = 12;
-  const LINE_HEIGHT = FONT_SIZE * 1.2; // 14.4pt
+  const LINE_HEIGHT = FONT_SIZE * 1.2;
   const USABLE_WIDTH = PAGE_WIDTH - 2 * MARGIN;
   const PARAGRAPH_SPACING = LINE_HEIGHT * 0.8;
 
@@ -139,7 +136,6 @@ async function generatePdfFromHtml(html: string): Promise<{ pdfBytes: Uint8Array
   for (const paragraph of paragraphs) {
     const lines = wrapText(paragraph);
 
-    // Check if we need a new page for at least the first line
     if (cursorY - LINE_HEIGHT < MARGIN) {
       page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
       cursorY = PAGE_HEIGHT - MARGIN;
@@ -171,6 +167,37 @@ async function generatePdfFromHtml(html: string): Promise<{ pdfBytes: Uint8Array
   return { pdfBytes: new Uint8Array(pdfBytes), pageCount };
 }
 
+// ── Watermark helper ──
+
+async function applyWatermark(pdfDoc: PDFDocument): Promise<void> {
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const pages = pdfDoc.getPages();
+  const watermarkText = "DEMO - Plan Gratuito";
+  const fontSize = 48;
+
+  for (const page of pages) {
+    const { width, height } = page.getSize();
+    // 3 repetitions per page
+    const positions = [
+      { x: width * 0.5, y: height * 0.25 },
+      { x: width * 0.5, y: height * 0.5 },
+      { x: width * 0.5, y: height * 0.75 },
+    ];
+    for (const pos of positions) {
+      const textWidth = font.widthOfTextAtSize(watermarkText, fontSize);
+      page.drawText(watermarkText, {
+        x: pos.x - textWidth / 2,
+        y: pos.y,
+        size: fontSize,
+        font,
+        color: rgb(0.5, 0.5, 0.5),
+        opacity: 0.08,
+        rotate: degrees(45),
+      });
+    }
+  }
+}
+
 // ── AI call helper ──
 
 async function callAI(
@@ -199,6 +226,17 @@ async function callAI(
   }
 
   return await resp.json();
+}
+
+// ── Entitlements helpers ──
+
+function getCurrentMonday(): string {
+  const now = new Date();
+  const day = now.getUTCDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  const monday = new Date(now);
+  monday.setUTCDate(now.getUTCDate() + diff);
+  return monday.toISOString().split("T")[0];
 }
 
 serve(async (req) => {
@@ -252,6 +290,41 @@ serve(async (req) => {
   }
 
   try {
+    // ── 0. Entitlements gating ──
+
+    const { data: entitlements } = await adminClient
+      .from("user_entitlements")
+      .select("*")
+      .eq("user_id", userId)
+      .single();
+
+    const { data: usageCounter } = await adminClient
+      .from("usage_counters")
+      .select("*")
+      .eq("user_id", userId)
+      .single();
+
+    if (entitlements && usageCounter) {
+      // Lazy weekly reset
+      const currentMonday = getCurrentMonday();
+      if (usageCounter.week_start_date < currentMonday) {
+        await adminClient
+          .from("usage_counters")
+          .update({ week_start_date: currentMonday, sessions_used_this_week: 0 })
+          .eq("id", usageCounter.id);
+        usageCounter.sessions_used_this_week = 0;
+        usageCounter.week_start_date = currentMonday;
+      }
+
+      // Validate weekly sessions
+      if (usageCounter.sessions_used_this_week >= entitlements.max_weekly_sessions) {
+        return new Response(
+          JSON.stringify({ error: `Alcanzaste el límite de ${entitlements.max_weekly_sessions} sesiones semanales de tu plan` }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
     // ── 1. Validate preconditions ──
 
     const { data: lesson, error: lessonErr } = await userClient
@@ -290,6 +363,27 @@ serve(async (req) => {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // Validate classes per session (count VALIDATED teaching_materials this week for this course)
+    if (entitlements) {
+      const currentMonday = getCurrentMonday();
+      const { count } = await adminClient
+        .from("teaching_materials")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "VALIDATED")
+        .gte("created_at", `${currentMonday}T00:00:00Z`)
+        .in(
+          "lesson_id",
+          (await adminClient.from("lessons").select("id").eq("course_id", lesson.course_id)).data?.map((l: any) => l.id) || []
+        );
+
+      if ((count || 0) >= entitlements.max_classes_per_session) {
+        return new Response(
+          JSON.stringify({ error: `Alcanzaste el límite de ${entitlements.max_classes_per_session} clases por sesión de tu plan` }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
 
     const { data: plan } = await userClient
@@ -471,7 +565,6 @@ CANON OBLIGATORIO - Debe incluir todas estas secciones:
         { onConflict: "lesson_id" }
       );
 
-      // If regenerating teaching, invalidate existing reading (cascade)
       if (regenerateOnly === "teaching") {
         await adminClient
           .from("reading_materials")
@@ -486,6 +579,8 @@ CANON OBLIGATORIO - Debe incluir todas estas secciones:
     let lastReasons: string[] = [];
     let pdfPageCount = 0;
     let pdfUrl: string | null = null;
+    let pdfBase64: string | null = null;
+    let watermarkApplied = false;
 
     if (regenerateOnly !== "teaching") {
       const readingSystemPrompt = `Sos un redactor académico experto para nivel secundario en Argentina.
@@ -536,7 +631,6 @@ REGLAS OBLIGATORIAS:
 
         readingHtml = cleanMarkdownArtifacts(readingResult.choices[0].message.content || "");
 
-        // Step 1: Structural validation
         const validation = validateReadingMaterial(readingHtml, bibliographyIds, course.subject);
         
         if (!validation.valid) {
@@ -545,7 +639,6 @@ REGLAS OBLIGATORIAS:
           continue;
         }
 
-        // Step 2: Generate PDF and validate page count
         try {
           const { pdfBytes, pageCount } = await generatePdfFromHtml(readingHtml);
           pdfPageCount = pageCount;
@@ -556,20 +649,38 @@ REGLAS OBLIGATORIAS:
             continue;
           }
 
-          // Step 3: Upload PDF to storage
-          const storagePath = `${lessonId}/reading-material.pdf`;
-          await adminClient.storage
-            .from("reading-materials-pdf")
-            .upload(storagePath, pdfBytes, {
-              contentType: "application/pdf",
-              upsert: true,
-            });
+          // Apply watermark if needed
+          let finalPdfBytes = pdfBytes;
+          if (entitlements?.watermark_enabled) {
+            const pdfDocForWatermark = await PDFDocument.load(pdfBytes);
+            await applyWatermark(pdfDocForWatermark);
+            finalPdfBytes = new Uint8Array(await pdfDocForWatermark.save());
+            watermarkApplied = true;
+          }
 
-          const { data: publicUrlData } = adminClient.storage
-            .from("reading-materials-pdf")
-            .getPublicUrl(storagePath);
+          // Conditional persistence
+          if (entitlements?.persistent_storage_enabled === false) {
+            // FREE: return base64, don't upload
+            const base64Str = btoa(String.fromCharCode(...finalPdfBytes));
+            pdfBase64 = base64Str;
+            pdfUrl = null;
+          } else {
+            // BASICO/PREMIUM: upload to storage
+            const storagePath = `${lessonId}/reading-material.pdf`;
+            await adminClient.storage
+              .from("reading-materials-pdf")
+              .upload(storagePath, finalPdfBytes, {
+                contentType: "application/pdf",
+                upsert: true,
+              });
 
-          pdfUrl = publicUrlData.publicUrl;
+            const { data: publicUrlData } = adminClient.storage
+              .from("reading-materials-pdf")
+              .getPublicUrl(storagePath);
+
+            pdfUrl = publicUrlData.publicUrl;
+          }
+
           lastReasons = [];
           readingValid = true;
         } catch (pdfErr) {
@@ -598,12 +709,19 @@ REGLAS OBLIGATORIAS:
     // ── 6. Finalize ──
     await adminClient.from("lessons").update({ is_generating: false }).eq("id", lessonId);
 
-    // Only update brief to PRODUCED if not a selective reading-only regeneration
     if (regenerateOnly !== "reading") {
       await adminClient
         .from("lesson_briefs")
         .update({ status: "PRODUCED" })
         .eq("lesson_id", lessonId);
+    }
+
+    // Increment usage counter only on successful VALIDATED generation
+    if (entitlements && readingStatus === "VALIDATED" && regenerateOnly !== "teaching") {
+      await adminClient
+        .from("usage_counters")
+        .update({ sessions_used_this_week: (usageCounter?.sessions_used_this_week || 0) + 1 })
+        .eq("user_id", userId);
     }
 
     return new Response(
@@ -614,7 +732,9 @@ REGLAS OBLIGATORIAS:
         reading_word_count: wordCount,
         reading_pdf_pages: pdfPageCount,
         reading_pdf_url: pdfUrl,
+        reading_pdf_base64: pdfBase64,
         reading_validation_issues: lastReasons,
+        watermark_applied: watermarkApplied,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
