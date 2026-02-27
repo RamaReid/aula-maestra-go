@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -96,19 +97,21 @@ export default function Dashboard() {
           ) : (
             <div className="grid gap-4 sm:grid-cols-2">
               {activeCourses.map((course) => (
-                <Card key={course.id}>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-base">{course.subject}</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    <p className="text-sm text-muted-foreground">
-                      {course.school?.official_name ?? "Sin escuela"} · {course.year_level}° año · {course.academic_year}
-                    </p>
-                    <Badge variant={course.plan?.status === "VALIDATED" ? "default" : "secondary"}>
-                      {course.plan?.status === "VALIDATED" ? "Validado" : "Incompleto"}
-                    </Badge>
-                  </CardContent>
-                </Card>
+                <Link key={course.id} to={`/course/${course.id}`}>
+                  <Card className="hover:border-primary/50 transition-colors cursor-pointer">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base">{course.subject}</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      <p className="text-sm text-muted-foreground">
+                        {course.school?.official_name ?? "Sin escuela"} · {course.year_level}° año · {course.academic_year}
+                      </p>
+                      <Badge variant={course.plan?.status === "VALIDATED" ? "default" : "secondary"}>
+                        {course.plan?.status === "VALIDATED" ? "Validado" : "Incompleto"}
+                      </Badge>
+                    </CardContent>
+                  </Card>
+                </Link>
               ))}
             </div>
           )}
