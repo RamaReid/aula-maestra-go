@@ -1,111 +1,216 @@
 
 
-# Pasos 5 y 6: Seed de Escuelas de Tandil (verificado) + Auth UI + Dashboard
+# PRD 2 -- Motor IA Canonico: Plan de Implementacion
 
-## Paso 5: Seed de Escuelas de Tandil -- Fuentes oficiales
+## Confirmacion de restricciones
 
-Datos cruzados entre:
-- **Dataset Datos Abiertos PBA** (DGCyE, actualizado 24/02/2026): `catalogo.datos.gba.gob.ar/dataset/establecimientos-educativos`
-- **Guia escuelasyjardines.com.ar** (basada en padron oficial)
-
-### Escuelas estatales secundarias verificadas en el distrito Tandil
-
-**EES (Escuela de Educacion Secundaria) -- tipo COMUN:**
-
-| N.o | Nombre oficial | Localidad | Direccion |
-|-----|---------------|-----------|-----------|
-| 1 | EES N.o 1 | Tandil | - |
-| 2 | EES N.o 2 | Tandil | 4 DE ABRIL 890 |
-| 3 | EES N.o 3 | Tandil | AVDA. MARCONI E/ MONTIEL Y MORENO 1550 |
-| 4 | EES N.o 6 | Tandil | AMEGHINO/QUINTANA Y VTE. LOPEZ 355 |
-| 5 | EES N.o 7 | Tandil | PALACIOS E/ UGALDE Y DARREGUEIRA 1597 |
-| 6 | EES N.o 8 | Tandil | DANTE ALIGHIERI 590 |
-| 7 | EES N.o 9 | Tandil | 11 DE SETIEMBRE E/ URIBURU Y ARANA 1461 |
-| 8 | EES N.o 10 "Gral. Jose de San Martin" | Tandil | AV. SANTAMARINA 851 |
-| 9 | EES N.o 11 "Centro Polivalente de Arte" | Tandil | LEANDRO N. ALEM 474 |
-| 10 | EES N.o 12 "Rene Geronimo Favaloro" | Tandil (rural) | LOS JAZMINES S/N |
-| 11 | EES N.o 13 | Tandil | J.A. CABRAL 629 |
-| 12 | EES N.o 14 | Tandil | COLECTORA NORTE L.MA. MACAYA 2094 |
-| 13 | EES N.o 15 | Tandil | AVDA. JUAN B. JUSTO 874 |
-| 14 | EES N.o 25 | Tandil | AV. RIVADAVIA 102 |
-
-**EET (Escuela de Educacion Tecnica) -- tipo TECNICA:**
-
-| N.o | Nombre oficial | Localidad | Direccion |
-|-----|---------------|-----------|-----------|
-| 1 | EET N.o 1 "VI Brigada Aerea" | Tandil | COLECTORA NORTE L.M. MACAYA 2094 |
-| 2 | EET N.o 2 "Ing. Felipe Senillosa" | Tandil | L.N. ALEM 285 |
-| 3 | EET N.o 3 | Tandil | H. YRIGOYEN 636 |
-
-**EEA (Escuela de Educacion Agraria) -- tipo COMUN (no hay enum AGRARIA):**
-
-| N.o | Nombre oficial | Localidad | Direccion |
-|-----|---------------|-----------|-----------|
-| 1 | EEA N.o 1 "Ing. Ramon Santamarina" | Tandil (rural) | Pje. La Portena, CC N.o 6 |
-
-**Total: 18 escuelas estatales** (14 EES + 3 EET + 1 EEA)
-
-Nota: No se incluye la Escuela Nacional Ernesto Sabato (UNICEN) porque es jurisdiccion nacional, no provincial.
-
-### Migracion SQL
-
-Se crea una migracion que inserta las 18 escuelas con:
-- `district = 'Tandil'`
-- `locality` segun corresponda (mayoria 'Tandil')
-- `school_type` = 'COMUN' o 'TECNICA'
-- `user_created = false`, `created_by = NULL`
-- `source_url = 'https://catalogo.datos.gba.gob.ar/dataset/establecimientos-educativos'`
+- NO se modifica ninguna tabla existente de PRD 1.2 (courses, plans, plan_lessons, lessons, etc.)
+- NO se alteran constraints, enums ni RLS policies existentes
+- Solo se agregan tablas nuevas, columnas nuevas en `lessons`, y UI nueva
+- Integracion estricta sobre `Lesson` existente
 
 ---
 
-## Paso 6: Auth UI + Proteccion de Rutas + Dashboard
+## Fase 1: Migracion de Base de Datos
 
-### Archivos nuevos
+### 1A. Nuevos enums
 
-1. **`src/contexts/AuthContext.tsx`**
-   - Listener `onAuthStateChange` para sesion
-   - Estado: user, loading, profile (nombre desde tabla profiles)
-   - Funciones: login, signup (con nombre en raw_user_meta_data), logout
-   - Hook `useAuth()` exportado
+```text
+brief_status: 'IN_PROGRESS' | 'READY_FOR_PRODUCTION' | 'PRODUCED'
+material_status: 'GENERATED' | 'VALIDATED' | 'INVALIDATED'
+depth_level: 'BAJO' | 'MEDIO' | 'ALTO'
+```
 
-2. **`src/components/ProtectedRoute.tsx`**
-   - Si loading: spinner
-   - Si no hay user: redirige a `/login`
-   - Si hay user: renderiza children
+### 1B. Nueva columna en `lessons`
 
-3. **`src/pages/Login.tsx`**
-   - Formulario email + password con componentes shadcn (Input, Label, Button, Card)
-   - Mensaje de error en credenciales incorrectas
-   - Link "Crear cuenta" hacia `/register`
-   - Post-login: redirige a `/dashboard`
+- `is_generating BOOLEAN NOT NULL DEFAULT false` (control de concurrencia)
 
-4. **`src/pages/Register.tsx`**
-   - Formulario nombre + email + password
-   - Usa `supabase.auth.signUp({ email, password, options: { data: { name } } })`
-   - Post-registro: muestra mensaje "Revisa tu email para verificar tu cuenta"
-   - Link "Ya tengo cuenta" hacia `/login`
+### 1C. Nuevas tablas
 
-5. **`src/pages/Dashboard.tsx`**
-   - Header con nombre del usuario (desde profile) y boton logout
-   - Seccion "Mis cursos activos": consulta `courses` con join a `schools` (nombre) y `plans` (status)
-   - Muestra cards con materia, escuela, anio, estado del plan (INCOMPLETE/VALIDATED)
-   - Seccion "Cursos archivados" colapsable (solo lectura)
-   - Boton "Crear nuevo curso" (placeholder, sin funcionalidad aun)
-   - Estado vacio amigable si no hay cursos
+**lesson_briefs** (1:1 con lesson)
+| Columna | Tipo |
+|---|---|
+| id | UUID PK |
+| lesson_id | UUID UNIQUE FK -> lessons |
+| enfoque_deseado | TEXT DEFAULT '' |
+| tipo_dinamica_sugerida | TEXT DEFAULT '' |
+| nivel_profundidad | depth_level DEFAULT 'MEDIO' |
+| observaciones_docente | TEXT DEFAULT '' |
+| bibliografia_confirmada | UUID[] (array de curriculum_node_id) |
+| status | brief_status DEFAULT 'IN_PROGRESS' |
+| created_at / updated_at | TIMESTAMPTZ |
 
-### Modificacion
+**teaching_materials** (1:1 con lesson)
+| Columna | Tipo |
+|---|---|
+| id | UUID PK |
+| lesson_id | UUID UNIQUE FK -> lessons |
+| purpose | TEXT DEFAULT '' |
+| activities | JSONB DEFAULT '[]' |
+| expected_product | TEXT DEFAULT '' |
+| achievement_criteria | TEXT[] DEFAULT '{}' |
+| differentiation | JSONB DEFAULT '[]' |
+| closure | TEXT DEFAULT '' |
+| status | material_status DEFAULT 'GENERATED' |
+| created_at / updated_at | TIMESTAMPTZ |
 
-6. **`src/App.tsx`**
-   - Envolver en `AuthProvider`
-   - Rutas publicas: `/login`, `/register`
-   - Ruta `/` redirige a `/dashboard` si autenticado, a `/login` si no
-   - Ruta `/dashboard` protegida con `ProtectedRoute`
+**reading_materials** (1:1 con lesson)
+| Columna | Tipo |
+|---|---|
+| id | UUID PK |
+| lesson_id | UUID UNIQUE FK -> lessons |
+| word_count | INT DEFAULT 0 |
+| content_html | TEXT DEFAULT '' |
+| pdf_url | TEXT |
+| status | material_status DEFAULT 'GENERATED' |
+| created_at / updated_at | TIMESTAMPTZ |
 
-### Detalles tecnicos
+### 1D. RLS Policies (todas via is_lesson_owner)
 
-- Email auto-confirm deshabilitado (usuario debe verificar)
-- Login: `supabase.auth.signInWithPassword()`
-- Signup: pasa nombre como metadata para el trigger `handle_new_user` existente
-- Dashboard query: `courses` con `schools(official_name)` y `plans(status)` via relaciones FK
-- Componentes shadcn/ui usados: Card, Button, Input, Label, Separator, Badge
+- lesson_briefs, teaching_materials, reading_materials: ALL para owners via `is_lesson_owner(auth.uid(), lesson_id)`
+
+### 1E. Ownership helper
+
+- `is_lesson_brief_owner(_user_id, _brief_id)` -- para validaciones downstream si se necesita
+
+### 1F. Storage bucket
+
+- Bucket `reading-materials-pdf` (publico) para almacenar los PDFs generados
+
+---
+
+## Fase 2: Edge Function -- generate-materials
+
+Backend function que orquesta la generacion IA.
+
+### Entrada
+```text
+POST /generate-materials
+Body: { lesson_id: string }
+Auth: Bearer token del usuario
+```
+
+### Logica del edge function
+
+1. **Validar precondiciones** (todo server-side):
+   - Obtener lesson -> course -> plan -> plan_lesson
+   - Verificar: course.status = 'ACTIVE', plan.status = 'VALIDATED', lesson.status != 'LOCKED'
+   - Verificar: plan_lesson.theme, justification, learning_outcome no vacios
+   - Verificar: lesson_brief.status = 'READY_FOR_PRODUCTION'
+   - Verificar: lesson_brief.bibliografia_confirmada no vacio
+   - Verificar: lesson.is_generating = false
+   - Si falla alguna -> error 400 con mensaje especifico
+
+2. **Setear concurrencia**: `UPDATE lessons SET is_generating = true`
+
+3. **Obtener contexto curricular**:
+   - Leer curriculum_nodes referenciados en bibliografia_confirmada
+   - Armar contexto con nombres/contenidos de los nodos
+
+4. **Generar TeachingMaterial** (Lovable AI - gemini-2.5-flash):
+   - Prompt con canon obligatorio (proposito, actividades, tiempos, producto, criterios, diferenciacion, cierre)
+   - Tool calling para output estructurado (JSON)
+   - Insertar en teaching_materials
+
+5. **Generar ReadingMaterial** (Lovable AI - gemini-2.5-pro para mayor calidad):
+   - Prompt con canon obligatorio (1000-1300 palabras, texto corrido, sin listas, sin subtitulos)
+   - Incluir tags `<span data-ref="curriculum_node_id">` invisibles
+   - Validaciones tecnicas post-generacion (regex)
+   - Si falla validacion: regenerar (hasta 2 intentos)
+
+6. **Generar PDF**:
+   - Render HTML a PDF via headless (o almacenar HTML y generar en frontend)
+   - Subir a storage bucket
+   - Validar 2-4 paginas
+
+7. **Finalizar**: `UPDATE lessons SET is_generating = false`, actualizar brief.status = 'PRODUCED'
+
+8. **Error handling**: try/catch que siempre resetea is_generating = false
+
+---
+
+## Fase 3: UI -- Pagina de Leccion con Motor IA
+
+### 3A. Nueva ruta `/lesson/:lessonId`
+
+Pagina principal de la leccion con layout de dos columnas:
+
+**Columna izquierda (principal):**
+- Header: numero de leccion, tema, estado
+- PASO 1 -- Relevamiento (LessonBrief):
+  - Formulario: enfoque_deseado, tipo_dinamica_sugerida, nivel_profundidad (select), observaciones_docente
+  - Selector de bibliografia (Modo C): muestra curriculum_nodes disponibles del plan, permite seleccionar 2-5
+  - Boton "Confirmar relevamiento" -> cambia status a READY_FOR_PRODUCTION
+  - No permite avanzar sin bibliografia_confirmada
+- PASO 2 -- Generacion:
+  - Boton "Generar materiales" (deshabilitado si brief.status != READY_FOR_PRODUCTION o is_generating = true)
+  - Spinner durante generacion
+  - Vista de TeachingMaterial (cards con secciones: proposito, actividades, producto, criterios, diferenciacion, cierre)
+  - Vista de ReadingMaterial (HTML renderizado + link a PDF)
+  - Badges de status (GENERATED / VALIDATED / INVALIDATED)
+  - Boton "Regenerar" (si lesson.status != LOCKED, maximo 2 auto-intentos)
+
+**Columna derecha (Copiloto lateral):**
+- Bibliografia usada (lista de curriculum_nodes citados)
+- Indicador de que nodos fueron referenciados con data-ref
+- Selector de nivel_profundidad (ajustable, dispara regeneracion)
+- Boton regenerar individual (teaching o reading)
+- No muestra prompts internos
+
+### 3B. Navegacion desde Dashboard
+
+- Las cards de cursos activos en Dashboard seran clickeables
+- Nueva ruta `/course/:courseId` que lista las lessons del curso
+- Cada lesson lleva a `/lesson/:lessonId`
+
+### 3C. Invalidacion cruzada
+
+- En UI: si se regenera TeachingMaterial, ReadingMaterial se marca INVALIDATED con badge visual
+- Se ofrece regenerar ReadingMaterial automaticamente
+
+---
+
+## Fase 4: Validaciones Tecnicas (server-side en edge function)
+
+Implementadas como funciones de validacion dentro del edge function:
+
+1. **Listas prohibidas**: regex para `<ul>`, `<ol>`, `<li>`, `^\d+\.` al inicio de linea
+2. **Resolucion matematica**: regex `=\s*\d+`, frases como "la solucion es", "por lo tanto x ="
+3. **Cierre en Sociales**: ultimo parrafo no puede contener "En conclusion", "Por lo tanto", "En definitiva"
+4. **Conteo de palabras**: strip HTML, contar palabras, validar 1000-1300
+5. **Tags data-ref**: cada curriculum_node_id en bibliografia debe tener al menos 1 `<span data-ref="...">` en content_html
+6. **Si falla**: regenerar automaticamente (hasta 2 veces), luego marcar INVALIDATED
+
+---
+
+## Secuencia de implementacion
+
+| Orden | Tarea | Dependencia |
+|-------|-------|-------------|
+| 1 | Migracion DB (enums, tablas, columna, RLS, storage) | Ninguna |
+| 2 | Edge function generate-materials | Migracion DB |
+| 3 | Pagina /course/:courseId (lista de lessons) | Ninguna (UI) |
+| 4 | Pagina /lesson/:lessonId (brief + generacion + copiloto) | Edge function |
+| 5 | Navegacion Dashboard -> Course -> Lesson | Paginas creadas |
+| 6 | Invalidacion cruzada + regeneracion | Edge function + UI |
+
+---
+
+## Archivos a crear/modificar
+
+**Nuevos:**
+- `supabase/functions/generate-materials/index.ts` -- edge function principal
+- `src/pages/Course.tsx` -- lista de lessons de un curso
+- `src/pages/Lesson.tsx` -- pagina principal con brief + materiales + copiloto
+- `src/components/lesson/BriefForm.tsx` -- formulario PASO 1
+- `src/components/lesson/BibliographySelector.tsx` -- selector Modo C
+- `src/components/lesson/TeachingMaterialView.tsx` -- vista del material didactico
+- `src/components/lesson/ReadingMaterialView.tsx` -- vista del material de lectura
+- `src/components/lesson/CopilotPanel.tsx` -- panel lateral derecho
+- `src/components/lesson/GenerateButton.tsx` -- boton con estados
+
+**Modificados:**
+- `src/App.tsx` -- agregar rutas /course/:courseId y /lesson/:lessonId
+- `src/pages/Dashboard.tsx` -- hacer cards clickeables (Link a /course/:id)
+- `supabase/config.toml` -- agregar [functions.generate-materials] con verify_jwt = false
 
