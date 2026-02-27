@@ -151,6 +151,53 @@ export type Database = {
           },
         ]
       }
+      lesson_briefs: {
+        Row: {
+          bibliografia_confirmada: string[]
+          created_at: string
+          enfoque_deseado: string
+          id: string
+          lesson_id: string
+          nivel_profundidad: Database["public"]["Enums"]["depth_level"]
+          observaciones_docente: string
+          status: Database["public"]["Enums"]["brief_status"]
+          tipo_dinamica_sugerida: string
+          updated_at: string
+        }
+        Insert: {
+          bibliografia_confirmada?: string[]
+          created_at?: string
+          enfoque_deseado?: string
+          id?: string
+          lesson_id: string
+          nivel_profundidad?: Database["public"]["Enums"]["depth_level"]
+          observaciones_docente?: string
+          status?: Database["public"]["Enums"]["brief_status"]
+          tipo_dinamica_sugerida?: string
+          updated_at?: string
+        }
+        Update: {
+          bibliografia_confirmada?: string[]
+          created_at?: string
+          enfoque_deseado?: string
+          id?: string
+          lesson_id?: string
+          nivel_profundidad?: Database["public"]["Enums"]["depth_level"]
+          observaciones_docente?: string
+          status?: Database["public"]["Enums"]["brief_status"]
+          tipo_dinamica_sugerida?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lesson_briefs_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: true
+            referencedRelation: "lessons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lesson_shift_events: {
         Row: {
           created_at: string
@@ -191,6 +238,7 @@ export type Database = {
           course_id: string
           created_at: string
           id: string
+          is_generating: boolean
           lesson_number: number
           notes: string
           plan_lesson_id: string
@@ -202,6 +250,7 @@ export type Database = {
           course_id: string
           created_at?: string
           id?: string
+          is_generating?: boolean
           lesson_number: number
           notes?: string
           plan_lesson_id: string
@@ -213,6 +262,7 @@ export type Database = {
           course_id?: string
           created_at?: string
           id?: string
+          is_generating?: boolean
           lesson_number?: number
           notes?: string
           plan_lesson_id?: string
@@ -468,6 +518,47 @@ export type Database = {
         }
         Relationships: []
       }
+      reading_materials: {
+        Row: {
+          content_html: string
+          created_at: string
+          id: string
+          lesson_id: string
+          pdf_url: string | null
+          status: Database["public"]["Enums"]["material_status"]
+          updated_at: string
+          word_count: number
+        }
+        Insert: {
+          content_html?: string
+          created_at?: string
+          id?: string
+          lesson_id: string
+          pdf_url?: string | null
+          status?: Database["public"]["Enums"]["material_status"]
+          updated_at?: string
+          word_count?: number
+        }
+        Update: {
+          content_html?: string
+          created_at?: string
+          id?: string
+          lesson_id?: string
+          pdf_url?: string | null
+          status?: Database["public"]["Enums"]["material_status"]
+          updated_at?: string
+          word_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reading_materials_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: true
+            referencedRelation: "lessons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       schools: {
         Row: {
           created_at: string
@@ -507,6 +598,56 @@ export type Database = {
         }
         Relationships: []
       }
+      teaching_materials: {
+        Row: {
+          achievement_criteria: string[]
+          activities: Json
+          closure: string
+          created_at: string
+          differentiation: Json
+          expected_product: string
+          id: string
+          lesson_id: string
+          purpose: string
+          status: Database["public"]["Enums"]["material_status"]
+          updated_at: string
+        }
+        Insert: {
+          achievement_criteria?: string[]
+          activities?: Json
+          closure?: string
+          created_at?: string
+          differentiation?: Json
+          expected_product?: string
+          id?: string
+          lesson_id: string
+          purpose?: string
+          status?: Database["public"]["Enums"]["material_status"]
+          updated_at?: string
+        }
+        Update: {
+          achievement_criteria?: string[]
+          activities?: Json
+          closure?: string
+          created_at?: string
+          differentiation?: Json
+          expected_product?: string
+          id?: string
+          lesson_id?: string
+          purpose?: string
+          status?: Database["public"]["Enums"]["material_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teaching_materials_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: true
+            referencedRelation: "lessons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -544,6 +685,10 @@ export type Database = {
         Args: { _course_id: string; _user_id: string }
         Returns: boolean
       }
+      is_lesson_brief_owner: {
+        Args: { _brief_id: string; _user_id: string }
+        Returns: boolean
+      }
       is_lesson_owner: {
         Args: { _lesson_id: string; _user_id: string }
         Returns: boolean
@@ -559,11 +704,14 @@ export type Database = {
     }
     Enums: {
       app_role: "docente" | "admin"
+      brief_status: "IN_PROGRESS" | "READY_FOR_PRODUCTION" | "PRODUCED"
       course_status: "ACTIVE" | "ARCHIVED"
       curriculum_cycle: "BASIC" | "UPPER"
       curriculum_node_type: "EJE" | "UNIDAD" | "BLOQUE" | "CONTENIDO"
       curriculum_status: "VERIFIED" | "DEPRECATED"
+      depth_level: "BAJO" | "MEDIO" | "ALTO"
       lesson_status: "PLANNED" | "TAUGHT" | "RESCHEDULED" | "LOCKED"
+      material_status: "GENERATED" | "VALIDATED" | "INVALIDATED"
       plan_status: "INCOMPLETE" | "VALIDATED"
       school_type: "COMUN" | "TECNICA"
     }
@@ -694,11 +842,14 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["docente", "admin"],
+      brief_status: ["IN_PROGRESS", "READY_FOR_PRODUCTION", "PRODUCED"],
       course_status: ["ACTIVE", "ARCHIVED"],
       curriculum_cycle: ["BASIC", "UPPER"],
       curriculum_node_type: ["EJE", "UNIDAD", "BLOQUE", "CONTENIDO"],
       curriculum_status: ["VERIFIED", "DEPRECATED"],
+      depth_level: ["BAJO", "MEDIO", "ALTO"],
       lesson_status: ["PLANNED", "TAUGHT", "RESCHEDULED", "LOCKED"],
+      material_status: ["GENERATED", "VALIDATED", "INVALIDATED"],
       plan_status: ["INCOMPLETE", "VALIDATED"],
       school_type: ["COMUN", "TECNICA"],
     },

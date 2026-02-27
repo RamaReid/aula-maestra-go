@@ -8,6 +8,8 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
+import Course from "./pages/Course";
+import Lesson from "./pages/Lesson";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -34,6 +36,22 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Dashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/course/:courseId"
+              element={
+                <ProtectedRoute>
+                  <Course />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/lesson/:lessonId"
+              element={
+                <ProtectedRoute>
+                  <Lesson />
                 </ProtectedRoute>
               }
             />
