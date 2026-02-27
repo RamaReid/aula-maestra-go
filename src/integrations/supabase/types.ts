@@ -527,6 +527,7 @@ export type Database = {
           pdf_url: string | null
           status: Database["public"]["Enums"]["material_status"]
           updated_at: string
+          validation_reasons: string[]
           word_count: number
         }
         Insert: {
@@ -537,6 +538,7 @@ export type Database = {
           pdf_url?: string | null
           status?: Database["public"]["Enums"]["material_status"]
           updated_at?: string
+          validation_reasons?: string[]
           word_count?: number
         }
         Update: {
@@ -547,6 +549,7 @@ export type Database = {
           pdf_url?: string | null
           status?: Database["public"]["Enums"]["material_status"]
           updated_at?: string
+          validation_reasons?: string[]
           word_count?: number
         }
         Relationships: [

@@ -1,0 +1,1 @@
+ALTER TABLE public.reading_materials ADD COLUMN validation_reasons text[] NOT NULL DEFAULT '{}';

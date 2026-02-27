@@ -28,7 +28,6 @@ function validateReadingMaterial(
 ): { valid: boolean; reasons: string[] } {
   const reasons: string[] = [];
 
-  // Lists forbidden
   if (/<ul[\s>]/i.test(html) || /<ol[\s>]/i.test(html) || /<li[\s>]/i.test(html)) {
     reasons.push("Contiene listas HTML prohibidas");
   }
@@ -36,7 +35,6 @@ function validateReadingMaterial(
     reasons.push("Contiene listas numeradas en texto");
   }
 
-  // Math resolution forbidden
   if (/=\s*\d+/.test(stripHtml(html))) {
     reasons.push("Contiene resolución matemática");
   }
@@ -48,7 +46,6 @@ function validateReadingMaterial(
     }
   }
 
-  // Social sciences closure forbidden
   const subjectLower = subject.toLowerCase();
   if (
     subjectLower.includes("social") ||
@@ -68,13 +65,11 @@ function validateReadingMaterial(
     }
   }
 
-  // Word count 1000-1300
   const words = countWords(stripHtml(html));
   if (words < 1000 || words > 1300) {
     reasons.push(`Conteo de palabras fuera de rango: ${words} (debe ser 1000-1300)`);
   }
 
-  // data-ref tags
   for (const nodeId of bibliographyIds) {
     const regex = new RegExp(`data-ref=["']${nodeId}["']`, "i");
     if (!regex.test(html)) {
@@ -152,9 +147,11 @@ serve(async (req) => {
   const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
   let lessonId: string;
+  let regenerateOnly: "teaching" | "reading" | undefined;
   try {
     const body = await req.json();
     lessonId = body.lesson_id;
+    regenerateOnly = body.regenerate_only;
     if (!lessonId) throw new Error("lesson_id requerido");
   } catch {
     return new Response(JSON.stringify({ error: "Body inválido, se requiere lesson_id" }), {
@@ -166,7 +163,6 @@ serve(async (req) => {
   try {
     // ── 1. Validate preconditions ──
 
-    // Get lesson
     const { data: lesson, error: lessonErr } = await userClient
       .from("lessons")
       .select("*, course_id, plan_lesson_id, status, is_generating, lesson_number")
@@ -193,7 +189,6 @@ serve(async (req) => {
       });
     }
 
-    // Get course
     const { data: course } = await userClient
       .from("courses")
       .select("status, subject")
@@ -206,7 +201,6 @@ serve(async (req) => {
       });
     }
 
-    // Get plan
     const { data: plan } = await userClient
       .from("plans")
       .select("status")
@@ -219,7 +213,6 @@ serve(async (req) => {
       });
     }
 
-    // Get plan_lesson
     const { data: planLesson } = await userClient
       .from("plan_lessons")
       .select("theme, justification, learning_outcome")
@@ -238,15 +231,15 @@ serve(async (req) => {
       );
     }
 
-    // Get brief
+    // Get brief — accept READY_FOR_PRODUCTION or PRODUCED (for selective regeneration)
     const { data: brief } = await userClient
       .from("lesson_briefs")
       .select("*")
       .eq("lesson_id", lessonId)
       .single();
-    if (!brief || brief.status !== "READY_FOR_PRODUCTION") {
+    if (!brief || (brief.status !== "READY_FOR_PRODUCTION" && brief.status !== "PRODUCED")) {
       return new Response(
-        JSON.stringify({ error: "El relevamiento debe estar confirmado (READY_FOR_PRODUCTION)" }),
+        JSON.stringify({ error: "El relevamiento debe estar confirmado (READY_FOR_PRODUCTION o PRODUCED)" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -272,8 +265,11 @@ serve(async (req) => {
 
     const bibliographyIds = (nodes || []).map((n: any) => n.id);
 
-    // ── 4. Generate TeachingMaterial ──
-    const teachingSystemPrompt = `Sos un experto en diseño de secuencias didácticas para nivel secundario en Argentina.
+    // ── 4. Generate TeachingMaterial (skip if regenerate_only === "reading") ──
+    let teachingStatus = "GENERATED";
+
+    if (regenerateOnly !== "reading") {
+      const teachingSystemPrompt = `Sos un experto en diseño de secuencias didácticas para nivel secundario en Argentina.
 Generá un material didáctico completo para una clase.
 
 CONTEXTO:
@@ -298,95 +294,108 @@ CANON OBLIGATORIO - Debe incluir todas estas secciones:
 6. Diferenciación: al menos un apoyo y un desafío
 7. Cierre: reflexión o metacognición (en Sociales, NO usar "En conclusión", "Por lo tanto", "En definitiva")`;
 
-    const teachingTools = [
-      {
-        type: "function",
-        function: {
-          name: "create_teaching_material",
-          description: "Crear material didáctico estructurado",
-          parameters: {
-            type: "object",
-            properties: {
-              purpose: { type: "string", description: "Propósito de la clase" },
-              activities: {
-                type: "array",
-                items: {
-                  type: "object",
-                  properties: {
-                    title: { type: "string" },
-                    description: { type: "string" },
-                    duration_minutes: { type: "number" },
-                    type: { type: "string", enum: ["inicio", "desarrollo", "cierre"] },
+      const teachingTools = [
+        {
+          type: "function",
+          function: {
+            name: "create_teaching_material",
+            description: "Crear material didáctico estructurado",
+            parameters: {
+              type: "object",
+              properties: {
+                purpose: { type: "string", description: "Propósito de la clase" },
+                activities: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      title: { type: "string" },
+                      description: { type: "string" },
+                      duration_minutes: { type: "number" },
+                      type: { type: "string", enum: ["inicio", "desarrollo", "cierre"] },
+                    },
+                    required: ["title", "description", "duration_minutes", "type"],
                   },
-                  required: ["title", "description", "duration_minutes", "type"],
                 },
-              },
-              expected_product: { type: "string" },
-              achievement_criteria: {
-                type: "array",
-                items: { type: "string" },
-                minItems: 1,
-                maxItems: 3,
-              },
-              differentiation: {
-                type: "array",
-                items: {
-                  type: "object",
-                  properties: {
-                    type: { type: "string", enum: ["apoyo", "desafío"] },
-                    description: { type: "string" },
+                expected_product: { type: "string" },
+                achievement_criteria: {
+                  type: "array",
+                  items: { type: "string" },
+                  minItems: 1,
+                  maxItems: 3,
+                },
+                differentiation: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      type: { type: "string", enum: ["apoyo", "desafío"] },
+                      description: { type: "string" },
+                    },
+                    required: ["type", "description"],
                   },
-                  required: ["type", "description"],
                 },
+                closure: { type: "string" },
               },
-              closure: { type: "string" },
+              required: [
+                "purpose",
+                "activities",
+                "expected_product",
+                "achievement_criteria",
+                "differentiation",
+                "closure",
+              ],
+              additionalProperties: false,
             },
-            required: [
-              "purpose",
-              "activities",
-              "expected_product",
-              "achievement_criteria",
-              "differentiation",
-              "closure",
-            ],
-            additionalProperties: false,
           },
         },
-      },
-    ];
+      ];
 
-    const teachingResult = await callAI(
-      lovableApiKey,
-      "google/gemini-2.5-flash",
-      [
-        { role: "system", content: teachingSystemPrompt },
-        { role: "user", content: "Generá el material didáctico completo." },
-      ],
-      teachingTools,
-      { type: "function", function: { name: "create_teaching_material" } }
-    );
+      const teachingResult = await callAI(
+        lovableApiKey,
+        "google/gemini-2.5-flash",
+        [
+          { role: "system", content: teachingSystemPrompt },
+          { role: "user", content: "Generá el material didáctico completo." },
+        ],
+        teachingTools,
+        { type: "function", function: { name: "create_teaching_material" } }
+      );
 
-    const teachingArgs = JSON.parse(
-      teachingResult.choices[0].message.tool_calls[0].function.arguments
-    );
+      const teachingArgs = JSON.parse(
+        teachingResult.choices[0].message.tool_calls[0].function.arguments
+      );
 
-    // Upsert teaching material
-    await adminClient.from("teaching_materials").upsert(
-      {
-        lesson_id: lessonId,
-        purpose: teachingArgs.purpose,
-        activities: teachingArgs.activities,
-        expected_product: teachingArgs.expected_product,
-        achievement_criteria: teachingArgs.achievement_criteria,
-        differentiation: teachingArgs.differentiation,
-        closure: teachingArgs.closure,
-        status: "GENERATED",
-      },
-      { onConflict: "lesson_id" }
-    );
+      await adminClient.from("teaching_materials").upsert(
+        {
+          lesson_id: lessonId,
+          purpose: teachingArgs.purpose,
+          activities: teachingArgs.activities,
+          expected_product: teachingArgs.expected_product,
+          achievement_criteria: teachingArgs.achievement_criteria,
+          differentiation: teachingArgs.differentiation,
+          closure: teachingArgs.closure,
+          status: "GENERATED",
+        },
+        { onConflict: "lesson_id" }
+      );
 
-    // ── 5. Generate ReadingMaterial (with retries) ──
-    const readingSystemPrompt = `Sos un redactor académico experto para nivel secundario en Argentina.
+      // If regenerating teaching, invalidate existing reading (cascade)
+      if (regenerateOnly === "teaching") {
+        await adminClient
+          .from("reading_materials")
+          .update({ status: "INVALIDATED" })
+          .eq("lesson_id", lessonId);
+      }
+    }
+
+    // ── 5. Generate ReadingMaterial (skip if regenerate_only === "teaching") ──
+    let readingStatus = "GENERATED";
+    let wordCount = 0;
+    let lastReasons: string[] = [];
+
+    if (regenerateOnly !== "teaching") {
+      const readingSystemPrompt = `Sos un redactor académico experto para nivel secundario en Argentina.
 Escribí un texto de lectura para alumnos sobre el tema indicado.
 
 CONTEXTO:
@@ -408,73 +417,74 @@ REGLAS OBLIGATORIAS:
 8. Devolver el texto como HTML válido con tags <p> para cada párrafo.
 9. Los tags <span data-ref="..."></span> deben estar DENTRO de los párrafos, como elementos inline invisibles.`;
 
-    let readingHtml = "";
-    let readingValid = false;
-    let attempts = 0;
-    const maxAttempts = 3;
-    let lastReasons: string[] = [];
+      let readingHtml = "";
+      let readingValid = false;
+      let attempts = 0;
+      const maxAttempts = 3;
 
-    while (!readingValid && attempts < maxAttempts) {
-      attempts++;
-      const retryHint =
-        attempts > 1
-          ? `\n\nINTENTO ${attempts}: El texto anterior falló validación por: ${lastReasons.join(", ")}. Corregí esos problemas.`
-          : "";
+      while (!readingValid && attempts < maxAttempts) {
+        attempts++;
+        const retryHint =
+          attempts > 1
+            ? `\n\nINTENTO ${attempts}: El texto anterior falló validación por: ${lastReasons.join(", ")}. Corregí esos problemas.`
+            : "";
 
-      const readingResult = await callAI(
-        lovableApiKey,
-        "google/gemini-2.5-pro",
-        [
-          { role: "system", content: readingSystemPrompt },
-          {
-            role: "user",
-            content: `Escribí el texto de lectura sobre "${planLesson.theme}".${retryHint}`,
-          },
-        ]
+        const readingResult = await callAI(
+          lovableApiKey,
+          "google/gemini-2.5-pro",
+          [
+            { role: "system", content: readingSystemPrompt },
+            {
+              role: "user",
+              content: `Escribí el texto de lectura sobre "${planLesson.theme}".${retryHint}`,
+            },
+          ]
+        );
+
+        readingHtml = cleanMarkdownArtifacts(readingResult.choices[0].message.content || "");
+
+        const validation = validateReadingMaterial(readingHtml, bibliographyIds, course.subject);
+        readingValid = validation.valid;
+        lastReasons = validation.reasons;
+      }
+
+      wordCount = countWords(stripHtml(readingHtml));
+      readingStatus = readingValid ? "GENERATED" : "INVALIDATED";
+
+      await adminClient.from("reading_materials").upsert(
+        {
+          lesson_id: lessonId,
+          word_count: wordCount,
+          content_html: readingHtml,
+          status: readingStatus,
+          validation_reasons: readingValid ? [] : lastReasons,
+        },
+        { onConflict: "lesson_id" }
       );
-
-      readingHtml = cleanMarkdownArtifacts(readingResult.choices[0].message.content || "");
-
-      const validation = validateReadingMaterial(readingHtml, bibliographyIds, course.subject);
-      readingValid = validation.valid;
-      lastReasons = validation.reasons;
     }
 
-    const wordCount = countWords(stripHtml(readingHtml));
-    const readingStatus = readingValid ? "GENERATED" : "INVALIDATED";
-
-    await adminClient.from("reading_materials").upsert(
-      {
-        lesson_id: lessonId,
-        word_count: wordCount,
-        content_html: readingHtml,
-        status: readingStatus,
-      },
-      { onConflict: "lesson_id" }
-    );
-
-    // ── 6. PDF generation (store HTML, PDF can be generated client-side) ──
-    // For now we skip server-side PDF and store the HTML. PDF URL left null.
-
-    // ── 7. Finalize ──
+    // ── 6. Finalize ──
     await adminClient.from("lessons").update({ is_generating: false }).eq("id", lessonId);
-    await adminClient
-      .from("lesson_briefs")
-      .update({ status: "PRODUCED" })
-      .eq("lesson_id", lessonId);
+
+    // Only update brief to PRODUCED if not a selective reading-only regeneration
+    if (regenerateOnly !== "reading") {
+      await adminClient
+        .from("lesson_briefs")
+        .update({ status: "PRODUCED" })
+        .eq("lesson_id", lessonId);
+    }
 
     return new Response(
       JSON.stringify({
         success: true,
-        teaching_status: "GENERATED",
-        reading_status: readingStatus,
+        teaching_status: regenerateOnly === "reading" ? "skipped" : teachingStatus,
+        reading_status: regenerateOnly === "teaching" ? "skipped" : readingStatus,
         reading_word_count: wordCount,
-        reading_validation_issues: readingValid ? [] : lastReasons,
+        reading_validation_issues: lastReasons,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
-    // Always reset is_generating on error
     await adminClient.from("lessons").update({ is_generating: false }).eq("id", lessonId);
 
     console.error("generate-materials error:", error);
