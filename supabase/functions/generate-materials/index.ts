@@ -35,6 +35,10 @@ function validateReadingMaterial(
   if (/^\d+\./m.test(stripHtml(html))) {
     reasons.push("Contiene listas numeradas en texto");
   }
+  // M-2: Validate no subtitles
+  if (/<h[1-6]\b/i.test(html)) {
+    reasons.push("Contiene subtítulos HTML prohibidos");
+  }
 
   if (/=\s*\d+/.test(stripHtml(html))) {
     reasons.push("Contiene resolución matemática");
@@ -275,15 +279,30 @@ serve(async (req) => {
   // Admin client for updates
   const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
-  let lessonId: string;
+  // G-2: Support multi-lesson sessions
+  let lessonIds: string[];
   let regenerateOnly: "teaching" | "reading" | undefined;
+  let mode: "single" | "full_session" = "single";
   try {
     const body = await req.json();
-    lessonId = body.lesson_id;
+    if (body.lesson_ids && Array.isArray(body.lesson_ids)) {
+      lessonIds = body.lesson_ids;
+      mode = body.mode === "full_session" ? "full_session" : "single";
+    } else if (body.lesson_id) {
+      lessonIds = [body.lesson_id];
+    } else {
+      throw new Error("lesson_id o lesson_ids requerido");
+    }
     regenerateOnly = body.regenerate_only;
-    if (!lessonId) throw new Error("lesson_id requerido");
-  } catch {
-    return new Response(JSON.stringify({ error: "Body inválido, se requiere lesson_id" }), {
+    if (lessonIds.length === 0) throw new Error("Al menos un lesson_id requerido");
+    // G-1: max_classes_per_session limits lessons per invocation (1-3)
+    if (lessonIds.length > 3) {
+      return new Response(JSON.stringify({ error: "Máximo 3 lecciones por sesión" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+  } catch (e) {
+    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Body inválido" }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
@@ -323,138 +342,148 @@ serve(async (req) => {
           { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-    }
 
-    // ── 1. Validate preconditions ──
-
-    const { data: lesson, error: lessonErr } = await userClient
-      .from("lessons")
-      .select("*, course_id, plan_lesson_id, status, is_generating, lesson_number")
-      .eq("id", lessonId)
-      .single();
-    if (lessonErr || !lesson) {
-      return new Response(JSON.stringify({ error: "Lección no encontrada" }), {
-        status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    if (lesson.is_generating) {
-      return new Response(JSON.stringify({ error: "Ya se está generando material para esta lección" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    if (lesson.status === "LOCKED") {
-      return new Response(JSON.stringify({ error: "La lección está bloqueada" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const { data: course } = await userClient
-      .from("courses")
-      .select("status, subject")
-      .eq("id", lesson.course_id)
-      .single();
-    if (!course || course.status !== "ACTIVE") {
-      return new Response(JSON.stringify({ error: "El curso no está activo" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // Validate classes per session (count VALIDATED teaching_materials this week for this course)
-    if (entitlements) {
-      const currentMonday = getCurrentMonday();
-      const { count } = await adminClient
-        .from("teaching_materials")
-        .select("id", { count: "exact", head: true })
-        .eq("status", "VALIDATED")
-        .gte("created_at", `${currentMonday}T00:00:00Z`)
-        .in(
-          "lesson_id",
-          (await adminClient.from("lessons").select("id").eq("course_id", lesson.course_id)).data?.map((l: any) => l.id) || []
-        );
-
-      if ((count || 0) >= entitlements.max_classes_per_session) {
+      // G-1: Validate lessons count per invocation against max_classes_per_session
+      if (lessonIds.length > entitlements.max_classes_per_session) {
         return new Response(
-          JSON.stringify({ error: `Alcanzaste el límite de ${entitlements.max_classes_per_session} clases por sesión de tu plan` }),
+          JSON.stringify({ error: `Máximo ${entitlements.max_classes_per_session} clases por sesión en tu plan` }),
           { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
     }
 
-    const { data: plan } = await userClient
-      .from("plans")
-      .select("status")
-      .eq("course_id", lesson.course_id)
-      .single();
-    if (!plan || plan.status !== "VALIDATED") {
-      return new Response(JSON.stringify({ error: "El plan no está validado" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    // G-2: Validate all lessons belong to the same course and same user
+    const allResults: any[] = [];
+    let sharedCourseId: string | null = null;
 
-    const { data: planLesson } = await userClient
-      .from("plan_lessons")
-      .select("theme, justification, learning_outcome")
-      .eq("id", lesson.plan_lesson_id)
-      .single();
-    if (!planLesson) {
-      return new Response(JSON.stringify({ error: "Plan lesson no encontrado" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    if (!planLesson.theme || !planLesson.justification || !planLesson.learning_outcome) {
-      return new Response(
-        JSON.stringify({ error: "El plan lesson debe tener tema, justificación y resultado de aprendizaje" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    for (const lessonId of lessonIds) {
+      // ── 1. Validate preconditions per lesson ──
+      const { data: lesson, error: lessonErr } = await userClient
+        .from("lessons")
+        .select("*, course_id, plan_lesson_id, status, is_generating, lesson_number")
+        .eq("id", lessonId)
+        .single();
+      if (lessonErr || !lesson) {
+        return new Response(JSON.stringify({ error: `Lección ${lessonId} no encontrada` }), {
+          status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
 
-    // Get brief
-    const { data: brief } = await userClient
-      .from("lesson_briefs")
-      .select("*")
-      .eq("lesson_id", lessonId)
-      .single();
-    if (!brief || (brief.status !== "READY_FOR_PRODUCTION" && brief.status !== "PRODUCED")) {
-      return new Response(
-        JSON.stringify({ error: "El relevamiento debe estar confirmado (READY_FOR_PRODUCTION o PRODUCED)" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-    if (!brief.bibliografia_confirmada || brief.bibliografia_confirmada.length === 0) {
-      return new Response(JSON.stringify({ error: "Debe confirmar al menos una fuente bibliográfica" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+      // Validate same course for multi-lesson
+      if (sharedCourseId === null) {
+        sharedCourseId = lesson.course_id;
+      } else if (lesson.course_id !== sharedCourseId) {
+        return new Response(JSON.stringify({ error: "Todas las lecciones deben pertenecer al mismo curso" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
 
-    // ── 2. Set concurrency lock ──
-    await adminClient.from("lessons").update({ is_generating: true }).eq("id", lessonId);
+      if (lesson.is_generating) {
+        return new Response(JSON.stringify({ error: `Lección ${lessonId} ya se está generando` }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
 
-    // ── 3. Get curriculum context ──
-    const { data: nodes } = await adminClient
-      .from("curriculum_nodes")
-      .select("id, name, node_type")
-      .in("id", brief.bibliografia_confirmada);
+      // M-3: Atomic lock
+      const { data: lockResult } = await adminClient
+        .from("lessons")
+        .update({ is_generating: true })
+        .eq("id", lessonId)
+        .eq("is_generating", false)
+        .select("id");
 
-    const curriculumContext = (nodes || [])
-      .map((n: any) => `[${n.node_type}] ${n.name}`)
-      .join("\n");
+      if (!lockResult || lockResult.length === 0) {
+        return new Response(JSON.stringify({ error: `Lección ${lessonId} ya se está generando` }), {
+          status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
 
-    const bibliographyIds = (nodes || []).map((n: any) => n.id);
+      if (lesson.status === "LOCKED") {
+        await adminClient.from("lessons").update({ is_generating: false }).eq("id", lessonId);
+        return new Response(JSON.stringify({ error: `Lección ${lessonId} está bloqueada` }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
 
-    // ── 4. Generate TeachingMaterial (skip if regenerate_only === "reading") ──
-    let teachingStatus = "VALIDATED";
+      const { data: course } = await userClient
+        .from("courses")
+        .select("status, subject")
+        .eq("id", lesson.course_id)
+        .single();
+      if (!course || course.status !== "ACTIVE") {
+        await adminClient.from("lessons").update({ is_generating: false }).eq("id", lessonId);
+        return new Response(JSON.stringify({ error: "El curso no está activo" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
 
-    if (regenerateOnly !== "reading") {
-      const teachingSystemPrompt = `Sos un experto en diseño de secuencias didácticas para nivel secundario en Argentina.
+      const { data: plan } = await userClient
+        .from("plans")
+        .select("status")
+        .eq("course_id", lesson.course_id)
+        .single();
+      if (!plan || plan.status !== "VALIDATED") {
+        await adminClient.from("lessons").update({ is_generating: false }).eq("id", lessonId);
+        return new Response(JSON.stringify({ error: "El plan no está validado" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { data: planLesson } = await userClient
+        .from("plan_lessons")
+        .select("theme, justification, learning_outcome")
+        .eq("id", lesson.plan_lesson_id)
+        .single();
+      if (!planLesson) {
+        await adminClient.from("lessons").update({ is_generating: false }).eq("id", lessonId);
+        return new Response(JSON.stringify({ error: "Plan lesson no encontrado" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (!planLesson.theme || !planLesson.justification || !planLesson.learning_outcome) {
+        await adminClient.from("lessons").update({ is_generating: false }).eq("id", lessonId);
+        return new Response(
+          JSON.stringify({ error: "El plan lesson debe tener tema, justificación y resultado de aprendizaje" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { data: brief } = await userClient
+        .from("lesson_briefs")
+        .select("*")
+        .eq("lesson_id", lessonId)
+        .single();
+      if (!brief || (brief.status !== "READY_FOR_PRODUCTION" && brief.status !== "PRODUCED")) {
+        await adminClient.from("lessons").update({ is_generating: false }).eq("id", lessonId);
+        return new Response(
+          JSON.stringify({ error: "El relevamiento debe estar confirmado (READY_FOR_PRODUCTION o PRODUCED)" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      if (!brief.bibliografia_confirmada || brief.bibliografia_confirmada.length === 0) {
+        await adminClient.from("lessons").update({ is_generating: false }).eq("id", lessonId);
+        return new Response(JSON.stringify({ error: "Debe confirmar al menos una fuente bibliográfica" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // ── 3. Get curriculum context ──
+      const { data: nodes } = await adminClient
+        .from("curriculum_nodes")
+        .select("id, name, node_type")
+        .in("id", brief.bibliografia_confirmada);
+
+      const curriculumContext = (nodes || [])
+        .map((n: any) => `[${n.node_type}] ${n.name}`)
+        .join("\n");
+
+      const bibliographyIds = (nodes || []).map((n: any) => n.id);
+
+      // ── 4. Generate TeachingMaterial ──
+      let teachingStatus = "VALIDATED";
+
+      if (regenerateOnly !== "reading") {
+        const teachingSystemPrompt = `Sos un experto en diseño de secuencias didácticas para nivel secundario en Argentina.
 Generá un material didáctico completo para una clase.
 
 CONTEXTO:
@@ -479,111 +508,137 @@ CANON OBLIGATORIO - Debe incluir todas estas secciones:
 6. Diferenciación: al menos un apoyo y un desafío
 7. Cierre: reflexión o metacognición (en Sociales, NO usar "En conclusión", "Por lo tanto", "En definitiva")`;
 
-      const teachingTools = [
-        {
-          type: "function",
-          function: {
-            name: "create_teaching_material",
-            description: "Crear material didáctico estructurado",
-            parameters: {
-              type: "object",
-              properties: {
-                purpose: { type: "string", description: "Propósito de la clase" },
-                activities: {
-                  type: "array",
-                  items: {
-                    type: "object",
-                    properties: {
-                      title: { type: "string" },
-                      description: { type: "string" },
-                      duration_minutes: { type: "number" },
-                      type: { type: "string", enum: ["inicio", "desarrollo", "cierre"] },
+        const teachingTools = [
+          {
+            type: "function",
+            function: {
+              name: "create_teaching_material",
+              description: "Crear material didáctico estructurado",
+              parameters: {
+                type: "object",
+                properties: {
+                  purpose: { type: "string", description: "Propósito de la clase" },
+                  activities: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        title: { type: "string" },
+                        description: { type: "string" },
+                        duration_minutes: { type: "number" },
+                        type: { type: "string", enum: ["inicio", "desarrollo", "cierre"] },
+                      },
+                      required: ["title", "description", "duration_minutes", "type"],
                     },
-                    required: ["title", "description", "duration_minutes", "type"],
                   },
-                },
-                expected_product: { type: "string" },
-                achievement_criteria: {
-                  type: "array",
-                  items: { type: "string" },
-                  minItems: 1,
-                  maxItems: 3,
-                },
-                differentiation: {
-                  type: "array",
-                  items: {
-                    type: "object",
-                    properties: {
-                      type: { type: "string", enum: ["apoyo", "desafío"] },
-                      description: { type: "string" },
+                  expected_product: { type: "string" },
+                  achievement_criteria: {
+                    type: "array",
+                    items: { type: "string" },
+                    minItems: 1,
+                    maxItems: 3,
+                  },
+                  differentiation: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        type: { type: "string", enum: ["apoyo", "desafío"] },
+                        description: { type: "string" },
+                      },
+                      required: ["type", "description"],
                     },
-                    required: ["type", "description"],
                   },
+                  closure: { type: "string" },
                 },
-                closure: { type: "string" },
+                required: [
+                  "purpose",
+                  "activities",
+                  "expected_product",
+                  "achievement_criteria",
+                  "differentiation",
+                  "closure",
+                ],
+                additionalProperties: false,
               },
-              required: [
-                "purpose",
-                "activities",
-                "expected_product",
-                "achievement_criteria",
-                "differentiation",
-                "closure",
-              ],
-              additionalProperties: false,
             },
           },
-        },
-      ];
+        ];
 
-      const teachingResult = await callAI(
-        lovableApiKey,
-        "google/gemini-2.5-flash",
-        [
-          { role: "system", content: teachingSystemPrompt },
-          { role: "user", content: "Generá el material didáctico completo." },
-        ],
-        teachingTools,
-        { type: "function", function: { name: "create_teaching_material" } }
-      );
+        const teachingResult = await callAI(
+          lovableApiKey,
+          "google/gemini-2.5-flash",
+          [
+            { role: "system", content: teachingSystemPrompt },
+            { role: "user", content: "Generá el material didáctico completo." },
+          ],
+          teachingTools,
+          { type: "function", function: { name: "create_teaching_material" } }
+        );
 
-      const teachingArgs = JSON.parse(
-        teachingResult.choices[0].message.tool_calls[0].function.arguments
-      );
+        const teachingArgs = JSON.parse(
+          teachingResult.choices[0].message.tool_calls[0].function.arguments
+        );
 
-      await adminClient.from("teaching_materials").upsert(
-        {
-          lesson_id: lessonId,
-          purpose: teachingArgs.purpose,
-          activities: teachingArgs.activities,
-          expected_product: teachingArgs.expected_product,
-          achievement_criteria: teachingArgs.achievement_criteria,
-          differentiation: teachingArgs.differentiation,
-          closure: teachingArgs.closure,
-          status: "VALIDATED",
-        },
-        { onConflict: "lesson_id" }
-      );
+        // M-1: Post-AI structural validation
+        const teachingValidationErrors: string[] = [];
+        if (!teachingArgs.purpose || teachingArgs.purpose.trim().length === 0) {
+          teachingValidationErrors.push("purpose vacío");
+        }
+        if (!Array.isArray(teachingArgs.activities) || teachingArgs.activities.length === 0) {
+          teachingValidationErrors.push("activities vacío");
+        }
+        if (!teachingArgs.expected_product || teachingArgs.expected_product.trim().length === 0) {
+          teachingValidationErrors.push("expected_product vacío");
+        }
+        if (!Array.isArray(teachingArgs.achievement_criteria) || teachingArgs.achievement_criteria.length === 0) {
+          teachingValidationErrors.push("achievement_criteria vacío");
+        }
+        if (!teachingArgs.closure || teachingArgs.closure.trim().length === 0) {
+          teachingValidationErrors.push("closure vacío");
+        }
+        if (!Array.isArray(teachingArgs.differentiation) || teachingArgs.differentiation.length === 0) {
+          teachingValidationErrors.push("differentiation vacío");
+        }
 
-      if (regenerateOnly === "teaching") {
-        await adminClient
-          .from("reading_materials")
-          .update({ status: "INVALIDATED" })
-          .eq("lesson_id", lessonId);
+        if (teachingValidationErrors.length > 0) {
+          teachingStatus = "INVALIDATED";
+          console.error("TeachingMaterial validation failed:", teachingValidationErrors);
+        }
+
+        await adminClient.from("teaching_materials").upsert(
+          {
+            lesson_id: lessonId,
+            purpose: teachingArgs.purpose,
+            activities: teachingArgs.activities,
+            expected_product: teachingArgs.expected_product,
+            achievement_criteria: teachingArgs.achievement_criteria,
+            differentiation: teachingArgs.differentiation,
+            closure: teachingArgs.closure,
+            status: teachingStatus,
+          },
+          { onConflict: "lesson_id" }
+        );
+
+        if (regenerateOnly === "teaching") {
+          await adminClient
+            .from("reading_materials")
+            .update({ status: "INVALIDATED" })
+            .eq("lesson_id", lessonId);
+        }
       }
-    }
 
-    // ── 5. Generate ReadingMaterial (skip if regenerate_only === "teaching") ──
-    let readingStatus = "VALIDATED";
-    let wordCount = 0;
-    let lastReasons: string[] = [];
-    let pdfPageCount = 0;
-    let pdfUrl: string | null = null;
-    let pdfBase64: string | null = null;
-    let watermarkApplied = false;
+      // ── 5. Generate ReadingMaterial ──
+      let readingStatus = "VALIDATED";
+      let wordCount = 0;
+      let lastReasons: string[] = [];
+      let pdfPageCount = 0;
+      let pdfUrl: string | null = null;
+      let pdfBase64: string | null = null;
+      let watermarkApplied = false;
 
-    if (regenerateOnly !== "teaching") {
-      const readingSystemPrompt = `Sos un redactor académico experto para nivel secundario en Argentina.
+      if (regenerateOnly !== "teaching") {
+        const readingSystemPrompt = `Sos un redactor académico experto para nivel secundario en Argentina.
 Escribí un texto de lectura para alumnos sobre el tema indicado.
 
 CONTEXTO:
@@ -605,128 +660,115 @@ REGLAS OBLIGATORIAS:
 8. Devolver el texto como HTML válido con tags <p> para cada párrafo.
 9. Los tags <span data-ref="..."></span> deben estar DENTRO de los párrafos, como elementos inline invisibles.`;
 
-      let readingHtml = "";
-      let readingValid = false;
-      let attempts = 0;
-      const maxAttempts = 3;
+        let readingHtml = "";
+        let readingValid = false;
+        let attempts = 0;
+        const maxAttempts = 3;
 
-      while (!readingValid && attempts < maxAttempts) {
-        attempts++;
-        const retryHint =
-          attempts > 1
-            ? `\n\nINTENTO ${attempts}: El texto anterior falló validación por: ${lastReasons.join(", ")}. Corregí esos problemas.`
-            : "";
+        while (!readingValid && attempts < maxAttempts) {
+          attempts++;
+          const retryHint =
+            attempts > 1
+              ? `\n\nINTENTO ${attempts}: El texto anterior falló validación por: ${lastReasons.join(", ")}. Corregí esos problemas.`
+              : "";
 
-        const readingResult = await callAI(
-          lovableApiKey,
-          "google/gemini-2.5-pro",
-          [
-            { role: "system", content: readingSystemPrompt },
-            {
-              role: "user",
-              content: `Escribí el texto de lectura sobre "${planLesson.theme}".${retryHint}`,
-            },
-          ]
-        );
+          const readingResult = await callAI(
+            lovableApiKey,
+            "google/gemini-2.5-pro",
+            [
+              { role: "system", content: readingSystemPrompt },
+              {
+                role: "user",
+                content: `Escribí el texto de lectura sobre "${planLesson.theme}".${retryHint}`,
+              },
+            ]
+          );
 
-        readingHtml = cleanMarkdownArtifacts(readingResult.choices[0].message.content || "");
+          readingHtml = cleanMarkdownArtifacts(readingResult.choices[0].message.content || "");
 
-        const validation = validateReadingMaterial(readingHtml, bibliographyIds, course.subject);
-        
-        if (!validation.valid) {
-          lastReasons = validation.reasons;
-          readingValid = false;
-          continue;
-        }
-
-        try {
-          const { pdfBytes, pageCount } = await generatePdfFromHtml(readingHtml);
-          pdfPageCount = pageCount;
-
-          if (pageCount < 2 || pageCount > 4) {
-            lastReasons = [`Conteo de páginas fuera de rango: ${pageCount} (debe ser 2-4)`];
+          const validation = validateReadingMaterial(readingHtml, bibliographyIds, course.subject);
+          
+          if (!validation.valid) {
+            lastReasons = validation.reasons;
             readingValid = false;
             continue;
           }
 
-          // Apply watermark if needed
-          let finalPdfBytes = pdfBytes;
-          if (entitlements?.watermark_enabled) {
-            const pdfDocForWatermark = await PDFDocument.load(pdfBytes);
-            await applyWatermark(pdfDocForWatermark);
-            finalPdfBytes = new Uint8Array(await pdfDocForWatermark.save());
-            watermarkApplied = true;
+          try {
+            const { pdfBytes, pageCount } = await generatePdfFromHtml(readingHtml);
+            pdfPageCount = pageCount;
+
+            if (pageCount < 2 || pageCount > 4) {
+              lastReasons = [`Conteo de páginas fuera de rango: ${pageCount} (debe ser 2-4)`];
+              readingValid = false;
+              continue;
+            }
+
+            let finalPdfBytes = pdfBytes;
+            if (entitlements?.watermark_enabled) {
+              const pdfDocForWatermark = await PDFDocument.load(pdfBytes);
+              await applyWatermark(pdfDocForWatermark);
+              finalPdfBytes = new Uint8Array(await pdfDocForWatermark.save());
+              watermarkApplied = true;
+            }
+
+            if (entitlements?.persistent_storage_enabled === false) {
+              const base64Str = btoa(String.fromCharCode(...finalPdfBytes));
+              pdfBase64 = base64Str;
+              pdfUrl = null;
+            } else {
+              const storagePath = `${lessonId}/reading-material.pdf`;
+              await adminClient.storage
+                .from("reading-materials-pdf")
+                .upload(storagePath, finalPdfBytes, {
+                  contentType: "application/pdf",
+                  upsert: true,
+                });
+
+              const { data: publicUrlData } = adminClient.storage
+                .from("reading-materials-pdf")
+                .getPublicUrl(storagePath);
+
+              pdfUrl = publicUrlData.publicUrl;
+            }
+
+            lastReasons = [];
+            readingValid = true;
+          } catch (pdfErr) {
+            lastReasons = [`Error generando PDF: ${pdfErr instanceof Error ? pdfErr.message : "desconocido"}`];
+            readingValid = false;
+            continue;
           }
-
-          // Conditional persistence
-          if (entitlements?.persistent_storage_enabled === false) {
-            // FREE: return base64, don't upload
-            const base64Str = btoa(String.fromCharCode(...finalPdfBytes));
-            pdfBase64 = base64Str;
-            pdfUrl = null;
-          } else {
-            // BASICO/PREMIUM: upload to storage
-            const storagePath = `${lessonId}/reading-material.pdf`;
-            await adminClient.storage
-              .from("reading-materials-pdf")
-              .upload(storagePath, finalPdfBytes, {
-                contentType: "application/pdf",
-                upsert: true,
-              });
-
-            const { data: publicUrlData } = adminClient.storage
-              .from("reading-materials-pdf")
-              .getPublicUrl(storagePath);
-
-            pdfUrl = publicUrlData.publicUrl;
-          }
-
-          lastReasons = [];
-          readingValid = true;
-        } catch (pdfErr) {
-          lastReasons = [`Error generando PDF: ${pdfErr instanceof Error ? pdfErr.message : "desconocido"}`];
-          readingValid = false;
-          continue;
         }
+
+        wordCount = countWords(stripHtml(readingHtml));
+        readingStatus = readingValid ? "VALIDATED" : "INVALIDATED";
+
+        await adminClient.from("reading_materials").upsert(
+          {
+            lesson_id: lessonId,
+            word_count: wordCount,
+            content_html: readingHtml,
+            status: readingStatus,
+            validation_reasons: readingValid ? [] : lastReasons,
+            pdf_url: pdfUrl,
+          },
+          { onConflict: "lesson_id" }
+        );
       }
 
-      wordCount = countWords(stripHtml(readingHtml));
-      readingStatus = readingValid ? "VALIDATED" : "INVALIDATED";
+      // ── 6. Finalize this lesson ──
+      await adminClient.from("lessons").update({ is_generating: false }).eq("id", lessonId);
 
-      await adminClient.from("reading_materials").upsert(
-        {
-          lesson_id: lessonId,
-          word_count: wordCount,
-          content_html: readingHtml,
-          status: readingStatus,
-          validation_reasons: readingValid ? [] : lastReasons,
-          pdf_url: pdfUrl,
-        },
-        { onConflict: "lesson_id" }
-      );
-    }
+      if (regenerateOnly !== "reading") {
+        await adminClient
+          .from("lesson_briefs")
+          .update({ status: "PRODUCED" })
+          .eq("lesson_id", lessonId);
+      }
 
-    // ── 6. Finalize ──
-    await adminClient.from("lessons").update({ is_generating: false }).eq("id", lessonId);
-
-    if (regenerateOnly !== "reading") {
-      await adminClient
-        .from("lesson_briefs")
-        .update({ status: "PRODUCED" })
-        .eq("lesson_id", lessonId);
-    }
-
-    // Increment usage counter only on successful VALIDATED generation
-    if (entitlements && readingStatus === "VALIDATED" && regenerateOnly !== "teaching") {
-      await adminClient
-        .from("usage_counters")
-        .update({ sessions_used_this_week: (usageCounter?.sessions_used_this_week || 0) + 1 })
-        .eq("user_id", userId);
-    }
-
-    return new Response(
-      JSON.stringify({
-        success: true,
+      allResults.push({
+        lesson_id: lessonId,
         teaching_status: regenerateOnly === "reading" ? "skipped" : teachingStatus,
         reading_status: regenerateOnly === "teaching" ? "skipped" : readingStatus,
         reading_word_count: wordCount,
@@ -735,11 +777,37 @@ REGLAS OBLIGATORIAS:
         reading_pdf_base64: pdfBase64,
         reading_validation_issues: lastReasons,
         watermark_applied: watermarkApplied,
-      }),
+      });
+    } // end for loop
+
+    // G-3: Increment usage counter only ONCE per session (not per lesson)
+    const anyValidated = allResults.some(
+      (r) => r.reading_status === "VALIDATED" && regenerateOnly !== "teaching"
+    );
+    if (entitlements && usageCounter && anyValidated) {
+      await adminClient
+        .from("usage_counters")
+        .update({ sessions_used_this_week: (usageCounter.sessions_used_this_week || 0) + 1 })
+        .eq("user_id", userId);
+    }
+
+    // Return results — backward compatible for single lesson
+    if (allResults.length === 1) {
+      return new Response(
+        JSON.stringify({ success: true, ...allResults[0] }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    return new Response(
+      JSON.stringify({ success: true, mode, results: allResults }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
-    await adminClient.from("lessons").update({ is_generating: false }).eq("id", lessonId);
+    // Release locks for all lessons on error
+    for (const lid of lessonIds) {
+      await adminClient.from("lessons").update({ is_generating: false }).eq("id", lid);
+    }
 
     console.error("generate-materials error:", error);
     return new Response(
