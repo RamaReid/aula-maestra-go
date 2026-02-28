@@ -23,14 +23,15 @@ interface Props {
   courseId: string;
   planStatus: string;
   onValidated: () => void;
+  courseArchived?: boolean;
 }
 
-export default function PlanEditor({ planId, courseId, planStatus, onValidated }: Props) {
+export default function PlanEditor({ planId, courseId, planStatus, onValidated, courseArchived }: Props) {
   const [plan, setPlan] = useState<PlanData | null>(null);
   const [loading, setLoading] = useState(true);
   const [validating, setValidating] = useState(false);
   const [newStrategy, setNewStrategy] = useState("");
-  const readOnly = planStatus === "VALIDATED";
+  const readOnly = planStatus === "VALIDATED" || !!courseArchived;
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -79,59 +80,15 @@ export default function PlanEditor({ planId, courseId, planStatus, onValidated }
 
   const handleValidate = async () => {
     if (!plan) return;
-    const errors: string[] = [];
-
-    if (plan.fundamentacion.length < 100) errors.push("Fundamentación debe tener al menos 100 caracteres.");
-    if (!plan.estrategias_marco.trim()) errors.push("Estrategias marco es obligatorio.");
-    if (!plan.evaluacion_marco.trim()) errors.push("Evaluación marco es obligatorio.");
-    if (plan.estrategias_practicas.length < 1) errors.push("Se requiere al menos 1 estrategia práctica.");
-
-    // Check objectives count
-    const { count } = await supabase
-      .from("plan_objectives")
-      .select("id", { count: "exact", head: true })
-      .eq("plan_id", planId);
-    if (!count || count < 4 || count > 8) errors.push("Se requieren entre 4 y 8 propósitos.");
-
-    // Check plan_lessons exist
-    const { count: plCount } = await supabase
-      .from("plan_lessons")
-      .select("id", { count: "exact", head: true })
-      .eq("plan_id", planId);
-    if (!plCount || plCount < 28) errors.push("Deben existir 28 lecciones planificadas.");
-
-    if (errors.length > 0) {
-      toast({ title: "Validación fallida", description: errors.join(" "), variant: "destructive" });
-      return;
-    }
-
     setValidating(true);
     try {
-      // Update plan status
-      const { error: updateError } = await supabase
-        .from("plans")
-        .update({ status: "VALIDATED" })
-        .eq("id", planId);
-      if (updateError) throw updateError;
-
-      // Fetch plan_lessons to create real lessons
-      const { data: planLessons } = await supabase
-        .from("plan_lessons")
-        .select("id, lesson_number")
-        .eq("plan_id", planId)
-        .order("lesson_number");
-
-      if (planLessons && planLessons.length > 0) {
-        const lessonsToInsert = planLessons.map((pl) => ({
-          course_id: courseId,
-          plan_lesson_id: pl.id,
-          lesson_number: pl.lesson_number,
-          status: "PLANNED" as const,
-        }));
-        const { error: insertError } = await supabase.from("lessons").insert(lessonsToInsert);
-        if (insertError) throw insertError;
+      const { data, error } = await supabase.rpc("validate_plan", { p_plan_id: planId });
+      if (error) throw error;
+      const result = data as unknown as { success: boolean; errors: string[] };
+      if (!result.success) {
+        toast({ title: "Validación fallida", description: result.errors.join(". "), variant: "destructive" });
+        return;
       }
-
       toast({ title: "Plan validado", description: "Se crearon las lecciones del curso." });
       onValidated();
     } catch (err: any) {
@@ -237,7 +194,7 @@ export default function PlanEditor({ planId, courseId, planStatus, onValidated }
           </TabsContent>
         </Tabs>
 
-        {!readOnly && (
+        {!readOnly && !courseArchived && (
           <Button onClick={handleValidate} disabled={validating} className="w-full mt-4">
             <ShieldCheck className="h-4 w-4 mr-2" />
             {validating ? "Validando..." : "Validar Plan"}
