@@ -1,36 +1,80 @@
 
-# PRD-V1 — INFORME DE VERIFICACION INTEGRAL DEL SOD
 
-## Estado General: APROBADO CON OBSERVACIONES — 14 grietas detectadas, 10 remediadas
+# Plan: UI de Edicion y Validacion de Plan (F-5 a F-7)
+
+## Resumen
+
+Agregar al Course page una seccion de Plan editable (antes de las lecciones) con tabs para fundamentacion, estrategias, evaluacion, y propositos. Incluir boton "Validar Plan" que valide reglas y cambie status a VALIDATED, creando las 28 Lessons reales.
 
 ---
 
-## Grietas Remediadas
+## Componentes a crear
 
-| ID | Fix | Descripcion |
-|----|-----|-------------|
-| M-2 | ✅ | Validación de subtítulos HTML `<h1>`-`<h6>` agregada al pipeline ReadingMaterial |
-| M-3 | ✅ | Lock atómico: `UPDATE lessons SET is_generating=true WHERE id=X AND is_generating=false` con verificación de affected rows |
-| M-1 | ✅ | Validación post-AI para TeachingMaterial: purpose, activities, expected_product, achievement_criteria, closure, differentiation no vacíos |
-| G-1 | ✅ | `max_classes_per_session` ahora limita lessons por invocación, no acumulado semanal |
-| G-2 | ✅ | Endpoint acepta `{ lesson_ids: [...], mode: "full_session" }` con backward compatibility para `lesson_id` |
-| G-3 | ✅ | `sessions_used_this_week` se incrementa solo 1 vez por invocación (sesión), no por lesson |
+### 1. `src/components/plan/PlanEditor.tsx`
 
-## Grietas Pendientes (Foundation — requiere PRD 1.2 Completion)
+Componente principal que recibe `planId`, `courseId`, `planStatus`. Usa Tabs con 4 secciones:
 
-| ID | Modulo | Descripcion |
-|----|--------|-------------|
-| F-1 a F-8 | Foundation | No hay Wizard, no hay edición/validación de Plan, no hay Agenda |
-| F-9 | Foundation | No hay gestión de ARCHIVED en UI |
+- **Fundamentacion**: Textarea para `fundamentacion` (minimo 100 caracteres para validar)
+- **Estrategias**: Textarea para `estrategias_marco` + lista editable para `estrategias_practicas[]` (agregar/eliminar items)
+- **Evaluacion**: Textarea para `evaluacion_marco`
+- **Propositos**: Lista editable de `plan_objectives` (4-8 requeridos). Cada uno con input de texto + boton eliminar. Boton "Agregar proposito" (max 8).
 
-## Grietas Menores Pendientes
+Cada seccion guarda automaticamente al perder foco (debounced auto-save via UPDATE a `plans` o INSERT/UPDATE/DELETE a `plan_objectives`).
 
-| ID | Modulo | Descripcion |
-|----|--------|-------------|
-| S-1 | Seguridad | config.toml sin verify_jwt explícito (funciona con signing keys) |
-| C-1 | Consistencia | Default GENERATED nunca usado (vestigio) |
-| C-2 | Consistencia | Posible VALIDATED sin pdf_url en edge case extremo |
+Si `planStatus === "VALIDATED"`, todo es read-only.
 
-## Próximo Sprint
+### 2. `src/components/plan/PlanObjectivesEditor.tsx`
 
-PRD 1.2 Completion: Wizard de curso, edición/validación de Plan, Agenda.
+Sub-componente para la lista de propositos:
+- Fetch `plan_objectives` por `plan_id`, ordenados por `order_index`
+- Input por cada objetivo con boton X para eliminar
+- Boton "+ Agregar proposito" (deshabilitado si ya hay 8)
+- Indicador visual "4-8 propositos requeridos" con conteo actual
+
+### 3. Boton "Validar Plan"
+
+Dentro de PlanEditor, un boton prominente que:
+
+**Validaciones client-side antes de enviar:**
+1. `fundamentacion.length >= 100` (texto minimo significativo)
+2. `estrategias_marco` no vacio
+3. `evaluacion_marco` no vacio
+4. `estrategias_practicas.length >= 1`
+5. `plan_objectives` count entre 4 y 8
+6. Las 28 `plan_lessons` deben existir (ya creadas por el Wizard — por ahora se verifica que existan)
+
+**Al validar:**
+1. UPDATE `plans` SET `status = 'VALIDATED'`
+2. Para cada una de las 28 `plan_lessons`, INSERT en `lessons` con `course_id`, `plan_lesson_id`, `lesson_number`, `status = 'PLANNED'`
+3. Toast de exito
+4. Refrescar estado — el editor pasa a read-only
+
+---
+
+## Modificaciones a archivos existentes
+
+### `src/pages/Course.tsx`
+
+- Fetch el `plan` asociado al curso (query `plans` WHERE `course_id = courseId`)
+- Renderizar `<PlanEditor>` ANTES de la seccion de lecciones
+- Mostrar Badge con status del plan (INCOMPLETE / VALIDATED)
+- Si plan es VALIDATED, mostrar las lecciones. Si no, mostrar mensaje "Valida el plan para habilitar las lecciones"
+
+---
+
+## Detalles tecnicos
+
+- No se necesitan migraciones SQL (las tablas y RLS ya existen)
+- Se usa el Supabase client directamente para CRUD
+- Auto-save con `onBlur` + debounce de 500ms en textareas
+- Para `estrategias_practicas` (array de text): UI de chips/tags con input para agregar + X para eliminar
+- Al crear lessons en la validacion, se usa un INSERT batch de las 28 rows
+
+## Archivos
+
+| Archivo | Accion |
+|---------|--------|
+| `src/components/plan/PlanEditor.tsx` | Crear |
+| `src/components/plan/PlanObjectivesEditor.tsx` | Crear |
+| `src/pages/Course.tsx` | Modificar — agregar fetch de plan + renderizar PlanEditor |
+
