@@ -1,138 +1,229 @@
 
 
-# PRD 3 — Planes, Entitlements y Gating
+# PRD-V1 — INFORME DE VERIFICACION INTEGRAL DEL SOD
 
-Implementacion completa en 5 fases. No se modifican tablas de PRD 1.2 ni logica de validacion/PDF de PRD 2.3.
-
----
-
-## Fase 1: Migracion SQL
-
-Una sola migracion que crea:
-
-**Enums:**
-- `plan_type` (FREE, BASICO, PREMIUM)
-- `subscription_status` (ACTIVE, CANCELED, EXPIRED)
-- `copiloto_mode` (none, limited, full)
-
-**Tablas:**
-- `subscriptions` (id, user_id UNIQUE, plan_type default FREE, status default ACTIVE, start_date, end_date nullable, created_at, updated_at)
-- `user_entitlements` (id, user_id UNIQUE, max_courses, max_students_per_course, max_weekly_sessions, max_classes_per_session, watermark_enabled, history_enabled, copiloto_mode, auto_complete_forms_enabled, persistent_storage_enabled, created_at, updated_at)
-- `usage_counters` (id, user_id UNIQUE, week_start_date, sessions_used_this_week, created_at, updated_at)
-
-**RLS:** Cada tabla con SELECT solo para owner (user_id = auth.uid()). Sin INSERT/UPDATE/DELETE desde cliente.
-
-**Funciones:**
-- `recalculate_entitlements(p_user_id uuid, p_plan plan_type)` — hardcodea valores segun plan
-- `reset_weekly_counters()` — resetea counters cuyo week_start_date sea anterior al lunes actual
-
-**Triggers:**
-- Modificar `handle_new_user()` para insertar subscription FREE + entitlements FREE + usage_counter
-- `on_subscription_plan_change` AFTER UPDATE en subscriptions: si plan_type cambio, llama recalculate_entitlements
-- `updated_at` triggers en las 3 tablas nuevas
-
-**Funcion admin:**
-- `upgrade_user_plan(p_user_id uuid, p_new_plan plan_type)` — actualiza subscriptions.plan_type (el trigger recalcula)
-
-**Backfill:** INSERT para usuarios existentes que no tengan subscription/entitlements/counter.
+## Estado General: PARCIALMENTE APROBADO — 14 grietas detectadas
 
 ---
 
-## Fase 2: Edge Function — Gating en generate-materials
+## 1. PRD 1.2 — Foundation
 
-Modificar `supabase/functions/generate-materials/index.ts`. Insertar despues de auth y antes de validaciones de leccion:
+### 1.1 Wizard de Curso
+**Estado: NO IMPLEMENTADO**
 
-1. Fetch `user_entitlements` y `usage_counters` del usuario via adminClient
-2. **Lazy reset semanal**: si `week_start_date < lunes_actual`, resetear counter inline
-3. **Validar sesiones semanales**: si `sessions_used_this_week >= max_weekly_sessions` retornar 403
-4. **Validar clases por sesion**: contar teaching_materials VALIDATED de esta semana para el curso; si >= `max_classes_per_session` retornar 403
-5. **Watermark**: despues de generar PDF, si `watermark_enabled`, overlay diagonal "DEMO - Plan Gratuito" en cada pagina (pdf-lib, opacidad 0.08, rotado 45 grados, 3 repeticiones por pagina)
-6. **Persistencia condicional**: si `persistent_storage_enabled === false`, NO subir PDF al bucket, NO setear pdf_url. Convertir pdfBytes a base64 y devolver como `reading_pdf_base64`
-7. **Incrementar counter**: solo al finalizar con VALIDATED, incrementar `sessions_used_this_week`
+No existe pagina de creacion de curso (Wizard). El boton "Nuevo curso" en Dashboard llama a `check-course-limit` pero el `TODO` en linea 79 de Dashboard.tsx dice "navigate to course creation when implemented". No hay ruta `/course/new` ni formulario Wizard.
 
-Respuesta actualizada incluye `reading_pdf_base64` (null si no es FREE) y `watermark_applied`.
+**Grietas:**
+- GRIETA F-1: No hay Wizard de 8 pasos (PBA fija, Materia, Ciclo, Anio, Orientacion, Escuela, etc.)
+- GRIETA F-2: No se valida bloqueo de orientacion en BASIC ni exigencia de especialidad en Tecnica UPPER
+- GRIETA F-3: No se crean automaticamente 28 PlanLessons al crear Plan
+- GRIETA F-4: No hay logica de creacion de Plan automatica al crear Course
 
-Agregar a `supabase/config.toml`:
-```text
-[functions.generate-materials]
-verify_jwt = false
-```
+### 1.2 Planificacion
+**Estado: PARCIAL**
 
----
+Las tablas `plans`, `plan_lessons`, `plan_objectives`, `plan_content_mappings` existen. Sin embargo:
 
-## Fase 3: Edge Function — check-course-limit
+- GRIETA F-5: No hay UI de edicion de Plan (fundamentacion, estrategias, evaluacion_marco)
+- GRIETA F-6: No hay validacion de Plan (4-8 propositos, coverage completo, fundamentacion minima)
+- GRIETA F-7: No hay boton "Validar Plan" que cambie status a VALIDATED y cree Lessons reales
+- GRIETA F-8: No hay Agenda (no se mencionan scheduled_date en ninguna UI)
 
-Nuevo archivo `supabase/functions/check-course-limit/index.ts`:
-- Autenticar usuario
-- Fetch `user_entitlements.max_courses`
-- Contar cursos ACTIVE del usuario
-- Retornar `{ can_create, current, max }`
+### 1.3 Estados Estructurales
+**Estado: CORRECTO en DB, parcial en UI**
 
-Agregar a config.toml:
-```text
-[functions.check-course-limit]
-verify_jwt = false
-```
+- Los enums `plan_status`, `lesson_status`, `course_status` existen correctamente
+- GRIETA F-9: ARCHIVED no se gestiona en UI (no hay boton para archivar curso). Course.tsx no bloquea acciones en modo ARCHIVED
+- La generacion IA SI bloquea LOCKED correctamente (linea 349 de generate-materials)
 
 ---
 
-## Fase 4: Frontend
+## 2. PRD 2.3 — Motor IA
 
-### 4.1 Hook useEntitlements
-Nuevo `src/hooks/useEntitlements.ts`:
-- Fetch `subscriptions` (plan_type, status) y `user_entitlements` del usuario logueado
-- Expone: `planType`, `entitlements`, `loading`, `refetch`
-- Polling cada 30s para detectar upgrades
+### 2.1 PASO 1 Obligatorio
+**Estado: CORRECTO**
 
-### 4.2 Dashboard (src/pages/Dashboard.tsx)
-- Badge con plan actual (FREE/BASICO/PREMIUM) al lado del nombre
-- Boton "Nuevo curso": ya no `disabled` fijo. Al click, llama `check-course-limit`. Si `can_create === false`, toast de limite. Si puede, proceder (la creacion de curso en si queda pendiente, el boton hoy esta deshabilitado)
+- Brief debe estar READY_FOR_PRODUCTION o PRODUCED (linea 425)
+- bibliografia_confirmada debe tener al menos 1 elemento (linea 431)
+- BibliographySelector filtra correctamente por plan_content_mappings del curso (Modo C)
+- Limite de 5 fuentes maximo validado en frontend
 
-### 4.3 CopilotPanel (src/components/lesson/CopilotPanel.tsx)
-- Recibe nueva prop `copilotoMode: "none" | "limited" | "full"`
-- Si `none`: deshabilitar controles de regeneracion y profundidad, mostrar mensaje "Actualiza tu plan para usar el Copiloto"
-- Si `limited`: permitir regeneracion, no auto-complete (auto-complete no esta implementado aun, solo se prepara el gating)
+### 2.2 TeachingMaterial
+**Estado: CORRECTO**
 
-### 4.4 Lesson.tsx (src/pages/Lesson.tsx)
-- Usar `useEntitlements` para obtener `copilotoMode`
-- Pasar `copilotoMode` a CopilotPanel
+- Tool call fuerza estructura: purpose, activities, expected_product, achievement_criteria, differentiation, closure
+- Status se setea como VALIDATED directamente (linea 563)
+- Al regenerar teaching, reading se invalida automaticamente (linea 569-573)
 
-### 4.5 ReadingMaterialView (src/components/lesson/ReadingMaterialView.tsx)
-- Recibe nueva prop opcional `pdfBase64?: string | null`
-- Si `pdf_url` es null pero `pdfBase64` existe: mostrar boton "Ver PDF (temporal)" que crea blob URL y abre en nueva pestana
-- Mostrar aviso amarillo: "Este PDF no se guarda. Actualiza tu plan para almacenamiento permanente."
+**Grieta menor:**
+- GRIETA M-1: TeachingMaterial no tiene validacion de reintentos. Si la AI devuelve basura, se guarda igual como VALIDATED. No hay validacion estructural post-AI (verificar que activities no este vacio, que purpose tenga contenido, etc.)
+
+### 2.3 ReadingMaterial
+**Estado: CORRECTO**
+
+Validaciones implementadas:
+- Listas HTML: regex correcto `<ul\b`, `<ol\b`, `<li\b`
+- Listas numeradas en texto: `^\d+\./m`
+- Resolucion matematica: `= \d+` y frases prohibidas
+- Cierre en Sociales: 5 frases prohibidas en ultimo parrafo real (extraido con regex `<p>...</p>`)
+- Conteo de palabras: 1000-1300
+- Tags data-ref: verificados para cada nodo de bibliografia
+
+**GRIETA M-2:** No se valida ausencia de subtitulos (`<h1>`, `<h2>`, `<h3>`, etc.). El PRD exige "sin subtitulos" pero el regex no lo verifica.
+
+### 2.4 PDF Server-Side
+**Estado: CORRECTO**
+
+- pdf-lib importado correctamente
+- A4 (595.28 x 841.89), Helvetica, 12pt, interlineado 1.2 (14.4pt), margenes 72pt
+- Word-wrap con `font.widthOfTextAtSize()`
+- Validacion de paginas 2-4
+- Reintentos: max 3 intentos (correcto)
+- Tags `<span data-ref>` eliminados antes de renderizar PDF
+
+### 2.5 Concurrencia
+**Estado: PARCIALMENTE CORRECTO**
+
+- `is_generating` se setea antes de generar y se resetea en catch (linea 742)
+- Se valida `is_generating` antes de iniciar (linea 342)
+- GRIETA M-3: No hay proteccion real contra race condition. Dos requests simultaneos podrian pasar la verificacion `is_generating === false` antes de que cualquiera la setee a `true`. Se necesitaria un UPDATE con WHERE is_generating = false y verificar affected rows.
 
 ---
 
-## Fase 5: Upgrade en caliente
+## 3. PRD 3 — Planes y Gating
 
-- Funcion SQL `upgrade_user_plan()` ya creada en Fase 1
-- El trigger recalcula entitlements automaticamente
-- `useEntitlements` con polling 30s detecta cambios sin logout
-- No hay pasarela de pago en este PRD
+### 3.1 Tablas y Triggers
+**Estado: CORRECTO**
+
+- `subscriptions`, `user_entitlements`, `usage_counters` creadas correctamente
+- Trigger `on_auth_user_created` inserta subscription FREE + entitlements + counter
+- Trigger `on_subscription_plan_change` recalcula entitlements automaticamente
+- Funcion `recalculate_entitlements` con valores hardcodeados correctos
+- Funcion `upgrade_user_plan` disponible
+- RLS correcto: SELECT only para owner en las 3 tablas
+- Constraints UNIQUE en user_id en las 3 tablas
+
+### 3.2 Gating Server-Side
+**Estado: CORRECTO CON GRIETAS**
+
+- Sesiones semanales validadas (linea 320)
+- Lazy weekly reset implementado (linea 310)
+- Clases por sesion validadas (linea 369-386)
+
+**GRIETA G-1:** La validacion de clases por sesion (linea 369-386) cuenta teaching_materials VALIDATED de TODA la semana para TODO el curso, no por "sesion". El PRD dice "3 clases por sesion" pero la implementacion cuenta todas las clases de la semana del curso. Si el usuario genera 3 en lunes y quiere 3 mas el martes, esta bloqueado. Esto es semanticamente incorrecto: `max_classes_per_session` deberia limitar cuantas lessons se pueden generar en una sola invocacion, no un acumulado semanal.
+
+**GRIETA G-2:** No hay endpoint multi-lesson. El PRD requiere `{ "lesson_ids": ["id1","id2","id3"], "mode": "full_session" }`. Actualmente el endpoint solo acepta un `lesson_id` por vez. No hay concepto de "sesion" como agrupacion de lessons.
+
+**GRIETA G-3:** El contador `sessions_used_this_week` se incrementa por cada lesson VALIDATED individual (linea 720-724), no por sesion. Si el usuario genera 3 lessons individuales, el contador sube 3 en vez de 1.
+
+### 3.3 Watermark
+**Estado: CORRECTO**
+
+- Se aplica cuando `watermark_enabled === true` (linea 654)
+- Texto "DEMO - Plan Gratuito", 48pt, opacidad 0.08, rotado 45 grados
+- 3 repeticiones por pagina (25%, 50%, 75% del alto)
+- Se aplica despues de validar paginas, antes de subir/devolver
+
+### 3.4 Persistencia Condicional
+**Estado: CORRECTO**
+
+- Si `persistent_storage_enabled === false`: devuelve base64, no sube a storage, pdf_url queda null
+- Si `persistent_storage_enabled === true`: sube a bucket, guarda pdf_url
+- Frontend maneja `pdfBase64` correctamente con blob URL temporal
+
+### 3.5 Frontend Entitlements
+**Estado: CORRECTO**
+
+- Hook `useEntitlements` con polling 30s
+- Badge de plan en Dashboard
+- CopilotPanel deshabilitado si `copiloto_mode === "none"`
+- ReadingMaterialView muestra PDF temporal para FREE
+
+### 3.6 Upgrade en Caliente
+**Estado: CORRECTO**
+
+- Trigger `on_subscription_plan_change` recalcula automaticamente
+- `useEntitlements` con polling 30s detecta cambios
+- No requiere logout
 
 ---
 
-## Archivos a crear/modificar
+## 4. Seguridad
 
-| Archivo | Accion |
-|---------|--------|
-| Migracion SQL | Crear enums, tablas, funciones, triggers, backfill |
-| `supabase/functions/generate-materials/index.ts` | Gating, watermark, persistencia condicional |
-| `supabase/functions/check-course-limit/index.ts` | Nuevo |
-| `src/hooks/useEntitlements.ts` | Nuevo |
-| `src/pages/Dashboard.tsx` | Badge plan, gating curso |
-| `src/pages/Lesson.tsx` | Pasar copilotoMode |
-| `src/components/lesson/CopilotPanel.tsx` | Gating visual |
-| `src/components/lesson/ReadingMaterialView.tsx` | PDF temporal FREE |
+### 4.1 RLS
+**Estado: CORRECTO**
 
-## Confirmaciones
+- Todas las tablas tienen RLS habilitado
+- Lessons, briefs, materials protegidos con funciones `is_lesson_owner`, `is_course_owner`
+- subscriptions, user_entitlements, usage_counters: solo SELECT para owner, sin mutaciones cliente
+- Edge functions usan `getClaims()` para auth (no `verify_jwt`)
 
-- No se crean roles nuevos (todos DOCENTE)
-- Gating server-side en edge function
-- FREE sin storage persistente (pdf_base64 temporal)
-- Watermark server-side via pdf-lib
-- Upgrade en caliente sin logout
-- PRD 1.2 intacto
-- PRD 2.3 intacto (solo se integra watermark y persistencia condicional al pipeline existente)
+### 4.2 Gating Server-Side
+**Estado: CORRECTO**
+
+- Entitlements se leen server-side con adminClient
+- No se confian valores del frontend
+- check-course-limit valida server-side
+
+**GRIETA S-1:** `supabase/config.toml` NO tiene las secciones `[functions.generate-materials]` ni `[functions.check-course-limit]` con `verify_jwt = false`. Solo tiene `project_id`. Esto funciona en Lovable Cloud porque verify_jwt defaults a las signing keys, pero la configuracion explicita estaria mas limpia.
+
+---
+
+## 5. Consistencia de Estados
+
+**GRIETA C-1:** `teaching_materials.status` tiene default `'GENERATED'::material_status` en la DB pero el edge function setea directamente `VALIDATED`. El status `GENERATED` nunca se usa como resultado final, lo cual es correcto, pero el enum y el default son vestigios que podrian confundir.
+
+**GRIETA C-2:** No hay validacion que prevenga Reading VALIDATED con pdf_url null en PREMIUM. Si el upload a storage falla silenciosamente, el status podria quedar VALIDATED sin pdf_url. El codigo actual tira exception si el PDF falla (linea 686-689), asi que este escenario es poco probable pero no imposible (upload exitoso pero getPublicUrl falla).
+
+---
+
+## 6. Resumen de Grietas
+
+### Criticas (bloquean el uso real del sistema)
+| ID | Modulo | Descripcion |
+|----|--------|-------------|
+| F-1 a F-8 | Foundation | No hay Wizard, no hay edicion/validacion de Plan, no hay Agenda |
+| G-2 | Gating | No hay endpoint multi-lesson session |
+| G-1/G-3 | Gating | Semantica de "sesion" vs "lesson individual" incorrecta en contadores |
+
+### Moderadas (afectan integridad pero no bloquean flujo basico)
+| ID | Modulo | Descripcion |
+|----|--------|-------------|
+| M-2 | Motor IA | No se validan subtitulos HTML en ReadingMaterial |
+| M-3 | Motor IA | Race condition en is_generating (no atomico) |
+| M-1 | Motor IA | TeachingMaterial no tiene validacion post-AI |
+
+### Menores (mejoras recomendadas)
+| ID | Modulo | Descripcion |
+|----|--------|-------------|
+| F-9 | Foundation | No hay gestion de ARCHIVED en UI |
+| S-1 | Seguridad | config.toml sin verify_jwt explicito |
+| C-1 | Consistencia | Default GENERATED nunca usado |
+| C-2 | Consistencia | Posible VALIDATED sin pdf_url en edge case |
+
+---
+
+## 7. Plan de Remediacion Sugerido (orden de prioridad)
+
+1. **PRD 4 - Multi-lesson Session**: Crear endpoint que acepte array de lesson_ids, validar 1-3, mismo curso, mismo usuario, incrementar counter solo 1 vez. Corregir semantica de `max_classes_per_session`.
+
+2. **PRD 1.2 Completion**: Implementar Wizard de curso, edicion de Plan, validacion de Plan, y Agenda. Esto es el 60% del sistema que falta.
+
+3. **Validacion M-2**: Agregar `/<h[1-6]\b/i` al pipeline de validacion de ReadingMaterial.
+
+4. **Race condition M-3**: Cambiar el check de is_generating a un UPDATE atomico: `UPDATE lessons SET is_generating = true WHERE id = X AND is_generating = false` y verificar que se afecto 1 row.
+
+5. **Validacion M-1**: Agregar chequeos basicos post-AI para TeachingMaterial (purpose no vacio, activities.length > 0, etc.)
+
+---
+
+## 8. Veredicto
+
+El motor IA (PRD 2.3) y el sistema de planes/gating (PRD 3) estan solidos y bien implementados. Las grietas criticas son:
+
+1. **Foundation incompleta**: El Wizard, la edicion/validacion de Plan y la Agenda no existen en UI. Las tablas estan, pero no hay flujo de usuario.
+
+2. **Sesion multi-lesson no existe**: El concepto de "sesion = 1-3 lessons juntas" no esta implementado. Cada lesson se genera individualmente y el contador se incrementa por lesson, no por sesion.
+
+Recomendacion: Priorizar el endpoint multi-lesson (correccion rapida al edge function) y luego abordar PRD 1.2 completion como siguiente sprint.
 
