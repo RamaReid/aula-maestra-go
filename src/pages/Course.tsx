@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, BookOpen } from "lucide-react";
+import PlanEditor from "@/components/plan/PlanEditor";
 
 interface LessonWithPlanLesson {
   id: string;
@@ -27,34 +28,51 @@ interface CourseInfo {
   school_name: string;
 }
 
+interface PlanInfo {
+  id: string;
+  status: string;
+}
+
 export default function Course() {
   const { courseId } = useParams<{ courseId: string }>();
   const [course, setCourse] = useState<CourseInfo | null>(null);
+  const [plan, setPlan] = useState<PlanInfo | null>(null);
   const [lessons, setLessons] = useState<LessonWithPlanLesson[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const fetchData = useCallback(async () => {
     if (!courseId) return;
 
-    const fetchData = async () => {
-      // Fetch course info
-      const { data: courseData } = await supabase
-        .from("courses")
-        .select("id, subject, year_level, academic_year, schools(official_name)")
-        .eq("id", courseId)
-        .single();
+    // Fetch course info
+    const { data: courseData } = await supabase
+      .from("courses")
+      .select("id, subject, year_level, academic_year, schools(official_name)")
+      .eq("id", courseId)
+      .single();
 
-      if (courseData) {
-        setCourse({
-          id: courseData.id,
-          subject: courseData.subject,
-          year_level: courseData.year_level,
-          academic_year: courseData.academic_year,
-          school_name: (courseData as any).schools?.official_name ?? "Sin escuela",
-        });
-      }
+    if (courseData) {
+      setCourse({
+        id: courseData.id,
+        subject: courseData.subject,
+        year_level: courseData.year_level,
+        academic_year: courseData.academic_year,
+        school_name: (courseData as any).schools?.official_name ?? "Sin escuela",
+      });
+    }
 
-      // Fetch lessons with plan_lesson data
+    // Fetch plan
+    const { data: planData } = await supabase
+      .from("plans")
+      .select("id, status")
+      .eq("course_id", courseId)
+      .single();
+
+    if (planData) {
+      setPlan({ id: planData.id, status: planData.status });
+    }
+
+    // Fetch lessons only if plan is validated
+    if (planData?.status === "VALIDATED") {
       const { data: lessonsData } = await supabase
         .from("lessons")
         .select("id, lesson_number, status, scheduled_date, is_generating, plan_lesson_id")
@@ -62,26 +80,20 @@ export default function Course() {
         .order("lesson_number");
 
       if (lessonsData && lessonsData.length > 0) {
-        // Fetch plan_lessons for each lesson
         const planLessonIds = lessonsData.map((l) => l.plan_lesson_id);
         const { data: planLessons } = await supabase
           .from("plan_lessons")
           .select("id, theme, learning_outcome")
           .in("id", planLessonIds);
 
-        // Fetch briefs
         const lessonIds = lessonsData.map((l) => l.id);
         const { data: briefs } = await supabase
           .from("lesson_briefs")
           .select("lesson_id, status")
           .in("lesson_id", lessonIds);
 
-        const planLessonMap = new Map(
-          (planLessons || []).map((pl) => [pl.id, pl])
-        );
-        const briefMap = new Map(
-          (briefs || []).map((b: any) => [b.lesson_id, b.status])
-        );
+        const planLessonMap = new Map((planLessons || []).map((pl) => [pl.id, pl]));
+        const briefMap = new Map((briefs || []).map((b: any) => [b.lesson_id, b.status]));
 
         setLessons(
           lessonsData.map((l) => ({
@@ -95,12 +107,18 @@ export default function Course() {
           }))
         );
       }
+    }
 
-      setLoading(false);
-    };
-
-    fetchData();
+    setLoading(false);
   }, [courseId]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  const handlePlanValidated = () => {
+    fetchData();
+  };
 
   const statusLabel = (status: string) => {
     const map: Record<string, string> = {
@@ -140,64 +158,86 @@ export default function Course() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-4xl px-4 py-8">
-        <h2 className="text-xl font-semibold text-foreground mb-4">Lecciones</h2>
-
-        {loading ? (
-          <div className="flex justify-center py-12">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-          </div>
-        ) : lessons.length === 0 ? (
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-              <BookOpen className="h-12 w-12 text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">No hay lecciones creadas para este curso.</p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-3">
-            {lessons.map((lesson) => (
-              <Link key={lesson.id} to={`/lesson/${lesson.id}`}>
-                <Card className="hover:border-primary/50 transition-colors cursor-pointer">
-                  <CardHeader className="pb-2">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-base">
-                        Lección {lesson.lesson_number}
-                        {lesson.plan_lesson?.theme ? ` — ${lesson.plan_lesson.theme}` : ""}
-                      </CardTitle>
-                      <div className="flex gap-2">
-                        <Badge variant={statusVariant(lesson.status)}>
-                          {statusLabel(lesson.status)}
-                        </Badge>
-                        {lesson.is_generating && (
-                          <Badge variant="outline" className="animate-pulse">
-                            Generando...
-                          </Badge>
-                        )}
-                        {lesson.brief_status && (
-                          <Badge variant="outline">
-                            {lesson.brief_status === "PRODUCED"
-                              ? "Producida"
-                              : lesson.brief_status === "READY_FOR_PRODUCTION"
-                              ? "Lista"
-                              : "En progreso"}
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  </CardHeader>
-                  {lesson.plan_lesson?.learning_outcome && (
-                    <CardContent>
-                      <p className="text-sm text-muted-foreground line-clamp-2">
-                        {lesson.plan_lesson.learning_outcome}
-                      </p>
-                    </CardContent>
-                  )}
-                </Card>
-              </Link>
-            ))}
-          </div>
+      <main className="mx-auto max-w-4xl px-4 py-8 space-y-8">
+        {/* Plan Editor Section */}
+        {!loading && plan && (
+          <PlanEditor
+            planId={plan.id}
+            courseId={courseId!}
+            planStatus={plan.status}
+            onValidated={handlePlanValidated}
+          />
         )}
+
+        {/* Lessons Section */}
+        <div>
+          <h2 className="text-xl font-semibold text-foreground mb-4">Lecciones</h2>
+
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+            </div>
+          ) : plan?.status !== "VALIDATED" ? (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+                <BookOpen className="h-12 w-12 text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">
+                  Validá el plan para habilitar las lecciones.
+                </p>
+              </CardContent>
+            </Card>
+          ) : lessons.length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+                <BookOpen className="h-12 w-12 text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">No hay lecciones creadas para este curso.</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-3">
+              {lessons.map((lesson) => (
+                <Link key={lesson.id} to={`/lesson/${lesson.id}`}>
+                  <Card className="hover:border-primary/50 transition-colors cursor-pointer">
+                    <CardHeader className="pb-2">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-base">
+                          Lección {lesson.lesson_number}
+                          {lesson.plan_lesson?.theme ? ` — ${lesson.plan_lesson.theme}` : ""}
+                        </CardTitle>
+                        <div className="flex gap-2">
+                          <Badge variant={statusVariant(lesson.status)}>
+                            {statusLabel(lesson.status)}
+                          </Badge>
+                          {lesson.is_generating && (
+                            <Badge variant="outline" className="animate-pulse">
+                              Generando...
+                            </Badge>
+                          )}
+                          {lesson.brief_status && (
+                            <Badge variant="outline">
+                              {lesson.brief_status === "PRODUCED"
+                                ? "Producida"
+                                : lesson.brief_status === "READY_FOR_PRODUCTION"
+                                ? "Lista"
+                                : "En progreso"}
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    </CardHeader>
+                    {lesson.plan_lesson?.learning_outcome && (
+                      <CardContent>
+                        <p className="text-sm text-muted-foreground line-clamp-2">
+                          {lesson.plan_lesson.learning_outcome}
+                        </p>
+                      </CardContent>
+                    )}
+                  </Card>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
       </main>
     </div>
   );
