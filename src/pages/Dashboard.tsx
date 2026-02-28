@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -30,10 +30,10 @@ const planBadgeVariant: Record<string, "default" | "secondary" | "outline"> = {
 export default function Dashboard() {
   const { profile, logout } = useAuth();
   const { planType } = useEntitlements();
+  const navigate = useNavigate();
   const [courses, setCourses] = useState<CourseWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [archivedOpen, setArchivedOpen] = useState(false);
-  const [checkingLimit, setCheckingLimit] = useState(false);
 
   useEffect(() => {
     const fetchCourses = async () => {
@@ -60,27 +60,8 @@ export default function Dashboard() {
     fetchCourses();
   }, []);
 
-  const handleNewCourse = async () => {
-    setCheckingLimit(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("check-course-limit");
-      if (error) {
-        toast({ title: "Error", description: error.message, variant: "destructive" });
-        return;
-      }
-      if (!data.can_create) {
-        toast({
-          title: "Límite alcanzado",
-          description: `Alcanzaste el límite de cursos de tu plan (${data.current}/${data.max})`,
-          variant: "destructive",
-        });
-        return;
-      }
-      // TODO: navigate to course creation when implemented
-      toast({ title: "Podés crear un nuevo curso" });
-    } finally {
-      setCheckingLimit(false);
-    }
+  const handleNewCourse = () => {
+    navigate("/course/new");
   };
 
   const activeCourses = courses.filter((c) => c.status === "ACTIVE");
@@ -114,7 +95,7 @@ export default function Dashboard() {
         <section>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-semibold text-foreground">Mis cursos activos</h2>
-            <Button size="sm" onClick={handleNewCourse} disabled={checkingLimit}>
+            <Button size="sm" onClick={handleNewCourse}>
               <Plus className="mr-2 h-4 w-4" />
               Nuevo curso
             </Button>

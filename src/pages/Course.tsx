@@ -4,8 +4,21 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, BookOpen } from "lucide-react";
+import { ArrowLeft, BookOpen, Archive } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { toast } from "@/hooks/use-toast";
 import PlanEditor from "@/components/plan/PlanEditor";
+import AgendaView from "@/components/plan/AgendaView";
 
 interface LessonWithPlanLesson {
   id: string;
@@ -13,10 +26,7 @@ interface LessonWithPlanLesson {
   status: string;
   scheduled_date: string | null;
   is_generating: boolean;
-  plan_lesson: {
-    theme: string;
-    learning_outcome: string;
-  } | null;
+  plan_lesson: { theme: string; learning_outcome: string } | null;
   brief_status: string | null;
 }
 
@@ -26,6 +36,7 @@ interface CourseInfo {
   year_level: number;
   academic_year: number;
   school_name: string;
+  status: string;
 }
 
 interface PlanInfo {
@@ -39,14 +50,14 @@ export default function Course() {
   const [plan, setPlan] = useState<PlanInfo | null>(null);
   const [lessons, setLessons] = useState<LessonWithPlanLesson[]>([]);
   const [loading, setLoading] = useState(true);
+  const [archiving, setArchiving] = useState(false);
 
   const fetchData = useCallback(async () => {
     if (!courseId) return;
 
-    // Fetch course info
     const { data: courseData } = await supabase
       .from("courses")
-      .select("id, subject, year_level, academic_year, schools(official_name)")
+      .select("id, subject, year_level, academic_year, status, schools(official_name)")
       .eq("id", courseId)
       .single();
 
@@ -57,10 +68,10 @@ export default function Course() {
         year_level: courseData.year_level,
         academic_year: courseData.academic_year,
         school_name: (courseData as any).schools?.official_name ?? "Sin escuela",
+        status: courseData.status,
       });
     }
 
-    // Fetch plan
     const { data: planData } = await supabase
       .from("plans")
       .select("id, status")
@@ -71,7 +82,6 @@ export default function Course() {
       setPlan({ id: planData.id, status: planData.status });
     }
 
-    // Fetch lessons only if plan is validated
     if (planData?.status === "VALIDATED") {
       const { data: lessonsData } = await supabase
         .from("lessons")
@@ -116,9 +126,22 @@ export default function Course() {
     fetchData();
   }, [fetchData]);
 
-  const handlePlanValidated = () => {
-    fetchData();
+  const handlePlanValidated = () => fetchData();
+
+  const handleArchive = async () => {
+    if (!courseId) return;
+    setArchiving(true);
+    const { error } = await supabase.from("courses").update({ status: "ARCHIVED" }).eq("id", courseId);
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Curso archivado" });
+      fetchData();
+    }
+    setArchiving(false);
   };
+
+  const isArchived = course?.status === "ARCHIVED";
 
   const statusLabel = (status: string) => {
     const map: Record<string, string> = {
@@ -145,31 +168,64 @@ export default function Course() {
               <ArrowLeft className="h-4 w-4" />
             </Link>
           </Button>
-          <div>
-            <h1 className="text-lg font-semibold text-foreground">
-              {course?.subject ?? "Cargando..."}
-            </h1>
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <h1 className="text-lg font-semibold text-foreground">
+                {course?.subject ?? "Cargando..."}
+              </h1>
+              {isArchived && <Badge variant="destructive">Archivado</Badge>}
+            </div>
             {course && (
               <p className="text-sm text-muted-foreground">
                 {course.school_name} · {course.year_level}° año · {course.academic_year}
               </p>
             )}
           </div>
+          {course && !isArchived && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <Archive className="h-4 w-4 mr-2" />
+                  Archivar
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>¿Archivar este curso?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    No podrás editar el plan, las lecciones ni la agenda una vez archivado.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleArchive} disabled={archiving}>
+                    {archiving ? "Archivando..." : "Archivar"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
         </div>
       </header>
 
       <main className="mx-auto max-w-4xl px-4 py-8 space-y-8">
-        {/* Plan Editor Section */}
+        {/* Plan Editor */}
         {!loading && plan && (
           <PlanEditor
             planId={plan.id}
             courseId={courseId!}
             planStatus={plan.status}
             onValidated={handlePlanValidated}
+            courseArchived={isArchived}
           />
         )}
 
-        {/* Lessons Section */}
+        {/* Agenda */}
+        {!loading && plan?.status === "VALIDATED" && courseId && (
+          <AgendaView courseId={courseId} readOnly={isArchived} />
+        )}
+
+        {/* Lessons */}
         <div>
           <h2 className="text-xl font-semibold text-foreground mb-4">Lecciones</h2>
 
@@ -181,9 +237,7 @@ export default function Course() {
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-12 text-center">
                 <BookOpen className="h-12 w-12 text-muted-foreground mb-4" />
-                <p className="text-muted-foreground">
-                  Validá el plan para habilitar las lecciones.
-                </p>
+                <p className="text-muted-foreground">Validá el plan para habilitar las lecciones.</p>
               </CardContent>
             </Card>
           ) : lessons.length === 0 ? (
@@ -209,9 +263,7 @@ export default function Course() {
                             {statusLabel(lesson.status)}
                           </Badge>
                           {lesson.is_generating && (
-                            <Badge variant="outline" className="animate-pulse">
-                              Generando...
-                            </Badge>
+                            <Badge variant="outline" className="animate-pulse">Generando...</Badge>
                           )}
                           {lesson.brief_status && (
                             <Badge variant="outline">
