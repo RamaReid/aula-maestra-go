@@ -792,6 +792,14 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_course_not_archived_for_lesson: {
+        Args: { p_lesson_id: string }
+        Returns: boolean
+      }
+      is_course_not_archived_for_plan: {
+        Args: { p_plan_id: string }
+        Returns: boolean
+      }
       is_course_owner: {
         Args: { _course_id: string; _user_id: string }
         Returns: boolean
@@ -827,6 +835,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      validate_plan: { Args: { p_plan_id: string }; Returns: Json }
     }
     Enums: {
       app_role: "docente" | "admin"
