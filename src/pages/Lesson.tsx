@@ -2,9 +2,8 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ClipboardEdit } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import BriefForm from "@/components/lesson/BriefForm";
 import TeachingMaterialView from "@/components/lesson/TeachingMaterialView";
@@ -12,6 +11,9 @@ import ReadingMaterialView from "@/components/lesson/ReadingMaterialView";
 import CopilotPanel from "@/components/lesson/CopilotPanel";
 import GenerateButton from "@/components/lesson/GenerateButton";
 import { useEntitlements } from "@/hooks/useEntitlements";
+import { StatusBadge, briefLabel, briefTone, materialLabel, materialTone, lessonStatusLabel, lessonStatusTone } from "@/components/ui/StatusBadge";
+import { StepHeader } from "@/components/ui/StepHeader";
+import { SkeletonList } from "@/components/ui/SkeletonList";
 
 export default function Lesson() {
   const { lessonId } = useParams<{ lessonId: string }>();
@@ -72,22 +74,17 @@ export default function Lesson() {
       const { data, error } = await supabase.functions.invoke("generate-materials", {
         body: { lesson_id: lessonId },
       });
-
       if (error) {
         toast({ title: "Error al generar", description: error.message, variant: "destructive" });
         return;
       }
-
       if (data?.error) {
         toast({ title: "Error", description: data.error, variant: "destructive" });
         return;
       }
-
-      // Store pdf_base64 for FREE users
       if (data?.reading_pdf_base64) {
         setPdfBase64(data.reading_pdf_base64);
       }
-
       toast({ title: "Materiales generados correctamente" });
       fetchData();
     } catch (err: any) {
@@ -162,13 +159,16 @@ export default function Lesson() {
     }
   }
 
-  const canGenerate =
-    brief?.status === "READY_FOR_PRODUCTION" && !lesson?.is_generating;
+  const canGenerate = brief?.status === "READY_FOR_PRODUCTION" && !lesson?.is_generating;
+
+  const scrollToBrief = () => {
+    document.getElementById("brief-form")?.scrollIntoView({ behavior: "smooth" });
+  };
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      <div className="min-h-screen bg-background p-8">
+        <SkeletonList count={4} />
       </div>
     );
   }
@@ -183,6 +183,9 @@ export default function Lesson() {
       </div>
     );
   }
+
+  const hasMaterials = !!(teachingMaterial || readingMaterial);
+  const briefIsDraft = !brief || brief.status === "IN_PROGRESS";
 
   return (
     <div className="min-h-screen bg-background">
@@ -199,20 +202,33 @@ export default function Lesson() {
               {planLesson?.theme ? ` — ${planLesson.theme}` : ""}
             </h1>
             <div className="flex gap-2 mt-1">
-              <Badge variant="secondary">{lesson.status}</Badge>
+              <StatusBadge tone={lessonStatusTone(lesson.status)} label={lessonStatusLabel(lesson.status)} />
               {lesson.is_generating && (
-                <Badge variant="outline" className="animate-pulse">Generando...</Badge>
+                <StatusBadge tone="warning" label="Generando..." />
               )}
             </div>
           </div>
+
+          {/* Canonical CTA */}
+          {briefIsDraft && (
+            <Button onClick={scrollToBrief}>
+              <ClipboardEdit className="h-4 w-4 mr-2" />
+              Completar brief
+            </Button>
+          )}
         </div>
       </header>
 
       <main className="mx-auto max-w-6xl px-4 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-8">
           <div className="space-y-8">
-            <section>
-              <h2 className="text-lg font-semibold mb-4">Paso 1 — Relevamiento</h2>
+            <section id="brief-form">
+              <StepHeader
+                stepNumber={1}
+                title="Relevamiento"
+                status={briefLabel(brief?.status)}
+                statusTone={briefTone(brief?.status)}
+              />
               <BriefForm
                 lessonId={lessonId!}
                 courseId={lesson.course_id}
@@ -223,8 +239,13 @@ export default function Lesson() {
 
             <Separator />
 
-            <section>
-              <h2 className="text-lg font-semibold mb-4">Paso 2 — Generación</h2>
+            <section id="materials-section">
+              <StepHeader
+                stepNumber={2}
+                title="Generación"
+                status={materialLabel(hasMaterials ? (readingMaterial?.status || teachingMaterial?.status) : null)}
+                statusTone={materialTone(hasMaterials ? (readingMaterial?.status || teachingMaterial?.status) : null)}
+              />
 
               <GenerateButton
                 onClick={handleGenerate}

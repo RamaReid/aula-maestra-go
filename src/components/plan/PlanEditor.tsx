@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { X, Plus, ShieldCheck } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import PlanObjectivesEditor from "./PlanObjectivesEditor";
+import { InlineValidationSummary } from "@/components/ui/InlineValidationSummary";
 
 interface PlanData {
   fundamentacion: string;
@@ -30,6 +31,7 @@ export default function PlanEditor({ planId, courseId, planStatus, onValidated, 
   const [plan, setPlan] = useState<PlanData | null>(null);
   const [loading, setLoading] = useState(true);
   const [validating, setValidating] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [newStrategy, setNewStrategy] = useState("");
   const readOnly = planStatus === "VALIDATED" || !!courseArchived;
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -50,6 +52,7 @@ export default function PlanEditor({ planId, courseId, planStatus, onValidated, 
   const saveField = useCallback(
     (field: keyof PlanData, value: string | string[]) => {
       if (readOnly) return;
+      setValidationErrors([]);
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(async () => {
         await supabase.from("plans").update({ [field]: value }).eq("id", planId);
@@ -81,11 +84,13 @@ export default function PlanEditor({ planId, courseId, planStatus, onValidated, 
   const handleValidate = async () => {
     if (!plan) return;
     setValidating(true);
+    setValidationErrors([]);
     try {
       const { data, error } = await supabase.rpc("validate_plan", { p_plan_id: planId });
       if (error) throw error;
       const result = data as unknown as { success: boolean; errors: string[] };
       if (!result.success) {
+        setValidationErrors(result.errors);
         toast({ title: "Validación fallida", description: result.errors.join(". "), variant: "destructive" });
         return;
       }
@@ -117,6 +122,8 @@ export default function PlanEditor({ planId, courseId, planStatus, onValidated, 
         </Badge>
       </CardHeader>
       <CardContent className="space-y-4">
+        <InlineValidationSummary errors={validationErrors} />
+
         <Tabs defaultValue="fundamentacion">
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="fundamentacion">Fundamentación</TabsTrigger>
