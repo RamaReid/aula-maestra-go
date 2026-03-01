@@ -364,6 +364,7 @@ export type Database = {
       }
       plan_lessons: {
         Row: {
+          activities_summary: string
           created_at: string
           id: string
           is_integrative_evaluation: boolean
@@ -378,6 +379,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          activities_summary?: string
           created_at?: string
           id?: string
           is_integrative_evaluation?: boolean
@@ -392,6 +394,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          activities_summary?: string
           created_at?: string
           id?: string
           is_integrative_evaluation?: boolean
@@ -456,6 +459,7 @@ export type Database = {
           evaluacion_marco: string
           fundamentacion: string
           id: string
+          resources: string
           second_term_started: boolean
           status: Database["public"]["Enums"]["plan_status"]
           updated_at: string
@@ -468,6 +472,7 @@ export type Database = {
           evaluacion_marco?: string
           fundamentacion?: string
           id?: string
+          resources?: string
           second_term_started?: boolean
           status?: Database["public"]["Enums"]["plan_status"]
           updated_at?: string
@@ -480,6 +485,7 @@ export type Database = {
           evaluacion_marco?: string
           fundamentacion?: string
           id?: string
+          resources?: string
           second_term_started?: boolean
           status?: Database["public"]["Enums"]["plan_status"]
           updated_at?: string
