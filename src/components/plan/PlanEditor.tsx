@@ -4,22 +4,19 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { X, Plus, ShieldCheck } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import PlanObjectivesEditor from "./PlanObjectivesEditor";
-import PlanLessonsEditor from "./PlanLessonsEditor";
 import { InlineValidationSummary } from "@/components/ui/InlineValidationSummary";
-import { StatusBadge, planTone, planLabel } from "@/components/ui/StatusBadge";
 
 interface PlanData {
   fundamentacion: string;
   estrategias_marco: string;
   estrategias_practicas: string[];
   evaluacion_marco: string;
-  resources: string;
 }
 
 interface Props {
@@ -43,10 +40,10 @@ export default function PlanEditor({ planId, courseId, planStatus, onValidated, 
     const fetch = async () => {
       const { data } = await supabase
         .from("plans")
-        .select("fundamentacion, estrategias_marco, estrategias_practicas, evaluacion_marco, resources")
+        .select("fundamentacion, estrategias_marco, estrategias_practicas, evaluacion_marco")
         .eq("id", planId)
         .single();
-      if (data) setPlan(data as PlanData);
+      if (data) setPlan(data);
       setLoading(false);
     };
     fetch();
@@ -120,19 +117,19 @@ export default function PlanEditor({ planId, courseId, planStatus, onValidated, 
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <CardTitle className="text-lg">Planificación Anual</CardTitle>
-        <StatusBadge tone={planTone(planStatus)} label={planLabel(planStatus)} />
+        <Badge variant={readOnly ? "default" : "secondary"}>
+          {readOnly ? "Validado" : "Incompleto"}
+        </Badge>
       </CardHeader>
       <CardContent className="space-y-4">
         <InlineValidationSummary errors={validationErrors} />
 
         <Tabs defaultValue="fundamentacion">
-          <TabsList className="grid w-full grid-cols-3 md:grid-cols-6">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="fundamentacion">Fundamentación</TabsTrigger>
             <TabsTrigger value="estrategias">Estrategias</TabsTrigger>
             <TabsTrigger value="evaluacion">Evaluación</TabsTrigger>
-            <TabsTrigger value="objetivos">Objetivos (4-8)</TabsTrigger>
-            <TabsTrigger value="recursos">Recursos</TabsTrigger>
-            <TabsTrigger value="cronograma">Cronograma</TabsTrigger>
+            <TabsTrigger value="propositos">Propósitos</TabsTrigger>
           </TabsList>
 
           <TabsContent value="fundamentacion" className="space-y-2 pt-2">
@@ -199,23 +196,8 @@ export default function PlanEditor({ planId, courseId, planStatus, onValidated, 
             />
           </TabsContent>
 
-          <TabsContent value="objetivos" className="pt-2">
+          <TabsContent value="propositos" className="pt-2">
             <PlanObjectivesEditor planId={planId} readOnly={readOnly} />
-          </TabsContent>
-
-          <TabsContent value="recursos" className="space-y-2 pt-2">
-            <Label>Recursos</Label>
-            <Textarea
-              value={plan.resources}
-              onChange={(e) => updateField("resources", e.target.value)}
-              placeholder="Describir los recursos necesarios para el plan..."
-              rows={8}
-              disabled={readOnly}
-            />
-          </TabsContent>
-
-          <TabsContent value="cronograma" className="pt-2">
-            <PlanLessonsEditor planId={planId} readOnly={readOnly} />
           </TabsContent>
         </Tabs>
 

@@ -791,7 +791,6 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      demo_contract_check: { Args: { p_plan_id: string }; Returns: Json }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
