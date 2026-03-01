@@ -3,22 +3,18 @@ import { useParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, BookOpen, Archive } from "lucide-react";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { toast } from "@/hooks/use-toast";
 import PlanEditor from "@/components/plan/PlanEditor";
 import AgendaView from "@/components/plan/AgendaView";
+import { StatusBadge, briefLabel, briefTone, lessonStatusLabel, lessonStatusTone } from "@/components/ui/StatusBadge";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { SkeletonList } from "@/components/ui/SkeletonList";
+import { Badge } from "@/components/ui/badge";
 
 interface LessonWithPlanLesson {
   id: string;
@@ -143,22 +139,6 @@ export default function Course() {
 
   const isArchived = course?.status === "ARCHIVED";
 
-  const statusLabel = (status: string) => {
-    const map: Record<string, string> = {
-      PLANNED: "Planificada",
-      TAUGHT: "Dictada",
-      RESCHEDULED: "Reprogramada",
-      LOCKED: "Bloqueada",
-    };
-    return map[status] || status;
-  };
-
-  const statusVariant = (status: string): "default" | "secondary" | "destructive" | "outline" => {
-    if (status === "TAUGHT") return "default";
-    if (status === "LOCKED") return "destructive";
-    return "secondary";
-  };
-
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card">
@@ -173,7 +153,7 @@ export default function Course() {
               <h1 className="text-lg font-semibold text-foreground">
                 {course?.subject ?? "Cargando..."}
               </h1>
-              {isArchived && <Badge variant="destructive">Archivado</Badge>}
+              {isArchived && <StatusBadge tone="archived" label="Archivado" />}
             </div>
             {course && (
               <p className="text-sm text-muted-foreground">
@@ -209,7 +189,6 @@ export default function Course() {
       </header>
 
       <main className="mx-auto max-w-4xl px-4 py-8 space-y-8">
-        {/* Plan Editor */}
         {!loading && plan && (
           <PlanEditor
             planId={plan.id}
@@ -220,33 +199,26 @@ export default function Course() {
           />
         )}
 
-        {/* Agenda */}
         {!loading && plan?.status === "VALIDATED" && courseId && (
           <AgendaView courseId={courseId} readOnly={isArchived} />
         )}
 
-        {/* Lessons */}
         <div>
           <h2 className="text-xl font-semibold text-foreground mb-4">Lecciones</h2>
 
           {loading ? (
-            <div className="flex justify-center py-12">
-              <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-            </div>
+            <SkeletonList count={6} />
           ) : plan?.status !== "VALIDATED" ? (
-            <Card>
-              <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-                <BookOpen className="h-12 w-12 text-muted-foreground mb-4" />
-                <p className="text-muted-foreground">Validá el plan para habilitar las lecciones.</p>
-              </CardContent>
-            </Card>
+            <EmptyState
+              icon={BookOpen}
+              title="Validá el plan para habilitar las lecciones"
+              description="Una vez validado, se crearán las lecciones del curso automáticamente."
+            />
           ) : lessons.length === 0 ? (
-            <Card>
-              <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-                <BookOpen className="h-12 w-12 text-muted-foreground mb-4" />
-                <p className="text-muted-foreground">No hay lecciones creadas para este curso.</p>
-              </CardContent>
-            </Card>
+            <EmptyState
+              icon={BookOpen}
+              title="No hay lecciones creadas para este curso"
+            />
           ) : (
             <div className="space-y-3">
               {lessons.map((lesson) => (
@@ -259,21 +231,11 @@ export default function Course() {
                           {lesson.plan_lesson?.theme ? ` — ${lesson.plan_lesson.theme}` : ""}
                         </CardTitle>
                         <div className="flex gap-2">
-                          <Badge variant={statusVariant(lesson.status)}>
-                            {statusLabel(lesson.status)}
-                          </Badge>
+                          <StatusBadge tone={lessonStatusTone(lesson.status)} label={lessonStatusLabel(lesson.status)} />
                           {lesson.is_generating && (
                             <Badge variant="outline" className="animate-pulse">Generando...</Badge>
                           )}
-                          {lesson.brief_status && (
-                            <Badge variant="outline">
-                              {lesson.brief_status === "PRODUCED"
-                                ? "Producida"
-                                : lesson.brief_status === "READY_FOR_PRODUCTION"
-                                ? "Lista"
-                                : "En progreso"}
-                            </Badge>
-                          )}
+                          <StatusBadge tone={briefTone(lesson.brief_status)} label={briefLabel(lesson.brief_status)} />
                         </div>
                       </div>
                     </CardHeader>
