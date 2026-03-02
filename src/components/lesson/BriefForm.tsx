@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -21,6 +21,29 @@ export default function BriefForm({ lessonId, courseId, brief, onUpdate }: Brief
   const [observaciones, setObservaciones] = useState(brief?.observaciones_docente ?? "");
   const [bibliografia, setBibliografia] = useState<string[]>(brief?.bibliografia_confirmada ?? []);
   const [saving, setSaving] = useState(false);
+
+  const initialState = useMemo(() => ({
+    enfoque: brief?.enfoque_deseado ?? "",
+    dinamica: brief?.tipo_dinamica_sugerida ?? "",
+    profundidad: brief?.nivel_profundidad ?? "MEDIO",
+    observaciones: brief?.observaciones_docente ?? "",
+    bibliografia: brief?.bibliografia_confirmada ?? [],
+  }), [brief]);
+
+  const isDirty = enfoque !== initialState.enfoque ||
+    dinamica !== initialState.dinamica ||
+    profundidad !== initialState.profundidad ||
+    observaciones !== initialState.observaciones ||
+    JSON.stringify(bibliografia) !== JSON.stringify(initialState.bibliografia);
+
+  useEffect(() => {
+    if (!isDirty) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [isDirty]);
 
   const isConfirmed = brief?.status === "READY_FOR_PRODUCTION" || brief?.status === "PRODUCED";
 
@@ -146,7 +169,7 @@ export default function BriefForm({ lessonId, courseId, brief, onUpdate }: Brief
       {!isConfirmed && (
         <div className="flex gap-2">
           <Button variant="outline" onClick={handleSave} disabled={saving}>
-            Guardar borrador
+            Guardar
           </Button>
           <Button onClick={handleConfirm} disabled={saving || bibliografia.length === 0}>
             Confirmar relevamiento

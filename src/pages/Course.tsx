@@ -3,6 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, BookOpen, Archive } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -138,6 +139,7 @@ export default function Course() {
   };
 
   const isArchived = course?.status === "ARCHIVED";
+  const planValidated = plan?.status === "VALIDATED";
 
   return (
     <div className="min-h-screen bg-background">
@@ -188,70 +190,76 @@ export default function Course() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-4xl px-4 py-8 space-y-8">
-        {!loading && plan && (
-          <PlanEditor
-            planId={plan.id}
-            courseId={courseId!}
-            planStatus={plan.status}
-            onValidated={handlePlanValidated}
-            courseArchived={isArchived}
-          />
-        )}
+      <main className="mx-auto max-w-4xl px-4 py-8">
+        {loading ? (
+          <SkeletonList count={6} />
+        ) : plan ? (
+          <Tabs defaultValue="planificacion">
+            <TabsList className={`grid w-full ${planValidated ? "grid-cols-3" : "grid-cols-1"}`}>
+              <TabsTrigger value="planificacion">Planificacion</TabsTrigger>
+              {planValidated && <TabsTrigger value="agenda">Agenda</TabsTrigger>}
+              {planValidated && <TabsTrigger value="lecciones">Lecciones</TabsTrigger>}
+            </TabsList>
 
-        {!loading && plan?.status === "VALIDATED" && courseId && (
-          <AgendaView courseId={courseId} readOnly={isArchived} />
-        )}
+            <TabsContent value="planificacion" className="pt-4">
+              <PlanEditor
+                planId={plan.id}
+                courseId={courseId!}
+                planStatus={plan.status}
+                onValidated={handlePlanValidated}
+                courseArchived={isArchived}
+              />
+            </TabsContent>
 
-        <div>
-          <h2 className="text-xl font-semibold text-foreground mb-4">Lecciones</h2>
+            {planValidated && (
+              <TabsContent value="agenda" className="pt-4">
+                <AgendaView courseId={courseId!} readOnly={isArchived} />
+              </TabsContent>
+            )}
 
-          {loading ? (
-            <SkeletonList count={6} />
-          ) : plan?.status !== "VALIDATED" ? (
-            <EmptyState
-              icon={BookOpen}
-              title="Validá el plan para habilitar las lecciones"
-              description="Una vez validado, se crearán las lecciones del curso automáticamente."
-            />
-          ) : lessons.length === 0 ? (
-            <EmptyState
-              icon={BookOpen}
-              title="No hay lecciones creadas para este curso"
-            />
-          ) : (
-            <div className="space-y-3">
-              {lessons.map((lesson) => (
-                <Link key={lesson.id} to={`/lesson/${lesson.id}`}>
-                  <Card className="hover:border-primary/50 transition-colors cursor-pointer">
-                    <CardHeader className="pb-2">
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-base">
-                          Lección {lesson.lesson_number}
-                          {lesson.plan_lesson?.theme ? ` — ${lesson.plan_lesson.theme}` : ""}
-                        </CardTitle>
-                        <div className="flex gap-2">
-                          <StatusBadge tone={lessonStatusTone(lesson.status)} label={lessonStatusLabel(lesson.status)} />
-                          {lesson.is_generating && (
-                            <Badge variant="outline" className="animate-pulse">Generando...</Badge>
+            {planValidated && (
+              <TabsContent value="lecciones" className="pt-4">
+                {lessons.length === 0 ? (
+                  <EmptyState
+                    icon={BookOpen}
+                    title="No hay lecciones creadas para este curso"
+                  />
+                ) : (
+                  <div className="space-y-3">
+                    {lessons.map((lesson) => (
+                      <Link key={lesson.id} to={`/lesson/${lesson.id}`}>
+                        <Card className="hover:border-primary/50 transition-colors cursor-pointer">
+                          <CardHeader className="pb-2">
+                            <div className="flex items-center justify-between">
+                              <CardTitle className="text-base">
+                                Lección {lesson.lesson_number}
+                                {lesson.plan_lesson?.theme ? ` — ${lesson.plan_lesson.theme}` : ""}
+                              </CardTitle>
+                              <div className="flex gap-2">
+                                <StatusBadge tone={lessonStatusTone(lesson.status)} label={lessonStatusLabel(lesson.status)} />
+                                {lesson.is_generating && (
+                                  <Badge variant="outline" className="animate-pulse">Generando...</Badge>
+                                )}
+                                <StatusBadge tone={briefTone(lesson.brief_status)} label={briefLabel(lesson.brief_status)} />
+                              </div>
+                            </div>
+                          </CardHeader>
+                          {lesson.plan_lesson?.learning_outcome && (
+                            <CardContent>
+                              <p className="text-sm text-muted-foreground line-clamp-2">
+                                {lesson.plan_lesson.learning_outcome}
+                              </p>
+                            </CardContent>
                           )}
-                          <StatusBadge tone={briefTone(lesson.brief_status)} label={briefLabel(lesson.brief_status)} />
-                        </div>
-                      </div>
-                    </CardHeader>
-                    {lesson.plan_lesson?.learning_outcome && (
-                      <CardContent>
-                        <p className="text-sm text-muted-foreground line-clamp-2">
-                          {lesson.plan_lesson.learning_outcome}
-                        </p>
-                      </CardContent>
-                    )}
-                  </Card>
-                </Link>
-              ))}
-            </div>
-          )}
-        </div>
+                        </Card>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
+            )}
+          </Tabs>
+        ) : null}
       </main>
     </div>
   );

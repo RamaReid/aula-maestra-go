@@ -1,15 +1,19 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { Eye } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { StatusBadge, lessonStatusLabel, lessonStatusTone } from "@/components/ui/StatusBadge";
 
 interface LessonRow {
   id: string;
   lesson_number: number;
   theme: string;
   scheduled_date: string | null;
+  status: string;
 }
 
 interface Props {
@@ -25,7 +29,7 @@ export default function AgendaView({ courseId, readOnly = false }: Props) {
     const fetch = async () => {
       const { data } = await supabase
         .from("lessons")
-        .select("id, lesson_number, scheduled_date, plan_lesson_id")
+        .select("id, lesson_number, scheduled_date, status, plan_lesson_id")
         .eq("course_id", courseId)
         .order("lesson_number");
 
@@ -44,6 +48,7 @@ export default function AgendaView({ courseId, readOnly = false }: Props) {
             lesson_number: l.lesson_number,
             theme: plMap.get(l.plan_lesson_id) || "",
             scheduled_date: l.scheduled_date,
+            status: l.status,
           }))
         );
       }
@@ -79,38 +84,41 @@ export default function AgendaView({ courseId, readOnly = false }: Props) {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="text-lg">Agenda</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-16">#</TableHead>
-              <TableHead>Tema</TableHead>
-              <TableHead className="w-44">Fecha</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {lessons.map((lesson) => (
-              <TableRow key={lesson.id}>
-                <TableCell className="font-medium">{lesson.lesson_number}</TableCell>
-                <TableCell className="text-muted-foreground text-sm">
-                  {lesson.theme || "—"}
-                </TableCell>
-                <TableCell>
-                  <Input
-                    type="date"
-                    value={lesson.scheduled_date || ""}
-                    onChange={(e) => handleDateChange(lesson.id, e.target.value)}
-                    disabled={readOnly}
-                    className="w-full"
-                  />
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+      <CardContent className="pt-6">
+        {/* Header row */}
+        <div className="grid grid-cols-[2rem_1fr_auto_auto_auto] gap-3 items-center pb-2 border-b mb-1">
+          <span className="text-xs font-medium text-muted-foreground">N°</span>
+          <span className="text-xs font-medium text-muted-foreground">Tema</span>
+          <span className="text-xs font-medium text-muted-foreground">Fecha</span>
+          <span className="text-xs font-medium text-muted-foreground">Estado</span>
+          <span className="text-xs font-medium text-muted-foreground">Acción</span>
+        </div>
+        {lessons.map((lesson) => (
+          <div
+            key={lesson.id}
+            className="grid grid-cols-[2rem_1fr_auto_auto_auto] gap-3 items-center py-2 border-b last:border-0"
+          >
+            <span className="text-sm font-medium">{lesson.lesson_number}</span>
+            <span className="text-sm text-muted-foreground">{lesson.theme || "—"}</span>
+            <Input
+              type="date"
+              value={lesson.scheduled_date || ""}
+              onChange={(e) => handleDateChange(lesson.id, e.target.value)}
+              disabled={readOnly}
+              className="w-36"
+            />
+            <StatusBadge
+              tone={lessonStatusTone(lesson.status)}
+              label={lessonStatusLabel(lesson.status)}
+            />
+            <Button size="sm" variant="ghost" asChild className="gap-1">
+              <Link to={`/lesson/${lesson.id}`}>
+                <Eye className="h-3.5 w-3.5" />
+                Ver clase
+              </Link>
+            </Button>
+          </div>
+        ))}
       </CardContent>
     </Card>
   );

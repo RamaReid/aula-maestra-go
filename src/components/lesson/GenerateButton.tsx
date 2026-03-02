@@ -13,12 +13,12 @@ export default function GenerateButton({ onClick, isGenerating, disabled }: Gene
       {isGenerating ? (
         <>
           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          Generando materiales...
+          Generando...
         </>
       ) : (
         <>
           <Sparkles className="mr-2 h-4 w-4" />
-          Generar materiales
+          Generar
         </>
       )}
     </Button>
