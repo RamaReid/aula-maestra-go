@@ -854,8 +854,8 @@ export type Database = {
       curriculum_status: "VERIFIED" | "DEPRECATED"
       depth_level: "BAJO" | "MEDIO" | "ALTO"
       lesson_status: "PLANNED" | "TAUGHT" | "RESCHEDULED" | "LOCKED"
-      material_status: "GENERATED" | "VALIDATED" | "INVALIDATED"
-      plan_status: "INCOMPLETE" | "VALIDATED"
+      material_status: "GENERATED" | "VALIDATED" | "INVALIDATED" | "EDITED"
+      plan_status: "INCOMPLETE" | "VALIDATED" | "EDITED"
       plan_type: "FREE" | "BASICO" | "PREMIUM"
       school_type: "COMUN" | "TECNICA"
       subscription_status: "ACTIVE" | "CANCELED" | "EXPIRED"
@@ -995,8 +995,8 @@ export const Constants = {
       curriculum_status: ["VERIFIED", "DEPRECATED"],
       depth_level: ["BAJO", "MEDIO", "ALTO"],
       lesson_status: ["PLANNED", "TAUGHT", "RESCHEDULED", "LOCKED"],
-      material_status: ["GENERATED", "VALIDATED", "INVALIDATED"],
-      plan_status: ["INCOMPLETE", "VALIDATED"],
+      material_status: ["GENERATED", "VALIDATED", "INVALIDATED", "EDITED"],
+      plan_status: ["INCOMPLETE", "VALIDATED", "EDITED"],
       plan_type: ["FREE", "BASICO", "PREMIUM"],
       school_type: ["COMUN", "TECNICA"],
       subscription_status: ["ACTIVE", "CANCELED", "EXPIRED"],

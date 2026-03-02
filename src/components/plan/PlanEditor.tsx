@@ -33,8 +33,22 @@ export default function PlanEditor({ planId, courseId, planStatus, onValidated, 
   const [validating, setValidating] = useState(false);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [newStrategy, setNewStrategy] = useState("");
-  const readOnly = planStatus === "VALIDATED" || !!courseArchived;
+
+  // Post-validation editing state
+  const [currentStatus, setCurrentStatus] = useState(planStatus);
+  const [hasEditedAfterValidation, setHasEditedAfterValidation] = useState(false);
+  const transitioningRef = useRef(false);
+
+  const readOnly = !!courseArchived;
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Sync prop -> local status
+  useEffect(() => {
+    setCurrentStatus(planStatus);
+    if (planStatus === "VALIDATED") {
+      setHasEditedAfterValidation(false);
+    }
+  }, [planStatus]);
 
   useEffect(() => {
     const fetch = async () => {
@@ -49,16 +63,29 @@ export default function PlanEditor({ planId, courseId, planStatus, onValidated, 
     fetch();
   }, [planId]);
 
+  const transitionToEdited = useCallback(async () => {
+    if (transitioningRef.current) return;
+    transitioningRef.current = true;
+    await supabase.from("plans").update({ status: "EDITED" as any }).eq("id", planId);
+    setCurrentStatus("EDITED");
+    setHasEditedAfterValidation(true);
+    transitioningRef.current = false;
+  }, [planId]);
+
   const saveField = useCallback(
     (field: keyof PlanData, value: string | string[]) => {
       if (readOnly) return;
       setValidationErrors([]);
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(async () => {
+        // If VALIDATED, transition to EDITED on first change
+        if (currentStatus === "VALIDATED") {
+          await transitionToEdited();
+        }
         await supabase.from("plans").update({ [field]: value }).eq("id", planId);
       }, 500);
     },
-    [planId, readOnly]
+    [planId, readOnly, currentStatus, transitionToEdited]
   );
 
   const updateField = (field: keyof PlanData, value: string) => {
@@ -94,7 +121,11 @@ export default function PlanEditor({ planId, courseId, planStatus, onValidated, 
         toast({ title: "Validación fallida", description: result.errors.join(". "), variant: "destructive" });
         return;
       }
-      toast({ title: "Plan validado", description: "Se crearon las lecciones del curso." });
+      if (hasEditedAfterValidation) {
+        toast({ title: "Plan revalidado", description: "Los cambios fueron validados correctamente." });
+      } else {
+        toast({ title: "Plan validado", description: "Se crearon las lecciones del curso." });
+      }
       onValidated();
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -102,6 +133,27 @@ export default function PlanEditor({ planId, courseId, planStatus, onValidated, 
       setValidating(false);
     }
   };
+
+  // Badge rendering
+  const renderStatusBadge = () => {
+    switch (currentStatus) {
+      case "VALIDATED":
+        return <Badge variant="default">Validado</Badge>;
+      case "EDITED":
+        return (
+          <div className="flex items-center gap-2">
+            <Badge variant="destructive">Editado</Badge>
+            <span className="text-xs text-muted-foreground">Requiere revalidación</span>
+          </div>
+        );
+      default:
+        return <Badge variant="secondary">Incompleto</Badge>;
+    }
+  };
+
+  // CTA label
+  const ctaLabel = currentStatus === "EDITED" ? "Validar cambios" : "Validar Plan";
+  const showCta = !readOnly && !courseArchived && currentStatus !== "VALIDATED";
 
   if (loading || !plan) {
     return (
@@ -117,9 +169,7 @@ export default function PlanEditor({ planId, courseId, planStatus, onValidated, 
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <CardTitle className="text-lg">Planificación Anual</CardTitle>
-        <Badge variant={readOnly ? "default" : "secondary"}>
-          {readOnly ? "Validado" : "Incompleto"}
-        </Badge>
+        {renderStatusBadge()}
       </CardHeader>
       <CardContent className="space-y-4">
         <InlineValidationSummary errors={validationErrors} />
@@ -201,10 +251,10 @@ export default function PlanEditor({ planId, courseId, planStatus, onValidated, 
           </TabsContent>
         </Tabs>
 
-        {!readOnly && !courseArchived && (
+        {showCta && (
           <Button onClick={handleValidate} disabled={validating} className="w-full mt-4">
             <ShieldCheck className="h-4 w-4 mr-2" />
-            {validating ? "Validando..." : "Validar Plan"}
+            {validating ? "Validando..." : ctaLabel}
           </Button>
         )}
       </CardContent>
