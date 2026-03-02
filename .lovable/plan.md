@@ -1,28 +1,15 @@
 
-# Fase 2 — Estado "Editado" + Revalidacion
 
-## Pre-fix: BriefForm beforeunload cross-browser
+# Fase 2 — Migracion DB + UI (version final con fixes)
 
-**Archivo**: `src/components/lesson/BriefForm.tsx` (linea 42)
+## Confirmaciones pre-merge
 
-Agregar `e.returnValue = '';` para compatibilidad Chrome/Safari.
+1. **`plans.resources`**: Existe en el schema (text, NOT NULL, default `''::text`). Validacion OK.
+2. **Null-safe**: Todas las validaciones de texto usaran `length(COALESCE(trim(...), ''))` para fundamentacion, estrategias_marco, evaluacion_marco y resources.
 
-```typescript
-const handler = (e: BeforeUnloadEvent) => {
-  e.preventDefault();
-  e.returnValue = '';
-};
-```
+## 2.1 Migracion SQL (1 archivo, 3 bloques)
 
-Confirmo que `handleSave` existe y compila (lineas 50-77). Sin cambios necesarios.
-
----
-
-## 2.1 Migracion DB: EDITED en enums (idempotente)
-
-Una sola migracion SQL con 4 bloques:
-
-### Bloque 1: Agregar EDITED a enums
+### Bloque 1: Agregar EDITED a enums (idempotente)
 
 ```sql
 DO $$
@@ -38,20 +25,16 @@ BEGIN
 END $$;
 ```
 
-### Bloque 2: Trigger actualizado (VALIDATED -> EDITED permitido)
+### Bloque 2: Trigger (VALIDATED -> EDITED sin bypass)
 
 ```sql
 CREATE OR REPLACE FUNCTION public.prevent_direct_plan_validation()
- RETURNS trigger
- LANGUAGE plpgsql
- SET search_path TO 'public'
+ RETURNS trigger LANGUAGE plpgsql SET search_path TO 'public'
 AS $$
 BEGIN
-  -- Allow VALIDATED -> EDITED without bypass
   IF NEW.status = 'EDITED' AND OLD.status = 'VALIDATED' THEN
     RETURN NEW;
   END IF;
-  -- Block direct transition to VALIDATED without bypass
   IF NEW.status = 'VALIDATED' AND OLD.status IS DISTINCT FROM 'VALIDATED' THEN
     IF COALESCE(current_setting('app.validate_plan_bypass', true), '') != 'true' THEN
       RAISE EXCEPTION 'Solo validate_plan() puede cambiar status a VALIDATED';
@@ -62,18 +45,19 @@ END;
 $$;
 ```
 
-### Bloque 3: validate_plan con rama EDITED temprana (ajuste obligatorio 1)
+### Bloque 3: validate_plan (rama EDITED temprana + null-safe + flexible count)
 
-La rama EDITED se ejecuta **antes** de cualquier validacion de campos o chequeo de lecciones. Retorna inmediatamente.
+Cambios clave respecto a la version actual:
 
-Usa `ARRAY[]::text[]` en vez de `'{}'::text[]` (ajuste obligatorio 2).
+- **Rama EDITED temprana**: antes de cualquier validacion de campos, si status = EDITED -> set bypass, UPDATE -> VALIDATED, RETURN success.
+- **Null-safe**: `length(COALESCE(trim(v_plan.fundamentacion), ''))` en fundamentacion, estrategias_marco, evaluacion_marco, resources.
+- **Flexible count**: `v_pl_count < 1` en vez de `!= 28`.
+- **ARRAY[]::text[]**: reemplaza `'{}'::text[]` en todos los retornos.
+- **Rechazo generico**: `IF v_plan.status != 'INCOMPLETE'` despues de la rama EDITED.
 
 ```sql
 CREATE OR REPLACE FUNCTION public.validate_plan(p_plan_id uuid)
- RETURNS jsonb
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public'
+ RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public'
 AS $$
 DECLARE
   v_plan RECORD; v_obj_count INT; v_pl_count INT; v_lesson_count INT;
@@ -98,33 +82,32 @@ BEGIN
     RETURN jsonb_build_object('success', false, 'errors', ARRAY['El curso esta archivado']);
   END IF;
 
-  -- RAMA EDITED: retorno temprano sin validaciones ni creacion de lecciones
+  -- RAMA EDITED: retorno temprano
   IF v_plan.status = 'EDITED' THEN
     SET LOCAL app.validate_plan_bypass = 'true';
     UPDATE plans SET status = 'VALIDATED' WHERE id = p_plan_id;
     RETURN jsonb_build_object('success', true, 'errors', ARRAY[]::text[]);
   END IF;
 
-  -- Solo INCOMPLETE puede seguir; cualquier otro estado se rechaza
   IF v_plan.status != 'INCOMPLETE' THEN
     RETURN jsonb_build_object('success', false, 'errors', ARRAY['Estado no permite validacion']);
   END IF;
 
-  -- Validaciones de campos (solo para INCOMPLETE -> VALIDATED)
-  IF length(v_plan.fundamentacion) < 100 THEN
+  -- Validaciones null-safe
+  IF length(COALESCE(trim(v_plan.fundamentacion), '')) < 100 THEN
     v_errors := array_append(v_errors, 'Fundamentacion debe tener al menos 100 caracteres');
   END IF;
-  IF trim(v_plan.estrategias_marco) = '' OR v_plan.estrategias_marco IS NULL THEN
+  IF length(COALESCE(trim(v_plan.estrategias_marco), '')) = 0 THEN
     v_errors := array_append(v_errors, 'Estrategias marco es obligatorio');
   END IF;
-  IF trim(v_plan.evaluacion_marco) = '' OR v_plan.evaluacion_marco IS NULL THEN
+  IF length(COALESCE(trim(v_plan.evaluacion_marco), '')) = 0 THEN
     v_errors := array_append(v_errors, 'Evaluacion marco es obligatorio');
   END IF;
   IF array_length(v_plan.estrategias_practicas, 1) IS NULL
      OR array_length(v_plan.estrategias_practicas, 1) < 1 THEN
     v_errors := array_append(v_errors, 'Se requiere al menos 1 estrategia practica');
   END IF;
-  IF length(trim(v_plan.resources)) = 0 THEN
+  IF length(COALESCE(trim(v_plan.resources), '')) = 0 THEN
     v_errors := array_append(v_errors, 'Recursos es obligatorio');
   END IF;
 
@@ -134,15 +117,14 @@ BEGIN
   END IF;
 
   SELECT count(*) INTO v_pl_count FROM plan_lessons WHERE plan_id = p_plan_id;
-  IF v_pl_count != 28 THEN
-    v_errors := array_append(v_errors, 'Deben existir exactamente 28 plan_lessons (actual: ' || v_pl_count || ')');
+  IF v_pl_count < 1 THEN
+    v_errors := array_append(v_errors, 'Se requiere al menos 1 clase en el cronograma (actual: ' || v_pl_count || ')');
   END IF;
 
   FOR v_pl IN SELECT lesson_number, activities_summary
-              FROM plan_lessons WHERE plan_id = p_plan_id
-              ORDER BY lesson_number
+              FROM plan_lessons WHERE plan_id = p_plan_id ORDER BY lesson_number
   LOOP
-    IF length(trim(v_pl.activities_summary)) = 0 THEN
+    IF length(COALESCE(trim(v_pl.activities_summary), '')) = 0 THEN
       v_errors := array_append(v_errors, 'Clase ' || v_pl.lesson_number || ': Actividades es obligatorio');
     END IF;
   END LOOP;
@@ -170,144 +152,52 @@ $$;
 
 ---
 
-## 2.2 StatusBadge.tsx: mapeos EDITED + precedencia INVALIDATED > EDITED
+## 2.2 BriefForm.tsx: beforeunload cross-browser
 
-**Archivo**: `src/components/ui/StatusBadge.tsx`
+Agregar `e.returnValue = '';` al handler existente (1 linea).
 
-Actualizar 4 funciones:
+## 2.3 StatusBadge.tsx: mapeos EDITED
 
-```typescript
-// planLabel
-export function planLabel(status: string | null | undefined): string {
-  switch (status) {
-    case "VALIDATED": return "Validado";
-    case "EDITED": return "Editado";
-    default: return "Incompleto";
-  }
-}
+4 funciones actualizadas:
 
-// planTone
-export function planTone(status: string | null | undefined): Tone {
-  switch (status) {
-    case "VALIDATED": return "success";
-    case "EDITED": return "danger";
-    default: return "warning";
-  }
-}
+- `planLabel`: EDITED -> "Editado"
+- `planTone`: EDITED -> "danger"
+- `materialLabel`: INVALIDATED > EDITED > GENERATED > VALIDATED (precedencia por switch order)
+- `materialTone`: INVALIDATED/EDITED -> "danger", GENERATED -> "warning", VALIDATED -> "success"
 
-// materialLabel: precedencia INVALIDATED > EDITED
-export function materialLabel(status: string | null | undefined): string {
-  switch (status) {
-    case "INVALIDATED": return "Invalidado";
-    case "EDITED": return "Editado";
-    case "GENERATED": return "Generado";
-    case "VALIDATED": return "Validado";
-    default: return "Sin generar";
-  }
-}
+## 2.4 PlanEditor.tsx: logica post-validacion
 
-// materialTone: precedencia INVALIDATED > EDITED
-export function materialTone(status: string | null | undefined): Tone {
-  switch (status) {
-    case "INVALIDATED": return "danger";
-    case "EDITED": return "danger";
-    case "GENERATED": return "warning";
-    case "VALIDATED": return "success";
-    default: return "neutral";
-  }
-}
-```
+1. `readOnly` = solo `!!courseArchived` (no bloquea VALIDATED)
+2. Estado local `currentStatus` + `hasEditedAfterValidation`
+3. `useEffect` sincroniza `planStatus` prop -> `currentStatus` (reset si vuelve a VALIDATED)
+4. `saveField`: si `currentStatus === "VALIDATED"`, primer cambio -> update DB a EDITED + `setCurrentStatus("EDITED")`
+5. Badge: VALIDATED/default, EDITED/destructive + microcopy, INCOMPLETE/secondary
+6. CTA: INCOMPLETE -> "Validar", EDITED -> "Validar cambios", VALIDATED -> oculto
+7. Toast: si `hasEditedAfterValidation` -> "Plan revalidado" (sin "Se crearon las lecciones")
 
-Nota: La precedencia INVALIDATED > EDITED se resuelve en la capa de datos (el status ya refleja la precedencia correcta). Los mappers simplemente renderizan lo que reciben. Si un material esta INVALIDATED, ese es el status que llega.
+## 2.5 Course.tsx: fix tabs con EDITED
+
+- `planValidated` incluye EDITED: `plan?.status === "VALIDATED" || plan?.status === "EDITED"`
+- Fetch de lecciones: misma condicion expandida
 
 ---
 
-## 2.3 PlanEditor.tsx: logica de edicion post-validacion
-
-**Archivo**: `src/components/plan/PlanEditor.tsx`
-
-Cambios principales:
-
-1. **readOnly**: cambia de `planStatus === "VALIDATED" || !!courseArchived` a solo `!!courseArchived`
-
-2. **Nuevos estados locales**:
-   - `currentStatus` (inicializado con `planStatus`)
-   - `hasEditedAfterValidation` (boolean, default false)
-
-3. **useEffect para sincronizar props -> estado local** (ajuste obligatorio 3):
-   ```typescript
-   useEffect(() => {
-     setCurrentStatus(planStatus);
-     if (planStatus === "VALIDATED") {
-       setHasEditedAfterValidation(false);
-     }
-   }, [planStatus]);
-   ```
-
-4. **saveField actualizado**: si `currentStatus === "VALIDATED"` y es primer cambio:
-   - Hacer update `{ status: "EDITED" }` ademas del campo
-   - `setCurrentStatus("EDITED")`
-   - `setHasEditedAfterValidation(true)`
-
-5. **Badge dinamico** (usando `currentStatus`):
-   - VALIDATED -> "Validado" (default variant)
-   - EDITED -> "Editado" (destructive variant) + microcopy debajo
-   - INCOMPLETE -> "Incompleto" (secondary variant)
-
-6. **CTA condicional**:
-   - INCOMPLETE -> boton "Validar"
-   - EDITED -> boton "Validar cambios"
-   - VALIDATED -> sin CTA (ya esta validado)
-
-7. **Microcopy** debajo del badge cuando EDITED:
-   ```
-   "Editado por docente: requiere validacion para quedar como version final."
-   ```
-
-8. **handleValidate toast**: si `hasEditedAfterValidation` (viene de EDITED), mostrar "Plan revalidado" sin "Se crearon las lecciones".
-
----
-
-## 2.4 Course.tsx: fix critico de visibilidad tabs con EDITED
-
-**Archivo**: `src/pages/Course.tsx`
-
-Bug actual: `planValidated = plan?.status === "VALIDATED"` (linea 142). Cuando el plan pasa a EDITED, las tabs Agenda/Lecciones desaparecen y las lecciones no se fetchean (linea 82).
-
-Fix:
-- Linea 82: cambiar condicion de `planData?.status === "VALIDATED"` a `planData?.status === "VALIDATED" || planData?.status === "EDITED"` (las lecciones ya existen)
-- Linea 142: cambiar `planValidated` a `plan?.status === "VALIDATED" || plan?.status === "EDITED"`
-
-Esto garantiza que al pasar a EDITED, Agenda y Lecciones siguen visibles (ajuste obligatorio 7 del checklist).
-
----
-
-## 2.5 Nombres de botones
+## Resumen de archivos
 
 | Archivo | Cambio |
 |---------|--------|
-| PlanEditor.tsx | "Validar Plan" -> "Validar" (INCOMPLETE) / "Validar cambios" (EDITED) |
-| BriefForm.tsx | Ya dice "Guardar" (OK) |
-| GenerateButton.tsx | Ya dice "Generar" (OK) |
+| Migracion SQL | Enums + trigger + validate_plan (null-safe, flexible, rama EDITED) |
+| `src/components/lesson/BriefForm.tsx` | `e.returnValue = ''` (1 linea) |
+| `src/components/ui/StatusBadge.tsx` | 4 funciones con EDITED |
+| `src/components/plan/PlanEditor.tsx` | Logica completa post-validacion |
+| `src/pages/Course.tsx` | planValidated incluye EDITED |
 
----
+## Checklist de pruebas (7 casos)
 
-## Resumen de archivos modificados
-
-| Archivo | Cambio |
-|---------|--------|
-| `src/components/lesson/BriefForm.tsx` | Agregar `e.returnValue = ''` (1 linea) |
-| Migracion SQL (1 archivo) | EDITED en enums + trigger + validate_plan |
-| `src/components/ui/StatusBadge.tsx` | Mapeos EDITED en planLabel/planTone/materialLabel/materialTone |
-| `src/components/plan/PlanEditor.tsx` | Logica edicion post-validacion completa |
-| `src/pages/Course.tsx` | Fix `planValidated` para incluir EDITED |
-
-## Checklist de pruebas manuales (7 casos)
-
-1. **INCOMPLETE -> Validar**: Plan con campos completos + 28 lecciones. Presionar "Validar". Status = VALIDATED, lecciones creadas, CTA desaparece.
-2. **VALIDATED -> Editar campo**: Editar fundamentacion. Badge cambia a "Editado" (rojo), microcopy aparece, CTA dice "Validar cambios".
-3. **EDITED -> Validar cambios**: Presionar "Validar cambios". Status vuelve a VALIDATED, sin lecciones duplicadas, CTA desaparece.
-4. **Curso archivado**: Campos disabled independientemente del status del plan.
-5. **beforeunload BriefForm**: Editar campo sin guardar, cerrar pestana -> dialogo nativo aparece.
-6. **EDITED -> Validar cambios -> refresh**: Tras refresh, status queda VALIDATED y contenido editado persiste.
-7. **Tabs con EDITED**: Cuando plan esta EDITED, Agenda y Lecciones siguen visibles (no desaparecen).
+1. INCOMPLETE -> Validar: lecciones creadas, status VALIDATED, CTA oculto
+2. VALIDATED -> editar campo: badge "Editado" rojo, microcopy, CTA "Validar cambios"
+3. EDITED -> Validar cambios: status VALIDATED, sin lecciones duplicadas, CTA oculto
+4. Curso archivado: campos disabled en cualquier status
+5. beforeunload BriefForm: dialogo nativo al cerrar con cambios sin guardar
+6. EDITED -> Validar cambios -> refresh: status VALIDATED, contenido editado persiste
+7. Tabs con EDITED: Agenda y Lecciones siguen visibles
