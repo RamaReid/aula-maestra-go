@@ -1,178 +1,166 @@
 
 
-# DEMO Golden Master + Motor Canonico de Planificaciones
+# Plan: Reescritura de Demo.tsx con contenido canonico (4 pestanas)
 
-Plan final con los 3 ajustes incorporados. 7 tareas, 8 archivos afectados.
+## Objetivo
+
+Reescribir completamente `src/pages/Demo.tsx` con 4 pestanas que renderizan texto literal de los 3 documentos canon adjuntos. Sin backend, sin componentes nuevos, sin tocar otros archivos.
+
+## Archivo unico modificado
+
+`src/pages/Demo.tsx` -- reescritura completa (~2000+ lineas por el contenido literal embebido).
 
 ---
 
-## TAREA 1 -- Migraciones DB (2 columnas nuevas)
+## Estructura
 
-Dos ALTER TABLE:
+### Estado React
 
-```sql
-ALTER TABLE plans ADD COLUMN resources text NOT NULL DEFAULT '';
-ALTER TABLE plan_lessons ADD COLUMN activities_summary text NOT NULL DEFAULT '';
+```text
+activeTab: string (controlado, default "planificacion")
+undevelopedNotice: number | null (para mostrar aviso en tab "clase")
 ```
 
-No se requieren cambios de RLS (policies existentes cubren owner access).
+Tabs controlado: `<Tabs value={activeTab} onValueChange={...}>` para permitir navegacion programatica desde la Agenda.
+
+### Header
+
+Cambia de "Historia 4to ano" a los datos del canon:
+- "Filosofia e Historia de la Ciencia y la Tecnologia -- 6.o ano EESA"
+- "Provincia de Buenos Aires -- 2 modulos semanales"
+
+### 4 Pestanas
+
+TabsList con `grid-cols-2 md:grid-cols-4`.
 
 ---
 
-## TAREA 2 -- UI: PlanEditor (6 tabs)
+## Tab A: Planificacion
 
-**Archivo:** `src/components/plan/PlanEditor.tsx`
+Renderiza el documento `canon_demo_planificacion_anual` completo como cards verticales, siguiendo cada encabezado del markdown en orden:
 
-Cambios:
-- Agregar `resources` al tipo `PlanData` y al SELECT (linea 43).
-- Cambiar TabsList de `grid-cols-4` a `grid-cols-3 md:grid-cols-6`.
-- Agregar TabsTrigger "Recursos" y TabsTrigger "Cronograma".
-- TabsContent "recursos": Label + Textarea (rows=8) con autosave debounce 500ms (mismo patron que fundamentacion).
-- TabsContent "cronograma": renderiza `<PlanLessonsEditor planId={planId} readOnly={readOnly} />`.
-- Reemplazar Badge (linea 120-122) por StatusBadge con `planTone`/`planLabel`.
-- Renombrar tab "Propositos" a "Objetivos (4-8)" (ajuste #3).
+1. **Fundamentacion** -- 4 parrafos largos como `<p>` dentro de Card
+2. **Objetivos generales** -- 11 items como `<ul><li>`
+3. **Objetivos de aprendizaje** -- 8 items como `<ul><li>`
+4. **Contenidos** -- Subsecciones Primer cuatrimestre (Unidad I, II) y Segundo cuatrimestre (Unidad III, IV, V). Cada unidad como `<h4>` + `<ul><li>`
+5. **Organizacion espacio-temporal** -- Cuatrimestre 1 (14 clases) y Cuatrimestre 2 (14 clases) como lista numerada con parrafos. Cada clase: numero + tema + actividades en texto. NO tabla.
+6. **Estrategias didacticas** -- 5 items como `<ul><li>`
+7. **Recursos** -- 4 subsecciones (Infraestructura, Materiales, Casos, Aportes) cada una con `<h4>` + `<ul><li>`
+8. **Adaptaciones situadas** -- 3 items
+9. **Formas de evaluar** -- Texto introductorio + Instrumentos + Rubrica C1-C5. La rubrica se renderiza como cards anidadas o listas de definicion (cada criterio: nombre bold, descripcion italica, 4 niveles como sub-lista `<ul><li>`). NO tabla.
+10. **Ponderacion** -- Texto corto
+11. **Bibliografia** -- General (16 entradas) + Por caso de estudio (7 subsecciones con sus entradas) + Para temas de integracion (5 subsecciones). Cada entrada como `<li>`.
+12. **Carpeta de casos** -- A-F como lista
+13. **Ejemplo desarrollado -- Caso A Dulce** -- Secciones como sub-cards con parrafos
 
----
-
-## TAREA 3 -- Nuevo componente PlanLessonsEditor
-
-**Archivo nuevo:** `src/components/plan/PlanLessonsEditor.tsx`
-
-Props: `planId: string`, `readOnly: boolean`.
-
-Funcionalidad:
-- Fetch las 28 plan_lessons ordenadas por lesson_number.
-- **Ajuste #1:** Si count < 28, muestra boton "Recrear cronograma (1..28)" que:
-  - DELETE plan_lessons WHERE plan_id = planId
-  - INSERT 28 filas con lesson_number 1..28, term auto (1 para 1-14, 2 para 15-28), campos vacios
-  - Re-fetch despues del insert
-- Muestra tabla agrupada por cuatrimestre (separador "Cuatrimestre 1" / "Cuatrimestre 2").
-- Columnas: #, Tema, Actividades, Term.
-- `theme` y `activities_summary` editables via Input/Textarea inline con autosave onBlur (update por plan_lesson id).
-- `learning_outcome` y `justification` editables en accordion expandible por fila (click para ver detalles).
+Todo el contenido es texto literal del markdown, sin resumir ni reescribir.
 
 ---
 
-## TAREA 4 -- RPC validate_plan (enforcement duro)
+## Tab B: Secuencia
 
-**Migracion SQL:** CREATE OR REPLACE FUNCTION validate_plan
+Renderiza `secuencia_didactica_unidad_iii_clases_15_17` completo:
 
-Agregar despues de las validaciones existentes (sin tocar las que ya estan):
+1. **Header** -- Espacio, carga, tramo, eje (como Card introductoria)
+2. **Propositos** -- 5 items
+3. **Alcances y encuadre** -- 2 parrafos
+4. **Aprendizajes esperados** -- 4 items
+5. **Evidencia minima** -- Producto integrador (3 sub-items numerados) + Recuperacion equivalente
+6. **Evaluacion formativa** -- Lista de cotejo: 5 items como `<ol><li>`. NO tabla.
+7. **Clase 15** (con `id="clase-15"`) -- Card con: Proposito, Entrada, Desarrollo (3 sub-actividades), Cierre, Plan B
+8. **Clase 16** (con `id="clase-16"`) -- Card con: Proposito, Entrada, Desarrollo (3 sub-actividades + 4 falacias), Cierre, Plan B
+9. **Clase 17** (con `id="clase-17"`) -- Card con: Proposito, Entrada, Desarrollo (4 sub-actividades), Cierre, Plan B
+10. **Plantilla de produccion** -- Secciones A, B, C como sub-cards
+11. **Material de lectura para estudiantes** -- Texto corrido completo (~24 parrafos sobre ambiguedad, vaguedad, falacias, cohesion, referencias). Incluye las 4 falacias como sub-secciones.
 
-```sql
--- Validar resources (incluido en SELECT * que ya usa)
-IF length(trim(v_plan.resources)) = 0 THEN
-  v_errors := array_append(v_errors, 'Recursos es obligatorio');
-END IF;
-
--- Validar activities_summary en cada plan_lesson
-FOR v_pl IN SELECT lesson_number, activities_summary
-            FROM plan_lessons WHERE plan_id = p_plan_id
-            ORDER BY lesson_number
-LOOP
-  IF length(trim(v_pl.activities_summary)) = 0 THEN
-    v_errors := array_append(v_errors, 'Clase ' || v_pl.lesson_number || ': Actividades es obligatorio');
-  END IF;
-END LOOP;
-```
-
-El SELECT * del plan ya incluye `resources` automaticamente al existir la columna.
+Cada clase tiene un `id` HTML para scroll-anchor desde la Agenda.
 
 ---
 
-## TAREA 5 -- DEMO fixture (seed)
+## Tab C: Preparar clase
 
-**Archivo nuevo:** `supabase/functions/seed-demo-course/index.ts`
+Renderiza `clase_20_popper` completo:
 
-Edge function que:
-- Usa SERVICE_ROLE_KEY para bypass RLS.
-- **Ajuste #2 (idempotente sin borrar curso):**
-  - Busca escuela por nombre "EESA Demo (Canon)". Si no existe, la crea. Si existe, la reutiliza.
-  - Busca curso por subject + year_level + school_id del caller. Si no existe, lo crea. Si existe, reutiliza el id.
-  - Busca plan por course_id. Si no existe, lo crea. Si existe, hace UPDATE de los campos (fundamentacion, estrategias_marco, etc.).
-  - DELETE + INSERT para plan_objectives (8 items, los "Objetivos de aprendizaje" del canon).
-  - DELETE + INSERT para plan_lessons (28 filas completas del cronograma del canon).
-  - IDs del curso y plan quedan estables.
+1. **Header** -- Curso, ubicacion en secuencia
+2. **Proposito** -- 1 parrafo
+3. **Contenidos de la clase** -- 2 items
+4. **Bibliografia de base** -- 1 entrada
+5. **Material de lectura para estudiantes** -- Texto corrido completo (titulo "Popper: por que una buena teoria tiene que poder fallar" + ~7 parrafos largos)
+6. **Desarrollo de la clase** -- 4 momentos como sub-cards:
+   - Entrada (10-15'): retoma y puente con Kuhn
+   - Lectura guiada (20-25'): preguntas de control
+   - Actividad central (35-40'): consigna + 3 situaciones + plantilla de produccion (5 items)
+   - Cierre (10-15'): socializacion y salida
+7. **Evidencia minima** -- Producto + 5 criterios como lista
+8. **Recuperacion equivalente** -- 2 items
+9. **Recursos** -- 3 items
+10. **Plan B** -- 1 parrafo
+11. **Adaptaciones situadas** -- 3 items
 
-Datos del canon (del archivo adjunto):
-- `fundamentacion`: texto completo (~2500 chars, lineas 11-21 del archivo).
-- `estrategias_marco`: texto de "Estrategias didacticas" (lineas 142-146).
-- `estrategias_practicas`: 5 items array ("Exposicion dialogada...", "Lectura guiada...", "Trabajo con situaciones...", "Organizacion de la informacion...", "Tecnicas grupales...").
-- `evaluacion_marco`: texto completo de "Formas de evaluar" incluyendo rubrica C1-C5 (lineas 191-227).
-- `resources`: texto completo de "Recursos" (lineas 152-177).
-- `plan_objectives`: 8 items de "Objetivos de aprendizaje" (lineas 43-50). **Ajuste #3 nota:** estos se almacenan como plan_objectives y en UI se muestran como "Objetivos (4-8)".
-- `plan_lessons`: 28 filas del cronograma (lineas 106-136):
-  - theme: titulo de cada clase (ej: "Concepto de Filosofia: que es, para que y como se practica")
-  - activities_summary: texto despues de "Actividades:" (ej: "definicion operativa (5-7 lineas) con ejemplo")
-  - learning_outcome: derivado del contenido
-  - term: 1 para 1-14, 2 para 15-28
+Si se llega desde una clase no desarrollada (via Agenda), se muestra un Card con fondo warning encima: "Clase {N} no esta desarrollada en este demo. Solo se incluyen las clases 15, 16, 17 y 20."
 
 ---
 
-## TAREA 6 -- demo_contract_check RPC
+## Tab D: Agenda
 
-**Migracion SQL:** nueva funcion RPC.
+Layout con `div` + grid/flex (NO `<table>`):
+- Header row: N | Tema | Estado | Accion (con font-medium text-muted-foreground)
+- 28 filas, una por clase del cronograma canon
+- Cada fila es un `div` con `grid grid-cols-[2rem_1fr_auto_auto]` y `border-b`
 
-- SECURITY DEFINER con checks de auth.uid() + is_course_owner().
-- STABLE (no muta estado).
-- Ejecuta los mismos checks estructurales que validate_plan:
-  - fundamentacion >= 100 chars
-  - estrategias_marco no vacio
-  - evaluacion_marco no vacio
-  - estrategias_practicas >= 1
-  - resources no vacio (nuevo)
-  - plan_objectives 4-8
-  - plan_lessons == 28
-  - activities_summary no vacio para cada clase (nuevo)
-- Retorna `{ success: boolean, errors: string[] }` sin mutar estado ni insertar lessons.
+Datos: los 28 temas se toman literalmente del cronograma del canon (lineas 106-136).
 
----
+**Estado:**
+- Clases 15, 16, 17, 20: `StatusBadge tone="success" label="Desarrollada"`
+- Resto: `StatusBadge tone="neutral" label="No desarrollada"`
 
-## TAREA 7 -- AgendaView (columna Actividades)
-
-**Archivo:** `src/components/plan/AgendaView.tsx`
-
-- Extender select de plan_lessons (linea 36) de `"id, theme"` a `"id, theme, activities_summary"`.
-- Agregar `activities_summary` al tipo `LessonRow` y al mapeo.
-- Agregar columna "Actividades" a la tabla entre "Tema" y "Fecha".
-- Rotulo "Actividades" (no "Evidencia").
+**Boton "Ver clase":**
+- Clic en 15, 16 o 17: `setActiveTab("secuencia")` + `setTimeout(() => document.getElementById("clase-N")?.scrollIntoView({ behavior: "smooth" }), 150)`
+- Clic en 20: `setActiveTab("clase")` + `setUndevelopedNotice(null)`
+- Clic en otra: `setActiveTab("clase")` + `setUndevelopedNotice(N)`
 
 ---
 
-## Archivos afectados
+## Formato (regla estricta)
 
-| # | Archivo | Accion |
-|---|---------|--------|
-| 1 | DB: plans | ALTER ADD resources |
-| 2 | DB: plan_lessons | ALTER ADD activities_summary |
-| 3 | DB: RPC validate_plan | CREATE OR REPLACE (agregar checks) |
-| 4 | DB: RPC demo_contract_check | CREATE nueva funcion |
-| 5 | src/components/plan/PlanEditor.tsx | Modificar: 6 tabs, resources, cronograma, StatusBadge, label "Objetivos (4-8)" |
-| 6 | src/components/plan/PlanLessonsEditor.tsx | Crear: editor 28 clases con fallback recrear |
-| 7 | src/components/plan/PlanObjectivesEditor.tsx | Modificar: label "propositos" -> "objetivos" |
-| 8 | src/components/plan/AgendaView.tsx | Modificar: columna Actividades |
-| 9 | supabase/functions/seed-demo-course/index.ts | Crear: fixture DEMO idempotente |
-
-**NO se toca:** generate-materials, AuthContext, lesson_briefs, reading/teaching_materials, Demo.tsx, CourseNew.tsx.
+- Tabs Planificacion, Secuencia y Preparar clase: PROHIBIDO `<table>`. Solo cards, headings, parrafos y listas.
+- Tab Agenda: layout con div/grid/flex simulando filas. PROHIBIDO `<table>`.
+- La rubrica C1-C5 se renderiza como cards con listas internas.
+- El cronograma 1-28 se renderiza como lista numerada con parrafos.
 
 ---
 
-## Secuencia de ejecucion
+## Datos embebidos
 
-1. Migraciones DB (TAREA 1) -- plans.resources + plan_lessons.activities_summary
-2. RPC validate_plan actualizado (TAREA 4)
-3. RPC demo_contract_check (TAREA 6)
-4. Componentes UI (TAREAS 2, 3, 7) -- PlanEditor + PlanLessonsEditor + PlanObjectivesEditor + AgendaView
-5. Seed fixture DEMO (TAREA 5) -- edge function
-6. QA: invocar seed-demo-course, luego demo_contract_check sobre el plan DEMO -> success=true
+Todo el texto de los 3 markdowns se almacena como constantes TypeScript al inicio del archivo. Esto incluye:
+- ~450 lineas del canon de planificacion
+- ~228 lineas de la secuencia
+- ~128 lineas de clase 20
+- Array de 28 objetos para el cronograma/agenda
+
+El archivo sera largo (~2500 lineas) pero autocontenido, cumpliendo el constraint de "solo Demo.tsx".
 
 ---
 
-## Resumen de los 3 ajustes aplicados
+## Imports (todos ya disponibles)
 
-| # | Ajuste | Resolucion |
-|---|--------|------------|
-| 1 | Fallback count < 28 | Boton "Recrear cronograma (1..28)" en PlanLessonsEditor que hace delete+insert 28 filas |
-| 2 | Seed idempotente sin borrar curso | Upsert por entidad: buscar/reutilizar curso+plan, delete+insert solo objectives y lessons |
-| 3 | Label UI plan_objectives | Cambiar "Propositos" a "Objetivos (4-8)" en PlanEditor tab y PlanObjectivesEditor |
+- `useState` de React
+- `Link` de react-router-dom
+- `Button`, `Card`, `CardContent`, `CardHeader`, `CardTitle`
+- `Tabs`, `TabsContent`, `TabsList`, `TabsTrigger`
+- `Badge`
+- `StatusBadge` de `@/components/ui/StatusBadge`
+- `toast` de `@/hooks/use-toast`
+- `AlertTriangle`, `Eye`, `BookOpen` de `lucide-react`
+- `ScrollArea` de `@/components/ui/scroll-area`
+
+---
+
+## Lo que NO se hace
+
+- No se crean archivos nuevos
+- No se modifican otros archivos
+- No se hacen llamadas a backend/DB/RPC
+- No se inventa ni resume contenido
+- No se usa `<table>` en ningun lugar
 
