@@ -79,7 +79,7 @@ export default function Course() {
       setPlan({ id: planData.id, status: planData.status });
     }
 
-    if (planData?.status === "VALIDATED") {
+    if (planData?.status === "VALIDATED" || planData?.status === "EDITED") {
       const { data: lessonsData } = await supabase
         .from("lessons")
         .select("id, lesson_number, status, scheduled_date, is_generating, plan_lesson_id")
@@ -139,7 +139,7 @@ export default function Course() {
   };
 
   const isArchived = course?.status === "ARCHIVED";
-  const planValidated = plan?.status === "VALIDATED";
+  const planValidated = plan?.status === "VALIDATED" || plan?.status === "EDITED";
 
   return (
     <div className="min-h-screen bg-background">

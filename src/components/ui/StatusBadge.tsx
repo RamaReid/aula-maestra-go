@@ -55,31 +55,42 @@ export function briefTone(status: string | null | undefined): Tone {
 
 export function materialLabel(status: string | null | undefined): string {
   switch (status) {
+    case "INVALIDATED": return "Invalidado";
+    case "EDITED": return "Editado";
     case "GENERATED": return "Generado";
     case "VALIDATED": return "Validado";
-    case "INVALIDATED": return "Invalidado";
     default: return "Sin generar";
   }
 }
 
 export function materialTone(status: string | null | undefined): Tone {
   switch (status) {
+    case "INVALIDATED":
+    case "EDITED":
+      return "danger";
     case "GENERATED":
+      return "warning";
     case "VALIDATED":
       return "success";
-    case "INVALIDATED":
-      return "danger";
     default:
       return "neutral";
   }
 }
 
 export function planLabel(status: string | null | undefined): string {
-  return status === "VALIDATED" ? "Validado" : "Incompleto";
+  switch (status) {
+    case "VALIDATED": return "Validado";
+    case "EDITED": return "Editado";
+    default: return "Incompleto";
+  }
 }
 
 export function planTone(status: string | null | undefined): Tone {
-  return status === "VALIDATED" ? "success" : "warning";
+  switch (status) {
+    case "VALIDATED": return "success";
+    case "EDITED": return "danger";
+    default: return "warning";
+  }
 }
 
 export function lessonStatusLabel(status: string): string {
