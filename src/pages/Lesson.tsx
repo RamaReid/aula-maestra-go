@@ -191,9 +191,10 @@ export default function Lesson() {
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card">
         <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-4">
-          <Button variant="ghost" size="icon" asChild>
+          <Button variant="ghost" size="sm" asChild>
             <Link to={`/course/${lesson.course_id}`}>
-              <ArrowLeft className="h-4 w-4" />
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Volver al curso
             </Link>
           </Button>
           <div className="flex-1">
