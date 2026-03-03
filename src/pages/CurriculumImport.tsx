@@ -1,5 +1,5 @@
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { ArrowLeft, FileUp, Loader2 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -49,10 +49,11 @@ function fileToBase64(file: File): Promise<string> {
 export default function CurriculumImport() {
   const { profile } = useAuth();
   const { toast } = useToast();
+  const [searchParams] = useSearchParams();
   const [file, setFile] = useState<File | null>(null);
-  const [subject, setSubject] = useState("");
-  const [cycle, setCycle] = useState<CurriculumCycle>("UPPER");
-  const [yearLevel, setYearLevel] = useState("6");
+  const [subject, setSubject] = useState(searchParams.get("subject") || "");
+  const [cycle, setCycle] = useState<CurriculumCycle>((searchParams.get("cycle") as CurriculumCycle) || "UPPER");
+  const [yearLevel, setYearLevel] = useState(searchParams.get("year_level") || "6");
   const [schoolType, setSchoolType] = useState<SchoolType | "ANY">("ANY");
   const [orientation, setOrientation] = useState("");
   const [speciality, setSpeciality] = useState("");

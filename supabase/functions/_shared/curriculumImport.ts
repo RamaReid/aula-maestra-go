@@ -1,11 +1,13 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getDocument } from "npm:pdfjs-dist@4.10.38/legacy/build/pdf.mjs";
 
-export const OFFICIAL_ALLOWED_HOSTS = new Set(["abc.gob.ar", "servicios.abc.gov.ar"]);
-
-export type SchoolType = "COMUN" | "TECNICA";
-export type CurriculumCycle = "BASIC" | "UPPER";
-export type CurriculumNodeType = "EJE" | "UNIDAD" | "BLOQUE" | "CONTENIDO";
+import {
+  CurriculumCycle,
+  CurriculumNodeType,
+  isAllowedOfficialUrl,
+  normalizeText,
+  SchoolType,
+} from "./curriculumCommon.ts";
 
 export type CurriculumImportPayload = {
   file_name?: string | null;
@@ -49,28 +51,9 @@ const SECTION_HEADINGS = [
   "bibliografia",
 ];
 
-export function normalizeText(value: string | null | undefined): string {
-  return (value || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .toLowerCase();
-}
-
 function normalizeNullable(value: string | null | undefined): string | null {
   const normalized = normalizeText(value);
   return normalized.length > 0 ? normalized : null;
-}
-
-export function isAllowedOfficialUrl(url: string | null | undefined): boolean {
-  if (!url) return false;
-  try {
-    const host = new URL(url).hostname.toLowerCase();
-    return OFFICIAL_ALLOWED_HOSTS.has(host);
-  } catch {
-    return false;
-  }
 }
 
 function bytesToSha256(buffer: Uint8Array): Promise<string> {

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Check, ExternalLink, Loader2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, ExternalLink, Loader2, Upload } from "lucide-react";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -142,6 +142,9 @@ export default function CourseNew() {
   const selectedSchool = schools.find((school) => school.id === state.schoolId);
   const selectedCurriculum =
     curriculumCandidates.find((candidate) => candidate.id === selectedCurriculumId) || null;
+  const importProgramUrl = `/curriculum/import?subject=${encodeURIComponent(state.subject || "")}&cycle=${encodeURIComponent(
+    state.cycle || ""
+  )}&year_level=${encodeURIComponent(state.yearLevel?.toString() || "")}`;
   const availableCycles = useMemo(() => {
     if (!state.subject) return [];
     return ["BASIC", "UPPER"] as Cycle[];
@@ -793,6 +796,14 @@ export default function CourseNew() {
                   <div className="space-y-2 rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm">
                     <p className="font-medium">No se pudo resolver el programa oficial.</p>
                     {resolutionError && <p className="text-muted-foreground">{resolutionError}</p>}
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                      <Button asChild size="sm" variant="outline">
+                        <Link to={importProgramUrl}>
+                          <Upload className="mr-2 h-4 w-4" />
+                          Importar programa
+                        </Link>
+                      </Button>
+                    </div>
                     <a
                       href={officialIndexUrl}
                       target="_blank"

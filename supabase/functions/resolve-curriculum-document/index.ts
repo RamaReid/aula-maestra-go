@@ -3,11 +3,10 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 import {
   CurriculumCycle,
-  ingestCurriculumDocument,
   isAllowedOfficialUrl,
   normalizeText,
   SchoolType,
-} from "../_shared/curriculumImport.ts";
+} from "../_shared/curriculumCommon.ts";
 
 const PRIMARY_OFFICIAL_INDEX_URL =
   "https://abc.gob.ar/secretarias/areas/subsecretaria-de-educacion/educacion-secundaria/educacion-secundaria/disenos-curriculares";
@@ -337,6 +336,7 @@ serve(async (req) => {
     const persistedCandidates: CurriculumCandidate[] = [];
     for (const match of webMatches.slice(0, 3)) {
       try {
+        const { ingestCurriculumDocument } = await import("../_shared/curriculumImport.ts");
         const ingestion = await ingestCurriculumDocument(adminClient, {
           province: body.province,
           subject: body.subject,
