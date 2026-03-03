@@ -9,8 +9,11 @@ import {
   SchoolType,
 } from "../_shared/curriculumImport.ts";
 
-const OFFICIAL_INDEX_URL =
+const PRIMARY_OFFICIAL_INDEX_URL =
+  "https://abc.gob.ar/secretarias/areas/subsecretaria-de-educacion/educacion-secundaria/educacion-secundaria/disenos-curriculares";
+const SECONDARY_OFFICIAL_INDEX_URL =
   "https://servicios.abc.gov.ar/lainstitucion/organismos/consejogeneral/disenioscurriculares/secundaria/";
+const OFFICIAL_INDEX_URLS = [PRIMARY_OFFICIAL_INDEX_URL, SECONDARY_OFFICIAL_INDEX_URL];
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -112,7 +115,7 @@ function rankCandidates(
     .sort((a, b) => b.score - a.score || a.display_title.localeCompare(b.display_title));
 }
 
-function extractOfficialLinks(html: string): WebMatch[] {
+function extractOfficialLinks(html: string, baseUrl: string): WebMatch[] {
   const regex = /<a[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
   const results: WebMatch[] = [];
   let match: RegExpExecArray | null = null;
@@ -129,7 +132,7 @@ function extractOfficialLinks(html: string): WebMatch[] {
 
     let url: string;
     try {
-      url = new URL(href, OFFICIAL_INDEX_URL).toString();
+      url = new URL(href, baseUrl).toString();
     } catch {
       continue;
     }
@@ -141,12 +144,12 @@ function extractOfficialLinks(html: string): WebMatch[] {
   return results;
 }
 
-function findWebMatches(html: string, subject: string, yearLevel: number): WebMatch[] {
+function findWebMatches(html: string, baseUrl: string, subject: string, yearLevel: number): WebMatch[] {
   const normalizedSubject = normalizeText(subject);
   const tokens = normalizedSubject.split(" ").filter((token) => token.length >= 3);
   const yearHints = yearTokens(yearLevel);
 
-  return extractOfficialLinks(html).filter((link) => {
+  return extractOfficialLinks(html, baseUrl).filter((link) => {
     const text = normalizeText(`${link.title} ${link.url}`);
     const subjectMatch = text.includes(normalizedSubject) || tokens.every((token) => text.includes(token));
     const yearMatch = yearHints.some((hint) => text.includes(hint));
@@ -155,30 +158,42 @@ function findWebMatches(html: string, subject: string, yearLevel: number): WebMa
 }
 
 async function fetchOfficialIndexMatches(subject: string, yearLevel: number): Promise<WebMatch[]> {
-  const response = await fetch(OFFICIAL_INDEX_URL);
-  if (!response.ok) {
-    throw new Error(`No se pudo consultar el indice oficial de ABC (${response.status})`);
+  let lastError: Error | null = null;
+
+  for (const indexUrl of OFFICIAL_INDEX_URLS) {
+    try {
+      const response = await fetch(indexUrl);
+      if (!response.ok) {
+        throw new Error(`No se pudo consultar el indice oficial de ABC (${response.status})`);
+      }
+
+      const html = await response.text();
+      const directMatches = findWebMatches(html, indexUrl, subject, yearLevel);
+      if (directMatches.length > 0) return directMatches;
+
+      const sectionCandidates = extractOfficialLinks(html, indexUrl).filter((link) => {
+        const text = normalizeText(`${link.title} ${link.url}`);
+        return yearTokens(yearLevel).some((hint) => text.includes(hint));
+      });
+
+      for (const section of sectionCandidates.slice(0, 6)) {
+        try {
+          const sectionResponse = await fetch(section.url);
+          if (!sectionResponse.ok) continue;
+          const sectionHtml = await sectionResponse.text();
+          const nestedMatches = findWebMatches(sectionHtml, section.url, subject, yearLevel);
+          if (nestedMatches.length > 0) return nestedMatches;
+        } catch {
+          // Ignore individual section failures.
+        }
+      }
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error("No se pudo consultar el indice oficial de ABC");
+    }
   }
 
-  const html = await response.text();
-  const directMatches = findWebMatches(html, subject, yearLevel);
-  if (directMatches.length > 0) return directMatches;
-
-  const sectionCandidates = extractOfficialLinks(html).filter((link) => {
-    const text = normalizeText(`${link.title} ${link.url}`);
-    return yearTokens(yearLevel).some((hint) => text.includes(hint));
-  });
-
-  for (const section of sectionCandidates.slice(0, 6)) {
-    try {
-      const sectionResponse = await fetch(section.url);
-      if (!sectionResponse.ok) continue;
-      const sectionHtml = await sectionResponse.text();
-      const nestedMatches = findWebMatches(sectionHtml, subject, yearLevel);
-      if (nestedMatches.length > 0) return nestedMatches;
-    } catch {
-      // Ignore individual section failures.
-    }
+  if (lastError) {
+    throw lastError;
   }
 
   return [];
@@ -291,7 +306,7 @@ serve(async (req) => {
           JSON.stringify({
             status: "resolved",
             document: topCandidates[0],
-            official_index_url: OFFICIAL_INDEX_URL,
+            official_index_url: PRIMARY_OFFICIAL_INDEX_URL,
           }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
@@ -301,7 +316,7 @@ serve(async (req) => {
         JSON.stringify({
           status: "ambiguous",
           candidates: topCandidates,
-          official_index_url: OFFICIAL_INDEX_URL,
+          official_index_url: PRIMARY_OFFICIAL_INDEX_URL,
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -313,7 +328,7 @@ serve(async (req) => {
         JSON.stringify({
           status: "not_found",
           reason: "No se encontro un programa oficial compatible en la base curricular ni en el indice oficial de ABC.",
-          official_index_url: OFFICIAL_INDEX_URL,
+          official_index_url: PRIMARY_OFFICIAL_INDEX_URL,
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -346,7 +361,7 @@ serve(async (req) => {
         JSON.stringify({
           status: "not_found",
           reason: "Se encontro un enlace oficial, pero no se pudo ingerir el documento curricular.",
-          official_index_url: OFFICIAL_INDEX_URL,
+          official_index_url: PRIMARY_OFFICIAL_INDEX_URL,
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -366,7 +381,7 @@ serve(async (req) => {
         JSON.stringify({
           status: "resolved",
           document: topCandidates[0],
-          official_index_url: OFFICIAL_INDEX_URL,
+          official_index_url: PRIMARY_OFFICIAL_INDEX_URL,
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -376,7 +391,7 @@ serve(async (req) => {
       JSON.stringify({
         status: "ambiguous",
         candidates: topCandidates,
-        official_index_url: OFFICIAL_INDEX_URL,
+        official_index_url: PRIMARY_OFFICIAL_INDEX_URL,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

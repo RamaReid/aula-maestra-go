@@ -120,7 +120,7 @@ export default function CourseNew() {
   const [curriculumCandidates, setCurriculumCandidates] = useState<CurriculumCandidate[]>([]);
   const [selectedCurriculumId, setSelectedCurriculumId] = useState("");
   const [officialIndexUrl, setOfficialIndexUrl] = useState(
-    "https://servicios.abc.gov.ar/lainstitucion/organismos/consejogeneral/disenioscurriculares/secundaria/"
+    "https://abc.gob.ar/secretarias/areas/subsecretaria-de-educacion/educacion-secundaria/educacion-secundaria/disenos-curriculares"
   );
 
   const [state, setState] = useState<WizardState>({
