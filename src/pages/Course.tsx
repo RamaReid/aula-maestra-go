@@ -2,10 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Archive, ArrowLeft, BookOpen } from "lucide-react";
 
-import { APP_MODE, IS_SIMULATION } from "@/config/appMode";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-import { getMockCurriculumForCourse } from "@/mock/curriculumCatalog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -52,7 +50,6 @@ interface CurriculumInfo {
   official_title: string | null;
   official_url: string | null;
   source_provider: string;
-  mode: "simulation" | "production";
 }
 
 interface PlanInfo {
@@ -113,20 +110,7 @@ export default function Course() {
           .eq("id", courseData.curriculum_document_id)
           .single();
 
-        setCurriculum(curriculumData ? { ...curriculumData, mode: "production" } : null);
-      } else if (IS_SIMULATION) {
-        const mockCurriculum = getMockCurriculumForCourse(courseData.id);
-        setCurriculum(
-          mockCurriculum
-            ? {
-                id: mockCurriculum.id,
-                official_title: mockCurriculum.official_title,
-                official_url: mockCurriculum.official_url,
-                source_provider: mockCurriculum.source_provider,
-                mode: "simulation",
-              }
-            : null
-        );
+        setCurriculum(curriculumData || null);
       } else {
         setCurriculum(null);
       }
@@ -267,15 +251,8 @@ export default function Course() {
                 {curriculum ? (
                   <>
                     <p className="text-sm">{curriculum.official_title || "Documento curricular asociado"}</p>
-                    <p className="text-xs text-muted-foreground">
-                      Fuente: {curriculum.source_provider} · Modo {curriculum.mode === "simulation" ? "simulacion" : "produccion"}
-                    </p>
-                    {curriculum.mode === "simulation" && (
-                      <p className="text-xs text-muted-foreground">
-                        Este curso usa una base curricular de simulacion local. Sirve para probar el flujo, no para validar el motor real.
-                      </p>
-                    )}
-                    {curriculum.source_provider === "ABC_PBA_WEB" && curriculum.mode === "production" && (
+                    <p className="text-xs text-muted-foreground">Fuente: {curriculum.source_provider}</p>
+                    {curriculum.source_provider === "ABC_PBA_WEB" && (
                       <p className="text-xs text-muted-foreground">
                         Documento resuelto desde ABC. La trazabilidad ya esta fijada, pero la extraccion profunda del contenido curricular sigue en construccion.
                       </p>
@@ -293,9 +270,7 @@ export default function Course() {
                   </>
                 ) : (
                   <p className="text-sm text-muted-foreground">
-                    {APP_MODE === "production"
-                      ? "Este curso no tiene un diseno curricular oficial asociado todavia."
-                      : "Este curso no tiene una base curricular asociada en el modo actual."}
+                    Este curso no tiene un diseno curricular oficial asociado todavia.
                   </p>
                 )}
               </CardContent>

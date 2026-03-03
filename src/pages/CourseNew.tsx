@@ -5,13 +5,6 @@ import { ArrowLeft, ArrowRight, Check, ExternalLink, Loader2 } from "lucide-reac
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-import { APP_MODE, IS_SIMULATION } from "@/config/appMode";
-import {
-  buildMockPlanDraft,
-  getMockProgramsForProvince,
-  resolveMockProgram,
-  saveMockCurriculumForCourse,
-} from "@/mock/curriculumCatalog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -121,7 +114,6 @@ export default function CourseNew() {
   const [step, setStep] = useState(1);
   const [schools, setSchools] = useState<SchoolOption[]>([]);
   const [supportedPrograms, setSupportedPrograms] = useState<SupportedProgram[]>([]);
-  const [subjects, setSubjects] = useState<string[]>([]);
   const [creating, setCreating] = useState(false);
   const [resolutionStatus, setResolutionStatus] = useState<ResolutionStatus>("idle");
   const [resolutionError, setResolutionError] = useState("");
@@ -152,25 +144,13 @@ export default function CourseNew() {
     curriculumCandidates.find((candidate) => candidate.id === selectedCurriculumId) || null;
   const availableCycles = useMemo(() => {
     if (!state.subject) return [];
-    if (!IS_SIMULATION) return ["BASIC", "UPPER"] as Cycle[];
-    return [...new Set(
-      supportedPrograms
-        .filter((program) => program.subject === state.subject)
-        .map((program) => program.cycle)
-    )].sort() as Cycle[];
-  }, [state.subject, supportedPrograms]);
+    return ["BASIC", "UPPER"] as Cycle[];
+  }, [state.subject]);
 
   const yearOptions = useMemo(() => {
     if (!state.subject || !state.cycle) return [];
-    if (!IS_SIMULATION) {
-      return state.cycle === "BASIC" ? [1, 2, 3] : [4, 5, 6];
-    }
-    return [...new Set(
-      supportedPrograms
-        .filter((program) => program.subject === state.subject && program.cycle === state.cycle)
-        .map((program) => program.year_level)
-    )].sort((a, b) => a - b);
-  }, [state.cycle, state.subject, supportedPrograms]);
+    return state.cycle === "BASIC" ? [1, 2, 3] : [4, 5, 6];
+  }, [state.cycle, state.subject]);
   const matchingPrograms = useMemo(() => {
     if (!state.subject || !state.cycle || !state.yearLevel) return [];
     return supportedPrograms.filter(
@@ -225,23 +205,7 @@ export default function CourseNew() {
       .eq("province", state.province)
       .eq("status", "VERIFIED")
       .then(({ data }) => {
-        const programs = [
-          ...((data || []) as SupportedProgram[]),
-          ...(IS_SIMULATION
-            ? getMockProgramsForProvince(state.province).map((program) => ({
-                subject: program.subject,
-                cycle: program.cycle,
-                year_level: program.year_level,
-                source_provider: program.source_provider,
-                school_type: program.school_type,
-                orientation: program.orientation,
-                speciality: program.speciality,
-              }))
-            : []),
-        ];
-        const unique = [...new Set(programs.map((item) => item.subject))].sort();
-        setSupportedPrograms(programs);
-        setSubjects(unique);
+        setSupportedPrograms((data || []) as SupportedProgram[]);
       });
   }, [state.province]);
 
@@ -267,78 +231,6 @@ export default function CourseNew() {
       const resolveCurriculum = async () => {
         setResolutionStatus("resolving");
         setResolutionError("");
-
-        if (IS_SIMULATION) {
-          const mockPrograms = resolveMockProgram(state.province, state.subject, state.cycle, state.yearLevel!);
-          if (mockPrograms.length > 0) {
-            const candidates = mockPrograms.map((program) => ({
-              ...program,
-              display_title: program.official_title || program.subject,
-              is_official_domain: false,
-            }));
-            setCurriculumCandidates(candidates);
-            setSelectedCurriculumId(candidates[0].id);
-            setResolutionStatus(candidates.length === 1 ? "resolved" : "ambiguous");
-            setResolutionError("");
-            return;
-          }
-        }
-
-        const resolveLocally = async (): Promise<boolean> => {
-          if (!IS_SIMULATION) return false;
-
-          const { data: localDocs, error: localError } = await supabase
-            .from("curriculum_documents")
-            .select(
-              "id, subject, cycle, year_level, official_url, official_title, source_provider, fetched_at, school_type, orientation, speciality"
-            )
-            .eq("province", state.province)
-            .eq("subject", state.subject)
-            .eq("cycle", state.cycle)
-            .eq("year_level", state.yearLevel!)
-            .eq("status", "VERIFIED");
-
-          if (!active) return true;
-
-          if (localError) {
-            setResolutionStatus("error");
-            setResolutionError(localError.message);
-            return true;
-          }
-
-          const ranked = ((localDocs || []) as any[])
-            .map((candidate) => ({
-              ...candidate,
-              display_title: candidate.official_title || candidate.subject,
-              is_official_domain: isAllowedOfficialUrl(candidate.official_url),
-              score: scoreCandidate(
-                {
-                  ...candidate,
-                  display_title: candidate.official_title || candidate.subject,
-                  is_official_domain: isAllowedOfficialUrl(candidate.official_url),
-                },
-                state.schoolType,
-                needsOrientation ? state.orientation : null,
-                needsSpeciality ? state.speciality : null
-              ),
-            }))
-            .sort((a, b) => b.score - a.score || a.display_title.localeCompare(b.display_title));
-
-          if (ranked.length === 0) {
-            return false;
-          }
-
-          const topScore = ranked[0].score;
-          const topCandidates = ranked.filter((candidate) => candidate.score === topScore);
-          setCurriculumCandidates(topCandidates);
-          setSelectedCurriculumId(topCandidates[0].id);
-          setResolutionStatus(topCandidates.length === 1 ? "resolved" : "ambiguous");
-          setResolutionError("");
-          return true;
-        };
-
-        const localResolved = await resolveLocally();
-        if (!active || localResolved) return;
 
         const { data, error } = await supabase.functions.invoke("resolve-curriculum-document", {
           body: {
@@ -515,15 +407,6 @@ export default function CourseNew() {
         return;
       }
 
-      const isMockCurriculum = selectedCurriculum?.source_provider === "LOCAL_FIXTURE";
-      if (APP_MODE === "production" && isMockCurriculum) {
-        throw new Error("El modo produccion no permite crear cursos desde programas mock.");
-      }
-
-      if (APP_MODE === "production" && !selectedCurriculumId) {
-        throw new Error("El curso requiere un programa oficial persistido antes de crearse.");
-      }
-
       const baseCoursePayload = {
         user_id: user.id,
         school_id: state.schoolId,
@@ -534,46 +417,15 @@ export default function CourseNew() {
         speciality: needsSpeciality ? state.speciality : null,
       };
 
-      let course:
-        | {
-            id: string;
-          }
-        | null = null;
-
-      if (!isMockCurriculum) {
-        const { data: courseWithCurriculum, error: courseWithCurriculumError } = await supabase
-          .from("courses")
-          .insert({
-            ...baseCoursePayload,
-            curriculum_document_id: selectedCurriculumId,
-          })
-          .select("id")
-          .single();
-
-        if (!courseWithCurriculumError && courseWithCurriculum) {
-          course = courseWithCurriculum;
-        } else if (APP_MODE === "production") {
-          throw courseWithCurriculumError;
-        } else if (
-          !courseWithCurriculumError ||
-          !courseWithCurriculumError.message.includes("curriculum_document_id")
-        ) {
-          throw courseWithCurriculumError;
-        }
-      }
-
-      if (!course) {
-        if (APP_MODE === "production") {
-          throw new Error("No se pudo crear el curso con curriculum_document_id en modo produccion.");
-        }
-        const { data: courseWithoutCurriculum, error: courseWithoutCurriculumError } = await supabase
-          .from("courses")
-          .insert(baseCoursePayload)
-          .select("id")
-          .single();
-        if (courseWithoutCurriculumError || !courseWithoutCurriculum) throw courseWithoutCurriculumError;
-        course = courseWithoutCurriculum;
-      }
+      const { data: course, error: courseError } = await supabase
+        .from("courses")
+        .insert({
+          ...baseCoursePayload,
+          curriculum_document_id: selectedCurriculumId,
+        })
+        .select("id")
+        .single();
+      if (courseError || !course) throw courseError;
 
       const { data: plan, error: planErr } = await supabase
         .from("plans")
@@ -589,56 +441,6 @@ export default function CourseNew() {
       }));
       const { error: planLessonsError } = await supabase.from("plan_lessons").insert(planLessons);
       if (planLessonsError) throw planLessonsError;
-
-      if (isMockCurriculum) {
-        const draft = buildMockPlanDraft(state.subject);
-        const mockProgram = resolveMockProgram(state.province, state.subject, state.cycle!, state.yearLevel!)[0];
-
-        await supabase
-          .from("plans")
-          .update({
-            fundamentacion: draft.fundamentacion,
-            estrategias_marco: draft.estrategias_marco,
-            estrategias_practicas: draft.estrategias_practicas,
-            evaluacion_marco: draft.evaluacion_marco,
-            resources: draft.resources,
-          })
-          .eq("id", plan!.id);
-
-        await supabase.from("plan_objectives").insert(
-          draft.objectives.map((objective, index) => ({
-            plan_id: plan!.id,
-            description: objective,
-            order_index: index,
-          }))
-        );
-
-        for (const lesson of draft.lessons) {
-          await supabase
-            .from("plan_lessons")
-            .update({
-              theme: lesson.theme,
-              justification: lesson.justification,
-              learning_outcome: lesson.learning_outcome,
-              activities_summary: lesson.activities_summary,
-              is_integrative_evaluation: lesson.lesson_number === 13 || lesson.lesson_number === 27,
-              is_recovery: lesson.lesson_number === 14 || lesson.lesson_number === 28,
-            })
-            .eq("plan_id", plan!.id)
-            .eq("lesson_number", lesson.lesson_number);
-        }
-
-        if (mockProgram) {
-          saveMockCurriculumForCourse(course!.id, mockProgram);
-        }
-
-        toast({
-          title: "Curso creado",
-          description: "El curso se creo con un programa de prueba local y un borrador inicial del plan.",
-        });
-        navigate(`/course/${course!.id}`);
-        return;
-      }
 
       const { error: bootstrapError } = await supabase.functions.invoke("bootstrap-course-plan", {
         body: {
@@ -715,53 +517,20 @@ export default function CourseNew() {
             {step === 2 && (
               <div className="space-y-3">
                 <Label>Materia</Label>
-                {IS_SIMULATION ? (
-                  subjects.length > 0 ? (
-                    <Select
-                      value={state.subject}
-                      onValueChange={(value) => {
-                        setState((prev) => ({
-                          ...prev,
-                          subject: value,
-                          cycle: "",
-                          yearLevel: null,
-                          orientation: "",
-                          speciality: "",
-                        }));
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar materia" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {subjects.map((subject) => (
-                          <SelectItem key={subject} value={subject}>
-                            {subject}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">
-                      No hay programas disponibles para crear cursos.
-                    </p>
-                  )
-                ) : (
-                  <Input
-                    value={state.subject}
-                    onChange={(event) =>
-                      setState((prev) => ({
-                        ...prev,
-                        subject: event.target.value,
-                        cycle: "",
-                        yearLevel: null,
-                        orientation: "",
-                        speciality: "",
-                      }))
-                    }
-                    placeholder="Ej: Filosofia, Historia, Matematica..."
-                  />
-                )}
+                <Input
+                  value={state.subject}
+                  onChange={(event) =>
+                    setState((prev) => ({
+                      ...prev,
+                      subject: event.target.value,
+                      cycle: "",
+                      yearLevel: null,
+                      orientation: "",
+                      speciality: "",
+                    }))
+                  }
+                  placeholder="Ej: Filosofia, Historia, Matematica..."
+                />
               </div>
             )}
 
@@ -896,11 +665,9 @@ export default function CourseNew() {
                         )}
                       </SelectContent>
                     </Select>
-                    {IS_SIMULATION && (
-                      <p className="text-xs text-muted-foreground">
-                        Se muestran solo los ciclos habilitados para la materia elegida.
-                      </p>
-                    )}
+                    <p className="text-xs text-muted-foreground">
+                      Selecciona el ciclo para ayudar a resolver el programa oficial correcto.
+                    </p>
               </div>
             )}
 
@@ -924,11 +691,9 @@ export default function CourseNew() {
                     ))}
                   </SelectContent>
                 </Select>
-                {IS_SIMULATION && (
-                  <p className="text-xs text-muted-foreground">
-                    Se muestran solo los anos disponibles para los programas habilitados.
-                  </p>
-                )}
+                <p className="text-xs text-muted-foreground">
+                  Selecciona el ano para ajustar la resolucion del diseno curricular.
+                </p>
               </div>
             )}
 
@@ -969,9 +734,7 @@ export default function CourseNew() {
 
                 {resolutionStatus === "resolving" && (
                   <div className="rounded-md border p-4 text-sm text-muted-foreground">
-                    {IS_SIMULATION
-                      ? "Buscando programa oficial dentro del catalogo de simulacion..."
-                      : "Buscando y resolviendo el programa oficial correspondiente..."}
+                    Buscando y resolviendo el programa oficial correspondiente...
                   </div>
                 )}
 
