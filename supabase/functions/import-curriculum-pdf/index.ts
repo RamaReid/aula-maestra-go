@@ -25,6 +25,7 @@ type RequestBody = {
   speciality?: string | null;
   official_title?: string | null;
   official_url?: string | null;
+  source_provider?: string | null;
 };
 
 serve(async (req) => {
@@ -91,6 +92,8 @@ serve(async (req) => {
       speciality: body.speciality ?? null,
       official_title: body.official_title ?? null,
       official_url: body.official_url ?? null,
+      allow_external_url: true,
+      source_provider: body.source_provider ?? null,
     });
 
     return new Response(JSON.stringify({ success: true, ...result }), {

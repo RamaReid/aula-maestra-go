@@ -1,5 +1,7 @@
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { ArrowLeft, FileUp, Loader2 } from "lucide-react";
+
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -9,7 +11,6 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
-import { ArrowLeft, FileUp, Loader2 } from "lucide-react";
 
 type SchoolType = "COMUN" | "TECNICA";
 type CurriculumCycle = "BASIC" | "UPPER";
@@ -166,27 +167,27 @@ export default function CurriculumImport() {
           <CardHeader>
             <CardTitle>Importar programa oficial</CardTitle>
             <CardDescription>
-              Esta carga alimenta la base curricular de la app. Puede subir el PDF manualmente o indicar una URL oficial de ABC para que el backend lo ingiera.
+              Esta carga alimenta la base curricular de la app. Puede subir el PDF desde la PC o indicar una URL remota del repositorio o sitio que quiera, siempre que el enlace apunte al PDF.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
             <div className="space-y-2">
-              <Label htmlFor="pdf-file">PDF oficial</Label>
+              <Label htmlFor="pdf-file">PDF desde la PC</Label>
               <Input id="pdf-file" type="file" accept="application/pdf" onChange={handleFileChange} />
               {file && <p className="text-sm text-muted-foreground">Archivo seleccionado: {file.name}</p>}
             </div>
 
             <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-              Si no sube un archivo, puede importar directamente desde una URL oficial de ABC en el campo inferior.
+              Si no sube un archivo, puede importar directamente desde una URL remota al PDF.
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="subject">Materia</Label>
-                <Input id="subject" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Ej. Filosofía" />
+                <Input id="subject" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Ej. Filosofia" />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="year-level">Año</Label>
+                <Label htmlFor="year-level">Ano</Label>
                 <Input id="year-level" type="number" min={1} max={6} value={yearLevel} onChange={(e) => setYearLevel(e.target.value)} />
               </div>
             </div>
@@ -221,7 +222,7 @@ export default function CurriculumImport() {
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="orientation">Orientación</Label>
+                <Label htmlFor="orientation">Orientacion</Label>
                 <Input id="orientation" value={orientation} onChange={(e) => setOrientation(e.target.value)} placeholder="Opcional" />
               </div>
               <div className="space-y-2">
@@ -231,30 +232,31 @@ export default function CurriculumImport() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="official-title">Título oficial</Label>
+              <Label htmlFor="official-title">Titulo oficial</Label>
               <Textarea
                 id="official-title"
                 value={officialTitle}
                 onChange={(e) => setOfficialTitle(e.target.value)}
-                placeholder="Conviene cargar el titulo tal como figura en ABC"
+                placeholder="Conviene cargar el titulo tal como figura en el documento"
                 rows={3}
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="official-url">URL oficial</Label>
+              <Label htmlFor="official-url">URL del programa o repositorio</Label>
               <Input
                 id="official-url"
                 value={officialUrl}
                 onChange={(e) => setOfficialUrl(e.target.value)}
-                placeholder="https://servicios.abc.gov.ar/..."
+                placeholder="https://.../programa.pdf"
               />
             </div>
 
             <div className="rounded-lg border bg-muted/30 p-4 text-sm text-muted-foreground">
-              <p>Sesión: {profile?.email || "usuario autenticado"}</p>
+              <p>{profile?.email || "usuario autenticado"}</p>
               <p>Provincia fija de esta etapa: PBA.</p>
-              <p>Si el mismo programa aplica a común y técnica, usar "Generico / más de un tipo".</p>
+              <p>Si el mismo programa aplica a comun y tecnica, usar "Generico / mas de un tipo".</p>
+              <p>Si usa URL remota, debe ser un enlace directo al PDF para que el importador pueda leerlo.</p>
             </div>
 
             <Button onClick={handleImport} disabled={!canSubmit || importing} className="w-full sm:w-auto">

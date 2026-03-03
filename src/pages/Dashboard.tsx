@@ -9,7 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { LogOut, Plus, ChevronDown, BookOpen, Upload, Trash2, Archive } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { useEntitlements } from "@/hooks/useEntitlements";
+import { PlanType, useEntitlements } from "@/hooks/useEntitlements";
 import { StatusBadge, planTone, planLabel } from "@/components/ui/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { SkeletonList } from "@/components/ui/SkeletonList";
@@ -24,6 +24,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/components/ui/use-toast";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface CourseWithDetails {
   id: string;
@@ -40,10 +41,11 @@ const planBadgeVariant: Record<string, "default" | "secondary" | "outline"> = {
   BASICO: "secondary",
   PREMIUM: "default",
 };
+const QA_EMAIL = "rgarciareid@gmail.com";
 
 export default function Dashboard() {
   const { profile, logout } = useAuth();
-  const { planType } = useEntitlements();
+  const { planType, entitlements, refetch: refetchEntitlements } = useEntitlements();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [courses, setCourses] = useState<CourseWithDetails[]>([]);
@@ -53,6 +55,7 @@ export default function Dashboard() {
   const [courseToArchive, setCourseToArchive] = useState<CourseWithDetails | null>(null);
   const [deletingCourseId, setDeletingCourseId] = useState<string | null>(null);
   const [archivingCourseId, setArchivingCourseId] = useState<string | null>(null);
+  const [switchingPlan, setSwitchingPlan] = useState(false);
 
   const fetchCourses = useCallback(async () => {
     const { data } = await supabase
@@ -140,6 +143,118 @@ export default function Dashboard() {
 
   const activeCourses = courses.filter((c) => c.status === "ACTIVE");
   const archivedCourses = courses.filter((c) => c.status === "ARCHIVED");
+  const primaryFreeCourse = activeCourses[0] || null;
+  const isQaUser = (profile?.email || "").toLowerCase() === QA_EMAIL;
+
+  const handlePlanSwitch = async (nextPlan: PlanType) => {
+    if (!isQaUser || nextPlan === planType) return;
+
+    setSwitchingPlan(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("set-test-plan", {
+        body: { plan_type: nextPlan },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      await refetchEntitlements();
+      toast({
+        title: "Plan de prueba actualizado",
+        description: `Ahora estas viendo el plan ${nextPlan}.`,
+      });
+    } catch (error) {
+      toast({
+        title: "No se pudo cambiar el plan de prueba",
+        description: error instanceof Error ? error.message : "Error desconocido",
+        variant: "destructive",
+      });
+    } finally {
+      setSwitchingPlan(false);
+    }
+  };
+
+  if (planType === "FREE") {
+    return (
+      <div className="min-h-screen bg-background">
+        <header className="border-b bg-card">
+          <div className="mx-auto grid max-w-4xl grid-cols-3 items-center px-4 py-4">
+            <div className="min-w-0">
+              <h1 className="truncate text-lg font-semibold text-foreground">
+                {profile?.name || "Docente"}
+              </h1>
+              <p className="truncate text-sm text-muted-foreground">{profile?.email}</p>
+            </div>
+
+            <div className="flex justify-center">
+              {isQaUser ? (
+                <div className="w-full max-w-[180px]">
+                  <Select value={planType} onValueChange={(value) => handlePlanSwitch(value as PlanType)} disabled={switchingPlan}>
+                    <SelectTrigger className="h-8">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="FREE">FREE</SelectItem>
+                      <SelectItem value="BASICO">BASICO</SelectItem>
+                      <SelectItem value="PREMIUM">PREMIUM</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <Badge variant={planBadgeVariant[planType] || "outline"} className="text-xs">
+                  {planType}
+                </Badge>
+              )}
+            </div>
+
+            <div className="flex justify-end">
+              <Button variant="ghost" size="sm" onClick={logout}>
+                <LogOut className="mr-2 h-4 w-4" />
+                Salir
+              </Button>
+            </div>
+          </div>
+        </header>
+
+        <main className="mx-auto flex min-h-[calc(100vh-73px)] max-w-4xl items-center justify-center px-4 py-8">
+          <Card className="w-full max-w-xl">
+            <CardContent className="flex flex-col items-center gap-5 py-14 text-center">
+              <BookOpen className="h-10 w-10 text-muted-foreground" />
+              {loading ? (
+                <div className="w-full">
+                  <SkeletonList count={1} />
+                </div>
+              ) : primaryFreeCourse ? (
+                <>
+                  <div className="space-y-2">
+                    <h2 className="text-2xl font-semibold text-foreground">Tu curso de muestra ya está listo</h2>
+                    <p className="text-sm text-muted-foreground">
+                      Podés abrir tu curso y seguir con la generación de hasta {entitlements.max_classes_per_session} clases por sesión.
+                    </p>
+                  </div>
+                  <Button asChild size="lg">
+                    <Link to={`/course/${primaryFreeCourse.id}`}>Abrir curso</Link>
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    <h2 className="text-2xl font-semibold text-foreground">Creá tu primer curso para empezar a planificar</h2>
+                    <p className="text-sm text-muted-foreground">
+                      El plan Free te permite probar 1 curso y generar hasta {entitlements.max_classes_per_session} clases por sesión, con un máximo de {entitlements.max_weekly_sessions} sesiones por semana.
+                    </p>
+                  </div>
+                  <Button size="lg" onClick={handleNewCourse}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Crear curso
+                  </Button>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -152,9 +267,24 @@ export default function Dashboard() {
               </h1>
               <p className="text-sm text-muted-foreground">{profile?.email}</p>
             </div>
-            <Badge variant={planBadgeVariant[planType] || "outline"} className="text-xs">
-              {planType}
-            </Badge>
+            {isQaUser ? (
+              <div className="w-[180px]">
+                <Select value={planType} onValueChange={(value) => handlePlanSwitch(value as PlanType)} disabled={switchingPlan}>
+                  <SelectTrigger className="h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="FREE">FREE</SelectItem>
+                    <SelectItem value="BASICO">BASICO</SelectItem>
+                    <SelectItem value="PREMIUM">PREMIUM</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <Badge variant={planBadgeVariant[planType] || "outline"} className="text-xs">
+                {planType}
+              </Badge>
+            )}
           </div>
           <Button variant="ghost" size="sm" onClick={logout}>
             <LogOut className="mr-2 h-4 w-4" />

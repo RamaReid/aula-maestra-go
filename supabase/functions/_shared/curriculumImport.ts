@@ -19,6 +19,8 @@ export type CurriculumImportPayload = {
   speciality?: string | null;
   official_title?: string | null;
   official_url?: string | null;
+  allow_external_url?: boolean;
+  source_provider?: string | null;
 };
 
 type DraftNode = {
@@ -315,6 +317,17 @@ async function replaceNodes(
   }
 }
 
+function resolveSourceProvider(payload: CurriculumImportPayload): string {
+  if (payload.source_provider && payload.source_provider.trim().length > 0) {
+    return payload.source_provider.trim();
+  }
+
+  if (payload.file_base64) return "ABC_PBA_UPLOAD";
+  if (payload.official_url && isAllowedOfficialUrl(payload.official_url)) return "ABC_PBA_UPLOAD";
+  if (payload.official_url) return "MANUAL_URL";
+  return "ABC_PBA_UPLOAD";
+}
+
 async function upsertDocument(
   adminClient: ReturnType<typeof createClient>,
   payload: Required<Omit<CurriculumImportPayload, "file_base64">>,
@@ -360,7 +373,7 @@ async function upsertDocument(
     content_hash: contentHash,
     official_url: payload.official_url || null,
     official_title: payload.official_title || deriveOfficialTitle(rawText, payload.file_name),
-    source_provider: "ABC_PBA_UPLOAD",
+    source_provider: resolveSourceProvider(payload),
     fetched_at: new Date().toISOString(),
     raw_text: rawText,
     school_type: payload.school_type || null,
@@ -392,14 +405,17 @@ async function upsertDocument(
   return inserted.id;
 }
 
-async function downloadPdfBytesFromUrl(url: string): Promise<{ bytes: Uint8Array; fileName: string }> {
-  if (!isAllowedOfficialUrl(url)) {
+async function downloadPdfBytesFromUrl(
+  url: string,
+  options?: { allowExternalUrl?: boolean }
+): Promise<{ bytes: Uint8Array; fileName: string }> {
+  if (!options?.allowExternalUrl && !isAllowedOfficialUrl(url)) {
     throw new Error("La URL oficial no pertenece a un dominio permitido.");
   }
 
   const response = await fetch(url);
   if (!response.ok) {
-    throw new Error(`No se pudo descargar el PDF oficial (${response.status})`);
+    throw new Error(`No se pudo descargar el PDF remoto (${response.status})`);
   }
 
   const contentType = response.headers.get("content-type")?.toLowerCase() || "";
@@ -407,7 +423,7 @@ async function downloadPdfBytesFromUrl(url: string): Promise<{ bytes: Uint8Array
   const bytes = new Uint8Array(arrayBuffer);
 
   if (!contentType.includes("pdf") && !url.toLowerCase().endsWith(".pdf")) {
-    throw new Error("La URL oficial no devolvio un PDF.");
+    throw new Error("La URL no devolvio un PDF.");
   }
 
   const pathname = new URL(url).pathname;
@@ -436,7 +452,9 @@ export async function ingestCurriculumDocument(
     bytes = decodeBase64ToBytes(payload.file_base64);
     fileName = payload.file_name || "programa_oficial.pdf";
   } else if (payload.official_url) {
-    const downloaded = await downloadPdfBytesFromUrl(payload.official_url);
+    const downloaded = await downloadPdfBytesFromUrl(payload.official_url, {
+      allowExternalUrl: payload.allow_external_url === true,
+    });
     bytes = downloaded.bytes;
     fileName = payload.file_name || downloaded.fileName;
   } else {
@@ -464,6 +482,8 @@ export async function ingestCurriculumDocument(
       speciality: payload.speciality ?? null,
       official_title: payload.official_title ?? "",
       official_url: payload.official_url ?? "",
+      allow_external_url: payload.allow_external_url ?? false,
+      source_provider: resolveSourceProvider(payload),
     },
     rawText,
     contentHash
