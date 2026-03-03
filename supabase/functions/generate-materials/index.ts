@@ -265,16 +265,16 @@ serve(async (req) => {
     global: { headers: { Authorization: authHeader } },
   });
 
-  const { data: claimsData, error: claimsError } = await userClient.auth.getClaims(
+  const { data: userData, error: userError } = await userClient.auth.getUser(
     authHeader.replace("Bearer ", "")
   );
-  if (claimsError || !claimsData?.claims) {
+  if (userError || !userData?.user?.id) {
     return new Response(JSON.stringify({ error: "No autorizado" }), {
       status: 401,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
-  const userId = claimsData.claims.sub as string;
+  const userId = userData.user.id;
 
   // Admin client for updates
   const adminClient = createClient(supabaseUrl, serviceRoleKey);
