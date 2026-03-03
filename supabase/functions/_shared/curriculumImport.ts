@@ -9,6 +9,8 @@ import {
   SchoolType,
 } from "./curriculumCommon.ts";
 
+export { CurriculumCycle, SchoolType } from "./curriculumCommon.ts";
+
 export type CurriculumImportPayload = {
   file_name?: string | null;
   file_base64?: string | null;
@@ -57,7 +59,7 @@ function normalizeNullable(value: string | null | undefined): string | null {
 }
 
 function bytesToSha256(buffer: Uint8Array): Promise<string> {
-  return crypto.subtle.digest("SHA-256", buffer).then((hashBuffer) => {
+  return crypto.subtle.digest("SHA-256", buffer.buffer).then((hashBuffer) => {
     return Array.from(new Uint8Array(hashBuffer))
       .map((byte) => byte.toString(16).padStart(2, "0"))
       .join("");
@@ -118,7 +120,7 @@ async function extractPdfText(bytes: Uint8Array): Promise<string> {
     disableWorker: true,
     useSystemFonts: true,
     isEvalSupported: false,
-  });
+  } as any);
   const pdf = await loadingTask.promise;
   const pages: string[] = [];
 
@@ -264,7 +266,7 @@ function extractCurriculumNodes(rawText: string): DraftNode[] {
 }
 
 async function replaceNodes(
-  adminClient: ReturnType<typeof createClient>,
+  adminClient: any,
   curriculumDocumentId: string,
   nodes: DraftNode[]
 ) {
@@ -312,7 +314,7 @@ function resolveSourceProvider(payload: CurriculumImportPayload): string {
 }
 
 async function upsertDocument(
-  adminClient: ReturnType<typeof createClient>,
+  adminClient: any,
   payload: Required<Omit<CurriculumImportPayload, "file_base64">>,
   rawText: string,
   contentHash: string
@@ -416,7 +418,7 @@ async function downloadPdfBytesFromUrl(
 }
 
 export async function ingestCurriculumDocument(
-  adminClient: ReturnType<typeof createClient>,
+  adminClient: any,
   payload: CurriculumImportPayload
 ): Promise<{
   curriculum_document_id: string;

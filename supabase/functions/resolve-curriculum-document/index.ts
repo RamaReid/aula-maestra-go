@@ -199,7 +199,7 @@ async function fetchOfficialIndexMatches(subject: string, yearLevel: number): Pr
 }
 
 async function searchLocalCandidates(
-  adminClient: ReturnType<typeof createClient>,
+  adminClient: any,
   body: Required<Pick<RequestBody, "province" | "subject" | "cycle" | "year_level">>
 ): Promise<CurriculumCandidate[]> {
   const baseSelect =
@@ -219,7 +219,7 @@ async function searchLocalCandidates(
 }
 
 async function findById(
-  adminClient: ReturnType<typeof createClient>,
+  adminClient: any,
   curriculumDocumentId: string
 ): Promise<CurriculumCandidate | null> {
   const { data, error } = await adminClient
