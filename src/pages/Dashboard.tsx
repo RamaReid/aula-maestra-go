@@ -1,17 +1,29 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { clearMockCurriculumForCourse } from "@/mock/curriculumCatalog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { LogOut, Plus, ChevronDown, BookOpen } from "lucide-react";
+import { LogOut, Plus, ChevronDown, BookOpen, Upload, Trash2, Archive } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useEntitlements } from "@/hooks/useEntitlements";
 import { StatusBadge, planTone, planLabel } from "@/components/ui/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { SkeletonList } from "@/components/ui/SkeletonList";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useToast } from "@/components/ui/use-toast";
 
 interface CourseWithDetails {
   id: string;
@@ -32,38 +44,98 @@ const planBadgeVariant: Record<string, "default" | "secondary" | "outline"> = {
 export default function Dashboard() {
   const { profile, logout } = useAuth();
   const { planType } = useEntitlements();
+  const { toast } = useToast();
   const navigate = useNavigate();
   const [courses, setCourses] = useState<CourseWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [archivedOpen, setArchivedOpen] = useState(false);
+  const [courseToDelete, setCourseToDelete] = useState<CourseWithDetails | null>(null);
+  const [courseToArchive, setCourseToArchive] = useState<CourseWithDetails | null>(null);
+  const [deletingCourseId, setDeletingCourseId] = useState<string | null>(null);
+  const [archivingCourseId, setArchivingCourseId] = useState<string | null>(null);
+
+  const fetchCourses = useCallback(async () => {
+    const { data } = await supabase
+      .from("courses")
+      .select("id, subject, year_level, academic_year, status, schools(official_name), plans(status)")
+      .order("academic_year", { ascending: false });
+
+    if (data) {
+      setCourses(
+        data.map((c: any) => ({
+          id: c.id,
+          subject: c.subject,
+          year_level: c.year_level,
+          academic_year: c.academic_year,
+          status: c.status,
+          school: c.schools ? { official_name: c.schools.official_name } : null,
+          plan: c.plans ? { status: c.plans.status } : null,
+        }))
+      );
+    }
+    setLoading(false);
+  }, []);
 
   useEffect(() => {
-    const fetchCourses = async () => {
-      const { data } = await supabase
-        .from("courses")
-        .select("id, subject, year_level, academic_year, status, schools(official_name), plans(status)")
-        .order("academic_year", { ascending: false });
-
-      if (data) {
-        setCourses(
-          data.map((c: any) => ({
-            id: c.id,
-            subject: c.subject,
-            year_level: c.year_level,
-            academic_year: c.academic_year,
-            status: c.status,
-            school: c.schools ? { official_name: c.schools.official_name } : null,
-            plan: c.plans ? { status: c.plans.status } : null,
-          }))
-        );
-      }
-      setLoading(false);
-    };
     fetchCourses();
-  }, []);
+  }, [fetchCourses]);
 
   const handleNewCourse = () => {
     navigate("/course/new");
+  };
+
+  const handleArchiveCourse = async () => {
+    if (!courseToArchive) return;
+
+    setArchivingCourseId(courseToArchive.id);
+    try {
+      const { error } = await supabase
+        .from("courses")
+        .update({ status: "ARCHIVED" })
+        .eq("id", courseToArchive.id);
+      if (error) throw error;
+
+      setCourseToArchive(null);
+      await fetchCourses();
+      toast({
+        title: "Curso archivado",
+        description: "El curso se movio a la seccion de cursos archivados.",
+      });
+    } catch (error) {
+      toast({
+        title: "No se pudo archivar el curso",
+        description: error instanceof Error ? error.message : "Error desconocido",
+        variant: "destructive",
+      });
+    } finally {
+      setArchivingCourseId(null);
+    }
+  };
+
+  const handleDeleteCourse = async () => {
+    if (!courseToDelete) return;
+
+    setDeletingCourseId(courseToDelete.id);
+    try {
+      const { error } = await supabase.from("courses").delete().eq("id", courseToDelete.id);
+      if (error) throw error;
+
+      clearMockCurriculumForCourse(courseToDelete.id);
+      setCourseToDelete(null);
+      await fetchCourses();
+      toast({
+        title: "Curso eliminado",
+        description: "Se eliminaron tambien el plan, las clases y los materiales asociados.",
+      });
+    } catch (error) {
+      toast({
+        title: "No se pudo eliminar el curso",
+        description: error instanceof Error ? error.message : "Error desconocido",
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingCourseId(null);
+    }
   };
 
   const activeCourses = courses.filter((c) => c.status === "ACTIVE");
@@ -91,14 +163,22 @@ export default function Dashboard() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-4xl px-4 py-8 space-y-8">
+      <main className="mx-auto max-w-4xl space-y-8 px-4 py-8">
         <section>
-          <div className="flex items-center justify-between mb-4">
+          <div className="mb-4 flex items-center justify-between">
             <h2 className="text-xl font-semibold text-foreground">Mis cursos activos</h2>
-            <Button size="sm" onClick={handleNewCourse}>
-              <Plus className="mr-2 h-4 w-4" />
-              Nuevo curso
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button asChild variant="outline" size="sm">
+                <Link to="/curriculum/import">
+                  <Upload className="mr-2 h-4 w-4" />
+                  Importar programa
+                </Link>
+              </Button>
+              <Button size="sm" onClick={handleNewCourse}>
+                <Plus className="mr-2 h-4 w-4" />
+                Nuevo curso
+              </Button>
+            </div>
           </div>
 
           {loading ? (
@@ -106,26 +186,52 @@ export default function Dashboard() {
           ) : activeCourses.length === 0 ? (
             <EmptyState
               icon={BookOpen}
-              title="No tenés cursos activos"
-              description="Creá tu primer curso para empezar a planificar."
+              title="No tenes cursos activos"
+              description="Crea tu primer curso para empezar a planificar."
               action={{ label: "Crear primer curso", onClick: () => navigate("/course/new") }}
             />
           ) : (
             <div className="grid gap-4 sm:grid-cols-2">
               {activeCourses.map((course) => (
-                <Link key={course.id} to={`/course/${course.id}`}>
-                  <Card className="hover:border-primary/50 transition-colors cursor-pointer">
-                    <CardHeader className="pb-2">
+                <Card key={course.id} className="transition-colors hover:border-primary/50">
+                  <CardHeader className="pb-2">
+                    <div className="flex items-start justify-between gap-3">
                       <CardTitle className="text-base">{course.subject}</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-2">
-                      <p className="text-sm text-muted-foreground">
-                        {course.school?.official_name ?? "Sin escuela"} · {course.year_level}° año · {course.academic_year}
-                      </p>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          aria-label={`Archivar ${course.subject}`}
+                          onClick={() => setCourseToArchive(course)}
+                        >
+                          <Archive className="mr-2 h-4 w-4" />
+                          Archivar
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-destructive hover:text-destructive"
+                          aria-label={`Eliminar ${course.subject}`}
+                          onClick={() => setCourseToDelete(course)}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Eliminar
+                        </Button>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <p className="text-sm text-muted-foreground">
+                      {course.school?.official_name ?? "Sin escuela"} · {course.year_level}° año · {course.academic_year}
+                    </p>
+                    <div className="flex items-center justify-between gap-3">
                       <StatusBadge tone={planTone(course.plan?.status)} label={planLabel(course.plan?.status)} />
-                    </CardContent>
-                  </Card>
-                </Link>
+                      <Button asChild variant="outline" size="sm">
+                        <Link to={`/course/${course.id}`}>Abrir curso</Link>
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
               ))}
             </div>
           )}
@@ -146,15 +252,18 @@ export default function Dashboard() {
                   {archivedCourses.map((course) => (
                     <Card key={course.id} className="opacity-70">
                       <CardHeader className="pb-2">
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between gap-3">
                           <CardTitle className="text-base">{course.subject}</CardTitle>
                           <StatusBadge tone="archived" label="Archivado" />
                         </div>
                       </CardHeader>
-                      <CardContent>
+                      <CardContent className="space-y-3">
                         <p className="text-sm text-muted-foreground">
                           {course.school?.official_name ?? "Sin escuela"} · {course.year_level}° año · {course.academic_year}
                         </p>
+                        <Button asChild variant="outline" size="sm">
+                          <Link to={`/course/${course.id}`}>Abrir curso</Link>
+                        </Button>
                       </CardContent>
                     </Card>
                   ))}
@@ -164,6 +273,48 @@ export default function Dashboard() {
           </>
         )}
       </main>
+
+      <AlertDialog open={!!courseToArchive} onOpenChange={(open) => !open && setCourseToArchive(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Archivar curso</AlertDialogTitle>
+            <AlertDialogDescription>
+              {courseToArchive
+                ? `Vas a archivar ${courseToArchive.subject} de ${courseToArchive.year_level}° año. El curso dejara de figurar entre los activos y pasara a la seccion de archivados.`
+                : "El curso se movera a la seccion de archivados."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={!!archivingCourseId}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction disabled={!!archivingCourseId} onClick={handleArchiveCourse}>
+              {archivingCourseId ? "Archivando..." : "Archivar curso"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!courseToDelete} onOpenChange={(open) => !open && setCourseToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar curso</AlertDialogTitle>
+            <AlertDialogDescription>
+              {courseToDelete
+                ? `Vas a eliminar ${courseToDelete.subject} de ${courseToDelete.year_level}° año. Esta accion borra tambien el plan, las clases y los materiales asociados.`
+                : "Esta accion no se puede deshacer."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={!!deletingCourseId}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={!!deletingCourseId}
+              onClick={handleDeleteCourse}
+            >
+              {deletingCourseId ? "Eliminando..." : "Eliminar curso"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

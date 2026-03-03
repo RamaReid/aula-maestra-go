@@ -407,12 +407,19 @@ serve(async (req) => {
 
       const { data: course } = await userClient
         .from("courses")
-        .select("status, subject")
+        .select("status, subject, curriculum_document_id")
         .eq("id", lesson.course_id)
         .single();
       if (!course || course.status !== "ACTIVE") {
         await adminClient.from("lessons").update({ is_generating: false }).eq("id", lessonId);
         return new Response(JSON.stringify({ error: "El curso no está activo" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      if (!course?.curriculum_document_id) {
+        await adminClient.from("lessons").update({ is_generating: false }).eq("id", lessonId);
+        return new Response(JSON.stringify({ error: "El curso no tiene base curricular oficial asociada" }), {
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }

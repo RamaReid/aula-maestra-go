@@ -1,0 +1,72 @@
+[
+  {
+    "file_name": "Filosofía.pdf",
+    "province": "PBA",
+    "subject": "Filosofía",
+    "cycle": "UPPER",
+    "year_level": 6,
+    "school_type": null,
+    "orientation": null,
+    "speciality": null,
+    "official_title": "",
+    "official_url": "",
+    "source_provider": "ABC_PBA_MANUAL",
+    "status": "VERIFIED"
+  },
+  {
+    "file_name": "Filosofía e Histria de la Ciencia y la Tecnología.pdf",
+    "province": "PBA",
+    "subject": "Filosofía e historia de la ciencia y la tecnología",
+    "cycle": "UPPER",
+    "year_level": 6,
+    "school_type": null,
+    "orientation": null,
+    "speciality": null,
+    "official_title": "",
+    "official_url": "",
+    "source_provider": "ABC_PBA_MANUAL",
+    "status": "VERIFIED"
+  },
+  {
+    "file_name": "Historia 5to.pdf",
+    "province": "PBA",
+    "subject": "Historia",
+    "cycle": "UPPER",
+    "year_level": 5,
+    "school_type": null,
+    "orientation": null,
+    "speciality": null,
+    "official_title": "",
+    "official_url": "",
+    "source_provider": "ABC_PBA_MANUAL",
+    "status": "VERIFIED"
+  },
+  {
+    "file_name": "Matemática 5to.pdf",
+    "province": "PBA",
+    "subject": "Matemática",
+    "cycle": "UPPER",
+    "year_level": 5,
+    "school_type": null,
+    "orientation": null,
+    "speciality": null,
+    "official_title": "",
+    "official_url": "",
+    "source_provider": "ABC_PBA_MANUAL",
+    "status": "VERIFIED"
+  },
+  {
+    "file_name": "Matemática 6to.pdf",
+    "province": "PBA",
+    "subject": "Matemática",
+    "cycle": "UPPER",
+    "year_level": 6,
+    "school_type": null,
+    "orientation": null,
+    "speciality": null,
+    "official_title": "",
+    "official_url": "",
+    "source_provider": "ABC_PBA_MANUAL",
+    "status": "VERIFIED"
+  }
+]
