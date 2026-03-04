@@ -62,6 +62,18 @@ export default function CurriculumImport() {
   const [importing, setImporting] = useState(false);
   const [existingDocs, setExistingDocs] = useState<CurriculumDocument[]>([]);
   const [loadingDocs, setLoadingDocs] = useState(true);
+  const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
+
+  const handleSelectDoc = (doc: CurriculumDocument) => {
+    setSelectedDocId(doc.id);
+    setSubject(doc.subject);
+    setCycle(doc.cycle);
+    setYearLevel(String(doc.year_level));
+    setSchoolType(doc.school_type as SchoolType | null ? (doc.school_type as SchoolType) : "ANY");
+    setOrientation(doc.orientation || "");
+    setSpeciality(doc.speciality || "");
+    setOfficialTitle(doc.official_title || "");
+  };
 
   useEffect(() => {
     const fetchDocs = async () => {
@@ -288,7 +300,14 @@ export default function CurriculumImport() {
               <p className="text-sm text-muted-foreground">Todavia no hay programas curriculares visibles.</p>
             ) : (
               existingDocs.map((doc) => (
-                <div key={doc.id} className="rounded-lg border p-3">
+                <button
+                  key={doc.id}
+                  type="button"
+                  onClick={() => handleSelectDoc(doc)}
+                  className={`w-full rounded-lg border p-3 text-left transition-colors hover:border-primary/60 hover:bg-accent/40 ${
+                    selectedDocId === doc.id ? "border-primary bg-accent/30 ring-1 ring-primary/30" : ""
+                  }`}
+                >
                   <p className="font-medium text-foreground">{doc.official_title || doc.subject}</p>
                   <p className="text-sm text-muted-foreground">
                     {doc.subject} · {doc.year_level}° · {doc.cycle === "UPPER" ? "Ciclo Superior" : "Ciclo Basico"}
@@ -297,7 +316,10 @@ export default function CurriculumImport() {
                     {doc.school_type || "Generico"}{doc.orientation ? ` · ${doc.orientation}` : ""}{doc.speciality ? ` · ${doc.speciality}` : ""}
                   </p>
                   <p className="text-xs text-muted-foreground">Fuente: {doc.source_provider}</p>
-                </div>
+                  {selectedDocId === doc.id && (
+                    <p className="mt-1 text-xs font-medium text-primary">✓ Seleccionado — campos pre-cargados</p>
+                  )}
+                </button>
               ))
             )}
           </CardContent>
