@@ -69,9 +69,15 @@ export type Database = {
           content_hash: string | null
           created_at: string
           cycle: Database["public"]["Enums"]["curriculum_cycle"]
+          fetched_at: string | null
           id: string
+          official_title: string | null
           official_url: string | null
+          orientation: string | null
           province: string
+          school_type: string | null
+          source_provider: string
+          speciality: string | null
           status: Database["public"]["Enums"]["curriculum_status"]
           subject: string
           updated_at: string
@@ -81,9 +87,15 @@ export type Database = {
           content_hash?: string | null
           created_at?: string
           cycle: Database["public"]["Enums"]["curriculum_cycle"]
+          fetched_at?: string | null
           id?: string
+          official_title?: string | null
           official_url?: string | null
+          orientation?: string | null
           province?: string
+          school_type?: string | null
+          source_provider?: string
+          speciality?: string | null
           status?: Database["public"]["Enums"]["curriculum_status"]
           subject: string
           updated_at?: string
@@ -93,9 +105,15 @@ export type Database = {
           content_hash?: string | null
           created_at?: string
           cycle?: Database["public"]["Enums"]["curriculum_cycle"]
+          fetched_at?: string | null
           id?: string
+          official_title?: string | null
           official_url?: string | null
+          orientation?: string | null
           province?: string
+          school_type?: string | null
+          source_provider?: string
+          speciality?: string | null
           status?: Database["public"]["Enums"]["curriculum_status"]
           subject?: string
           updated_at?: string
