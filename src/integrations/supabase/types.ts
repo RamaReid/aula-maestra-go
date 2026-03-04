@@ -75,6 +75,7 @@ export type Database = {
           official_url: string | null
           orientation: string | null
           province: string
+          raw_text: string | null
           school_type: string | null
           source_provider: string
           speciality: string | null
@@ -93,6 +94,7 @@ export type Database = {
           official_url?: string | null
           orientation?: string | null
           province?: string
+          raw_text?: string | null
           school_type?: string | null
           source_provider?: string
           speciality?: string | null
@@ -111,6 +113,7 @@ export type Database = {
           official_url?: string | null
           orientation?: string | null
           province?: string
+          raw_text?: string | null
           school_type?: string | null
           source_provider?: string
           speciality?: string | null

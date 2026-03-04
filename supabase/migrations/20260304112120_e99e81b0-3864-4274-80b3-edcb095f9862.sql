@@ -1,0 +1,1 @@
+ALTER TABLE public.curriculum_documents ADD COLUMN IF NOT EXISTS raw_text text;
