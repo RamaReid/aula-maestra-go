@@ -21,6 +21,8 @@ const SECTION_HEADINGS = [
   "presentacion",
   "filosofia y su ensenanza en el ciclo superior de la escuela secundaria",
   "filosofia e historia de la ciencia y la tecnologia y su ensenanza en el ciclo superior de la escuela secundaria",
+  "historia y su ensenanza en el ciclo superior de la escuela secundaria",
+  "matematica y su ensenanza en el ciclo superior de la escuela secundaria",
   "mapa curricular",
   "carga horaria",
   "objetivos de ensenanza",

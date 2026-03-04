@@ -55,6 +55,10 @@ type RequestBody = {
   speciality?: string | null;
 };
 
+function subjectsMatch(candidateSubject: string, requestedSubject: string): boolean {
+  return normalizeText(candidateSubject) === normalizeText(requestedSubject);
+}
+
 function yearTokens(yearLevel: number): string[] {
   return [
     `${yearLevel}`,
@@ -209,13 +213,12 @@ async function searchLocalCandidates(
     .from("curriculum_documents")
     .select(baseSelect)
     .eq("province", body.province)
-    .eq("subject", body.subject)
     .eq("cycle", body.cycle)
     .eq("year_level", body.year_level)
     .eq("status", "VERIFIED");
 
   if (error) throw new Error(error.message);
-  return (data || []) as CurriculumCandidate[];
+  return ((data || []) as CurriculumCandidate[]).filter((candidate) => subjectsMatch(candidate.subject, body.subject));
 }
 
 async function findById(
@@ -334,6 +337,7 @@ serve(async (req) => {
     }
 
     const persistedCandidates: CurriculumCandidate[] = [];
+    const ingestionErrors: string[] = [];
     for (const match of webMatches.slice(0, 3)) {
       try {
         const { ingestCurriculumDocument } = await import("../_shared/curriculumImport.ts");
@@ -351,8 +355,9 @@ serve(async (req) => {
 
         const persisted = await findById(adminClient, ingestion.curriculum_document_id);
         if (persisted) persistedCandidates.push(persisted);
-      } catch {
-        // Try the next candidate.
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : "Error desconocido al ingerir documento";
+        ingestionErrors.push(`${match.url}: ${reason}`);
       }
     }
 
@@ -360,7 +365,10 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({
           status: "not_found",
-          reason: "Se encontro un enlace oficial, pero no se pudo ingerir el documento curricular.",
+          reason:
+            ingestionErrors.length > 0
+              ? `Se encontro un enlace oficial, pero no se pudo ingerir el documento curricular. ${ingestionErrors.join(" | ")}`
+              : "Se encontro un enlace oficial, pero no se pudo ingerir el documento curricular.",
           official_index_url: PRIMARY_OFFICIAL_INDEX_URL,
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }

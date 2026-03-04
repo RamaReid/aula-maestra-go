@@ -66,6 +66,11 @@ function isAllowedOfficialUrl(url: string | null): boolean {
   }
 }
 
+function isMissingCurriculumColumnError(error: { message?: string } | null | undefined): boolean {
+  const message = error?.message || "";
+  return message.includes("curriculum_document_id") && message.includes("courses");
+}
+
 function scoreCandidate(
   candidate: CurriculumCandidate,
   schoolType: SchoolType,
@@ -158,7 +163,7 @@ export default function CourseNew() {
     if (!state.subject || !state.cycle || !state.yearLevel) return [];
     return supportedPrograms.filter(
       (program) =>
-        program.subject === state.subject &&
+        normalize(program.subject) === normalize(state.subject) &&
         program.cycle === state.cycle &&
         program.year_level === state.yearLevel
     );
@@ -420,7 +425,10 @@ export default function CourseNew() {
         speciality: needsSpeciality ? state.speciality : null,
       };
 
-      const { data: course, error: courseError } = await supabase
+      let usedLegacyCourseInsert = false;
+      let course: { id: string } | null = null;
+
+      const { data: courseWithCurriculum, error: courseWithCurriculumError } = await supabase
         .from("courses")
         .insert({
           ...baseCoursePayload,
@@ -428,7 +436,23 @@ export default function CourseNew() {
         })
         .select("id")
         .single();
-      if (courseError || !course) throw courseError;
+
+      if (!courseWithCurriculumError && courseWithCurriculum) {
+        course = courseWithCurriculum;
+      } else if (isMissingCurriculumColumnError(courseWithCurriculumError)) {
+        usedLegacyCourseInsert = true;
+
+        const { data: legacyCourse, error: legacyCourseError } = await supabase
+          .from("courses")
+          .insert(baseCoursePayload)
+          .select("id")
+          .single();
+
+        if (legacyCourseError || !legacyCourse) throw legacyCourseError;
+        course = legacyCourse;
+      } else {
+        throw courseWithCurriculumError;
+      }
 
       const { data: plan, error: planErr } = await supabase
         .from("plans")
@@ -462,10 +486,18 @@ export default function CourseNew() {
         return;
       }
 
-      toast({
-        title: "Curso creado",
-        description: "El curso quedo vinculado a su programa oficial y recibio un borrador inicial del plan.",
-      });
+      toast(
+        usedLegacyCourseInsert
+          ? {
+              title: "Curso creado con compatibilidad",
+              description:
+                "El curso se creo en una base sin curriculum_document_id. El backend de Lovable Cloud sigue desactualizado.",
+            }
+          : {
+              title: "Curso creado",
+              description: "El curso quedo vinculado a su programa oficial y recibio un borrador inicial del plan.",
+            }
+      );
       navigate(`/course/${course!.id}`);
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
