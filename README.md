@@ -60,6 +60,21 @@ This project is built with:
 - shadcn-ui
 - Tailwind CSS
 
+## Product canon
+
+The repo now includes an explicit canon for product behavior and pedagogical outputs:
+
+- `docs/CANON_INDEX.md`
+- `docs/CANON_OPERATIONAL.md`
+- `docs/CANON_GOLDEN_FYHCT_6EESA.md`
+
+Read those files before changing:
+
+- planning structure
+- sequence or class generation
+- reading material generation
+- the framing of AI inside the product
+
 ## How can I deploy this project?
 
 Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { Archive, ArrowLeft, BookOpen } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -43,6 +43,7 @@ interface CourseInfo {
   school_name: string;
   status: string;
   curriculum_document_id: string | null;
+  curriculum_link_mode: "persisted" | "session_fallback" | "missing";
 }
 
 interface CurriculumInfo {
@@ -50,6 +51,7 @@ interface CurriculumInfo {
   official_title: string | null;
   official_url: string | null;
   source_provider: string;
+  node_count?: number;
 }
 
 interface PlanInfo {
@@ -59,12 +61,14 @@ interface PlanInfo {
 
 export default function Course() {
   const { courseId } = useParams<{ courseId: string }>();
+  const [searchParams] = useSearchParams();
   const [course, setCourse] = useState<CourseInfo | null>(null);
   const [curriculum, setCurriculum] = useState<CurriculumInfo | null>(null);
   const [plan, setPlan] = useState<PlanInfo | null>(null);
   const [lessons, setLessons] = useState<LessonWithPlanLesson[]>([]);
   const [loading, setLoading] = useState(true);
   const [archiving, setArchiving] = useState(false);
+  const fallbackCurriculumId = searchParams.get("curriculum_document_id");
 
   const fetchData = useCallback(async () => {
     if (!courseId) return;
@@ -93,6 +97,8 @@ export default function Course() {
     }
 
     if (courseData) {
+      const resolvedCurriculumId = courseData.curriculum_document_id ?? fallbackCurriculumId;
+
       setCourse({
         id: courseData.id,
         subject: courseData.subject,
@@ -100,17 +106,28 @@ export default function Course() {
         academic_year: courseData.academic_year,
         school_name: (courseData as any).schools?.official_name ?? "Sin escuela",
         status: courseData.status,
-        curriculum_document_id: courseData.curriculum_document_id,
+        curriculum_document_id: resolvedCurriculumId,
+        curriculum_link_mode: resolvedCurriculumId
+          ? courseData.curriculum_document_id
+            ? "persisted"
+            : "session_fallback"
+          : "missing",
       });
 
-      if (courseData.curriculum_document_id) {
-        const { data: curriculumData } = await supabase
+      if (resolvedCurriculumId) {
+        const [{ data: curriculumData }, { count: nodeCount }] = await Promise.all([
+          supabase
           .from("curriculum_documents")
           .select("id, official_title, official_url, source_provider")
-          .eq("id", courseData.curriculum_document_id)
-          .single();
+          .eq("id", resolvedCurriculumId)
+          .single(),
+          supabase
+            .from("curriculum_nodes")
+            .select("id", { count: "exact", head: true })
+            .eq("curriculum_document_id", resolvedCurriculumId),
+        ]);
 
-        setCurriculum(curriculumData || null);
+        setCurriculum(curriculumData ? { ...curriculumData, node_count: nodeCount || 0 } : null);
       } else {
         setCurriculum(null);
       }
@@ -168,7 +185,7 @@ export default function Course() {
     }
 
     setLoading(false);
-  }, [courseId]);
+  }, [courseId, fallbackCurriculumId]);
 
   useEffect(() => {
     fetchData();
@@ -250,11 +267,26 @@ export default function Course() {
                 <p className="text-sm font-medium text-foreground">Base curricular del curso</p>
                 {curriculum ? (
                   <>
-                    <p className="text-sm">{curriculum.official_title || "Documento curricular asociado"}</p>
-                    <p className="text-xs text-muted-foreground">Fuente: {curriculum.source_provider}</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-sm">{curriculum.official_title || "Documento curricular asociado"}</p>
+                      {course?.curriculum_link_mode === "persisted" && <Badge variant="default">Vinculo persistido</Badge>}
+                      {course?.curriculum_link_mode === "session_fallback" && (
+                        <Badge variant="secondary">Modo compatibilidad</Badge>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                      <span>Fuente: {curriculum.source_provider}</span>
+                      <span>Nodos curriculares: {curriculum.node_count ?? 0}</span>
+                      <span>Curso: {course?.subject} {course?.year_level} ano</span>
+                    </div>
                     {curriculum.source_provider === "ABC_PBA_WEB" && (
                       <p className="text-xs text-muted-foreground">
                         Documento resuelto desde ABC. La trazabilidad ya esta fijada, pero la extraccion profunda del contenido curricular sigue en construccion.
+                      </p>
+                    )}
+                    {course?.curriculum_link_mode === "session_fallback" && (
+                      <p className="text-xs text-muted-foreground">
+                        El programa esta siendo reutilizado en esta sesion aunque la columna persistida del curso todavia no exista en el backend conectado.
                       </p>
                     )}
                     {curriculum.official_url && (
@@ -287,6 +319,7 @@ export default function Course() {
                 <PlanEditor
                   planId={plan.id}
                   courseId={courseId!}
+                  curriculumDocumentId={course?.curriculum_document_id}
                   planStatus={plan.status}
                   onValidated={handlePlanValidated}
                   courseArchived={isArchived}

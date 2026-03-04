@@ -22,6 +22,63 @@ function countWords(text: string): number {
   return text.split(/\s+/).filter((w) => w.length > 0).length;
 }
 
+function normalizeKey(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isFyHctSubject(subject: string): boolean {
+  return normalizeKey(subject).includes("filosofia e historia de la ciencia y la tecnologia");
+}
+
+function isFilosofiaSubject(subject: string): boolean {
+  return normalizeKey(subject) === "filosofia";
+}
+
+function extractLessonCanon(
+  activitiesSummary: string | null | undefined,
+  fallbackTheme: string
+): { operation: string; minimumEvidence: string } {
+  const summary = (activitiesSummary || "").trim();
+  if (!summary) {
+    return {
+      operation: `Desarrollo guiado sobre ${fallbackTheme}.`,
+      minimumEvidence: `Produccion breve verificable alineada con ${fallbackTheme}.`,
+    };
+  }
+
+  const operationMatch = summary.match(/operacion\s*:\s*([\s\S]*?)(?=evidencia minima\s*:|$)/i);
+  const evidenceMatch = summary.match(/evidencia minima\s*:\s*([\s\S]*)$/i);
+  const operation = (operationMatch?.[1] || summary).replace(/\s+/g, " ").trim();
+  const minimumEvidence = (evidenceMatch?.[1] || `Produccion breve verificable alineada con ${fallbackTheme}.`)
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return { operation, minimumEvidence };
+}
+
+function formatSequenceNeighbor(
+  label: string,
+  lesson:
+    | {
+        lesson_number: number;
+        theme: string | null;
+        activities_summary: string | null;
+      }
+    | null
+): string {
+  if (!lesson) {
+    return `${label}: no disponible.`;
+  }
+
+  const canon = extractLessonCanon(lesson.activities_summary, lesson.theme || "la secuencia");
+  return `${label}: Clase ${lesson.lesson_number} - ${lesson.theme || "Sin foco"}. Operacion: ${canon.operation} Evidencia minima: ${canon.minimumEvidence}`;
+}
+
 function validateReadingMaterial(
   html: string,
   bibliographyIds: string[],
@@ -232,6 +289,11 @@ async function callAI(
   return await resp.json();
 }
 
+function isMissingCurriculumColumnError(error: { message?: string } | null | undefined): boolean {
+  const message = error?.message || "";
+  return message.includes("curriculum_document_id") && message.includes("courses");
+}
+
 // ── Entitlements helpers ──
 
 function getCurrentMonday(): string {
@@ -405,21 +467,46 @@ serve(async (req) => {
         });
       }
 
-      const { data: course } = await userClient
+      let course:
+        | {
+            status: string;
+            subject: string;
+            curriculum_document_id?: string | null;
+          }
+        | null = null;
+
+      const { data: courseWithCurriculum, error: courseWithCurriculumError } = await userClient
         .from("courses")
         .select("status, subject, curriculum_document_id")
         .eq("id", lesson.course_id)
         .single();
-      if (!course || course.status !== "ACTIVE") {
+
+      if (!courseWithCurriculumError && courseWithCurriculum) {
+        course = courseWithCurriculum;
+      } else if (isMissingCurriculumColumnError(courseWithCurriculumError)) {
+        const { data: legacyCourse, error: legacyCourseError } = await userClient
+          .from("courses")
+          .select("status, subject")
+          .eq("id", lesson.course_id)
+          .single();
+
+        if (legacyCourseError || !legacyCourse) {
+          await adminClient.from("lessons").update({ is_generating: false }).eq("id", lessonId);
+          return new Response(JSON.stringify({ error: "Curso no encontrado" }), {
+            status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        course = { ...legacyCourse, curriculum_document_id: null };
+      } else if (courseWithCurriculumError) {
         await adminClient.from("lessons").update({ is_generating: false }).eq("id", lessonId);
-        return new Response(JSON.stringify({ error: "El curso no está activo" }), {
+        return new Response(JSON.stringify({ error: courseWithCurriculumError.message }), {
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-
-      if (!course?.curriculum_document_id) {
+      if (!course || course.status !== "ACTIVE") {
         await adminClient.from("lessons").update({ is_generating: false }).eq("id", lessonId);
-        return new Response(JSON.stringify({ error: "El curso no tiene base curricular oficial asociada" }), {
+        return new Response(JSON.stringify({ error: "El curso no está activo" }), {
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
@@ -438,7 +525,7 @@ serve(async (req) => {
 
       const { data: planLesson } = await userClient
         .from("plan_lessons")
-        .select("theme, justification, learning_outcome")
+        .select("id, plan_id, lesson_number, theme, justification, learning_outcome, activities_summary")
         .eq("id", lesson.plan_lesson_id)
         .single();
       if (!planLesson) {
@@ -453,6 +540,39 @@ serve(async (req) => {
           JSON.stringify({ error: "El plan lesson debe tener tema, justificación y resultado de aprendizaje" }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
+      }
+
+      const { operation: lessonOperation, minimumEvidence } = extractLessonCanon(
+        planLesson.activities_summary,
+        planLesson.theme
+      );
+
+      let previousPlanLesson:
+        | { lesson_number: number; theme: string | null; activities_summary: string | null }
+        | null = null;
+      let nextPlanLesson:
+        | { lesson_number: number; theme: string | null; activities_summary: string | null }
+        | null = null;
+
+      if (planLesson.plan_id && typeof planLesson.lesson_number === "number") {
+        const neighborNumbers = [planLesson.lesson_number - 1, planLesson.lesson_number + 1].filter(
+          (value) => value >= 1
+        );
+        if (neighborNumbers.length > 0) {
+          const { data: neighbors } = await userClient
+            .from("plan_lessons")
+            .select("lesson_number, theme, activities_summary")
+            .eq("plan_id", planLesson.plan_id)
+            .in("lesson_number", neighborNumbers)
+            .order("lesson_number");
+
+          previousPlanLesson =
+            (neighbors || []).find((candidate: any) => candidate.lesson_number === planLesson.lesson_number - 1) ||
+            null;
+          nextPlanLesson =
+            (neighbors || []).find((candidate: any) => candidate.lesson_number === planLesson.lesson_number + 1) ||
+            null;
+        }
       }
 
       const { data: brief } = await userClient
@@ -485,19 +605,39 @@ serve(async (req) => {
         .join("\n");
 
       const bibliographyIds = (nodes || []).map((n: any) => n.id);
+      const bibliographyContext = (nodes || [])
+        .map((n: any) => `- ${n.name} [${n.node_type}] (ID: ${n.id})`)
+        .join("\n");
+      const disciplineCanon = isFyHctSubject(course.subject)
+        ? [
+            "Canon disciplinar FyHyCyT:",
+            "- Trabaja filosofia de la ciencia, historia de la ciencia y tecnologia juntas.",
+            "- Prioriza casos, validacion, evidencia, metodos y decisiones responsables.",
+            "- No conviertas la clase en filosofia abstracta sin situacion ni en tecnica sin criterio.",
+          ].join("\n")
+        : isFilosofiaSubject(course.subject)
+          ? [
+              "Canon disciplinar Filosofia:",
+              "- Trabaja problemas, conceptos, posiciones, argumentos y objeciones.",
+              "- No conviertas la clase en diseno experimental ni en metodologia cientifica general.",
+            ].join("\n")
+          : "Canon disciplinar: mantene la clase alineada con el plan, el tiempo real y la evidencia esperada.";
 
       // ── 4. Generate TeachingMaterial ──
       let teachingStatus = "VALIDATED";
 
       if (regenerateOnly !== "reading") {
         const teachingSystemPrompt = `Sos un experto en diseño de secuencias didácticas para nivel secundario en Argentina.
-Generá un material didáctico completo para una clase.
+Generá un material didáctico completo para una clase real dentro de una planificación anual ya definida.
 
 CONTEXTO:
 - Materia: ${course.subject}
+- Clase anual: ${planLesson.lesson_number}
 - Tema: ${planLesson.theme}
 - Justificación: ${planLesson.justification}
 - Resultado de aprendizaje esperado: ${planLesson.learning_outcome}
+- Operacion canonica: ${lessonOperation}
+- Evidencia minima de la clase: ${minimumEvidence}
 - Enfoque deseado: ${brief.enfoque_deseado || "No especificado"}
 - Dinámica sugerida: ${brief.tipo_dinamica_sugerida || "No especificada"}
 - Nivel de profundidad: ${brief.nivel_profundidad}
@@ -506,14 +646,29 @@ CONTEXTO:
 CONTENIDOS CURRICULARES:
 ${curriculumContext}
 
+CONTINUIDAD DE LA SECUENCIA:
+${formatSequenceNeighbor("Entrada esperada", previousPlanLesson)}
+${formatSequenceNeighbor("Salida a preparar", nextPlanLesson)}
+
+FUENTES CONFIRMADAS PARA ESTA CLASE:
+${bibliographyContext || "- Sin detalle disponible"}
+
+${disciplineCanon}
+
 CANON OBLIGATORIO - Debe incluir todas estas secciones:
-1. Propósito: alineado con el learning_outcome
-2. Actividad inicial: para activar conocimientos previos
-3. Desarrollo secuenciado: con tiempos reales (45 o 90 minutos)
-4. Producto esperado: lo que el alumno debe producir
-5. 1-3 criterios de logro: observables y medibles
-6. Diferenciación: al menos un apoyo y un desafío
-7. Cierre: reflexión o metacognición (en Sociales, NO usar "En conclusión", "Por lo tanto", "En definitiva")`;
+1. Proposito: alineado con el learning_outcome y con la operacion de esta clase.
+2. Actividad inicial: debe retomar la evidencia previa o activar el problema concreto de esta clase.
+3. Desarrollo secuenciado: con tiempos reales y continuidad visible hacia la evidencia minima.
+4. Producto esperado: debe coincidir con la evidencia minima o ser su version inmediata y verificable.
+5. 1-3 criterios de logro: observables y medibles sobre el producto o evidencia.
+6. Diferenciacion: al menos un apoyo y un desafio. El apoyo debe ser usable como ajuste low-tech o de accesibilidad.
+7. Cierre: debe dejar lista la salida hacia la próxima clase o consolidar lo producido hoy.
+
+REGLAS:
+- No inventes otra clase distinta del plan anual.
+- No generes actividades sueltas: cada bloque debe empujar al producto esperado.
+- No escribas una clase genérica "sobre el tema". Es esta clase, con esta operacion y esta evidencia.
+- Si la materia es de Sociales, no uses cierres formulaicos como "En conclusión", "Por lo tanto" o "En definitiva".`;
 
         const teachingTools = [
           {
@@ -595,6 +750,18 @@ CANON OBLIGATORIO - Debe incluir todas estas secciones:
         if (!Array.isArray(teachingArgs.activities) || teachingArgs.activities.length === 0) {
           teachingValidationErrors.push("activities vacío");
         }
+        const activityTypes = Array.isArray(teachingArgs.activities)
+          ? teachingArgs.activities.map((activity: any) => activity.type)
+          : [];
+        if (!activityTypes.includes("inicio")) {
+          teachingValidationErrors.push("falta actividad de inicio");
+        }
+        if (!activityTypes.includes("desarrollo")) {
+          teachingValidationErrors.push("falta actividad de desarrollo");
+        }
+        if (!activityTypes.includes("cierre")) {
+          teachingValidationErrors.push("falta actividad de cierre");
+        }
         if (!teachingArgs.expected_product || teachingArgs.expected_product.trim().length === 0) {
           teachingValidationErrors.push("expected_product vacío");
         }
@@ -606,6 +773,15 @@ CANON OBLIGATORIO - Debe incluir todas estas secciones:
         }
         if (!Array.isArray(teachingArgs.differentiation) || teachingArgs.differentiation.length === 0) {
           teachingValidationErrors.push("differentiation vacío");
+        }
+        const differentiationTypes = Array.isArray(teachingArgs.differentiation)
+          ? teachingArgs.differentiation.map((item: any) => item.type)
+          : [];
+        if (!differentiationTypes.includes("apoyo")) {
+          teachingValidationErrors.push("falta apoyo");
+        }
+        if (!differentiationTypes.includes("desafío")) {
+          teachingValidationErrors.push("falta desafío");
         }
 
         if (teachingValidationErrors.length > 0) {
@@ -646,15 +822,28 @@ CANON OBLIGATORIO - Debe incluir todas estas secciones:
 
       if (regenerateOnly !== "teaching") {
         const readingSystemPrompt = `Sos un redactor académico experto para nivel secundario en Argentina.
-Escribí un texto de lectura para alumnos sobre el tema indicado.
+Escribí un texto de lectura para alumnos que apoye exactamente la clase indicada dentro de una planificación anual ya definida.
 
 CONTEXTO:
 - Materia: ${course.subject}
+- Clase anual: ${planLesson.lesson_number}
 - Tema: ${planLesson.theme}
+- Operacion canonica: ${lessonOperation}
+- Evidencia minima que la lectura debe ayudar a producir: ${minimumEvidence}
+- Resultado de aprendizaje esperado: ${planLesson.learning_outcome}
 - Nivel de profundidad: ${brief.nivel_profundidad}
+
+CONTINUIDAD DE LA SECUENCIA:
+${formatSequenceNeighbor("Entrada esperada", previousPlanLesson)}
+${formatSequenceNeighbor("Salida a preparar", nextPlanLesson)}
 
 CONTENIDOS CURRICULARES A REFERENCIAR:
 ${(nodes || []).map((n: any) => `- ${n.name} (ID: ${n.id})`).join("\n")}
+
+FUENTES CONFIRMADAS:
+${bibliographyContext || "- Sin detalle disponible"}
+
+${disciplineCanon}
 
 REGLAS OBLIGATORIAS:
 1. Exactamente entre 1000 y 1300 palabras (contando solo texto visible).
@@ -665,7 +854,11 @@ REGLAS OBLIGATORIAS:
 6. ${course.subject.toLowerCase().includes("social") || course.subject.toLowerCase().includes("historia") ? "En el último párrafo NO usar 'En conclusión', 'Por lo tanto', 'En definitiva', 'Se puede afirmar que', 'Así se demuestra que'." : ""}
 7. ${course.subject.toLowerCase().includes("matemática") ? "NO resolver ejercicios. NO mostrar soluciones numéricas." : ""}
 8. Devolver el texto como HTML válido con tags <p> para cada párrafo.
-9. Los tags <span data-ref="..."></span> deben estar DENTRO de los párrafos, como elementos inline invisibles.`;
+9. Los tags <span data-ref="..."></span> deben estar DENTRO de los párrafos, como elementos inline invisibles.
+10. El texto no debe ser una explicación genérica del tema. Debe preparar o sostener la operacion de esta clase y ayudar a producir la evidencia minima.
+11. Si la materia es FyHyCyT, prioriza casos, validacion, metodos, evidencias, decisiones y relaciones ciencia-tecnologia-sociedad. No la conviertas en filosofia abstracta sin situacion.
+12. Si la materia es Filosofía, prioriza problema, conceptos, posiciones, argumentos y objeciones. No la conviertas en metodologia científica.
+13. Mantené trazabilidad explícita con la bibliografía confirmada y los nodos curriculares seleccionados.`;
 
         let readingHtml = "";
         let readingValid = false;

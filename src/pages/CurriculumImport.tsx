@@ -1,6 +1,6 @@
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ArrowLeft, FileUp, Loader2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, FileUp, Loader2 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -64,12 +64,33 @@ export default function CurriculumImport() {
   const [loadingDocs, setLoadingDocs] = useState(true);
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
 
+  const selectedDoc = useMemo(
+    () => existingDocs.find((doc) => doc.id === selectedDocId) || null,
+    [existingDocs, selectedDocId]
+  );
+
+  const useSelectedDocUrl = useMemo(() => {
+    if (!selectedDoc) return null;
+
+    const params = new URLSearchParams({
+      subject: selectedDoc.subject,
+      cycle: selectedDoc.cycle,
+      year_level: String(selectedDoc.year_level),
+      curriculum_document_id: selectedDoc.id,
+    });
+
+    if (selectedDoc.orientation) params.set("orientation", selectedDoc.orientation);
+    if (selectedDoc.speciality) params.set("speciality", selectedDoc.speciality);
+
+    return `/course/new?${params.toString()}`;
+  }, [selectedDoc]);
+
   const handleSelectDoc = (doc: CurriculumDocument) => {
     setSelectedDocId(doc.id);
     setSubject(doc.subject);
     setCycle(doc.cycle);
     setYearLevel(String(doc.year_level));
-    setSchoolType(doc.school_type as SchoolType | null ? (doc.school_type as SchoolType) : "ANY");
+    setSchoolType(doc.school_type ? doc.school_type : "ANY");
     setOrientation(doc.orientation || "");
     setSpeciality(doc.speciality || "");
     setOfficialTitle(doc.official_title || "");
@@ -270,6 +291,7 @@ export default function CurriculumImport() {
               <p>Provincia fija de esta etapa: PBA.</p>
               <p>Si el mismo programa aplica a comun y tecnica, usar "Generico / mas de un tipo".</p>
               <p>Si usa URL remota, debe ser un enlace directo al PDF para que el importador pueda leerlo.</p>
+              <p>Si el programa ya aparece en "Base curricular reciente", puede usarlo directo para crear un curso.</p>
             </div>
 
             <Button onClick={handleImport} disabled={!canSubmit || importing} className="w-full sm:w-auto">
@@ -285,6 +307,12 @@ export default function CurriculumImport() {
                 </>
               )}
             </Button>
+
+            {useSelectedDocUrl && (
+              <Button asChild variant="outline" className="w-full sm:w-auto">
+                <Link to={useSelectedDocUrl}>Usar programa seleccionado</Link>
+              </Button>
+            )}
           </CardContent>
         </Card>
 
@@ -300,11 +328,9 @@ export default function CurriculumImport() {
               <p className="text-sm text-muted-foreground">Todavia no hay programas curriculares visibles.</p>
             ) : (
               existingDocs.map((doc) => (
-                <button
+                <div
                   key={doc.id}
-                  type="button"
-                  onClick={() => handleSelectDoc(doc)}
-                  className={`w-full rounded-lg border p-3 text-left transition-colors hover:border-primary/60 hover:bg-accent/40 ${
+                  className={`w-full rounded-lg border p-3 text-left transition-colors ${
                     selectedDocId === doc.id ? "border-primary bg-accent/30 ring-1 ring-primary/30" : ""
                   }`}
                 >
@@ -316,10 +342,29 @@ export default function CurriculumImport() {
                     {doc.school_type || "Generico"}{doc.orientation ? ` · ${doc.orientation}` : ""}{doc.speciality ? ` · ${doc.speciality}` : ""}
                   </p>
                   <p className="text-xs text-muted-foreground">Fuente: {doc.source_provider}</p>
-                  {selectedDocId === doc.id && (
-                    <p className="mt-1 text-xs font-medium text-primary">✓ Seleccionado — campos pre-cargados</p>
-                  )}
-                </button>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={selectedDocId === doc.id ? "default" : "outline"}
+                      onClick={() => handleSelectDoc(doc)}
+                    >
+                      {selectedDocId === doc.id ? (
+                        <>
+                          <CheckCircle2 className="mr-2 h-4 w-4" />
+                          Seleccionado
+                        </>
+                      ) : (
+                        "Seleccionar programa"
+                      )}
+                    </Button>
+                    {selectedDocId === doc.id && useSelectedDocUrl && (
+                      <Button asChild type="button" size="sm" variant="ghost">
+                        <Link to={useSelectedDocUrl}>Trabajar con este programa</Link>
+                      </Button>
+                    )}
+                  </div>
+                </div>
               ))
             )}
           </CardContent>

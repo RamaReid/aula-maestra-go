@@ -27,19 +27,13 @@ export default function BibliographySelector({
 
   useEffect(() => {
     const fetchNodes = async () => {
-      // Get plan for this course
-      const { data: plan } = await supabase
-        .from("plans")
-        .select("id")
-        .eq("course_id", courseId)
-        .single();
+      const { data: plan } = await supabase.from("plans").select("id").eq("course_id", courseId).single();
 
       if (!plan) {
         setLoading(false);
         return;
       }
 
-      // Get content mappings for this plan
       const { data: mappings } = await supabase
         .from("plan_content_mappings")
         .select("curriculum_node_id")
@@ -50,7 +44,7 @@ export default function BibliographySelector({
         return;
       }
 
-      const nodeIds = mappings.map((m) => m.curriculum_node_id);
+      const nodeIds = mappings.map((mapping) => mapping.curriculum_node_id);
       const { data: nodesData } = await supabase
         .from("curriculum_nodes")
         .select("id, name, node_type")
@@ -66,30 +60,28 @@ export default function BibliographySelector({
 
   const toggle = (nodeId: string) => {
     if (disabled) return;
+
     if (selected.includes(nodeId)) {
       onChange(selected.filter((id) => id !== nodeId));
-    } else {
-      if (selected.length >= 5) return;
-      onChange([...selected, nodeId]);
+      return;
     }
+
+    if (selected.length >= 5) return;
+    onChange([...selected, nodeId]);
   };
 
   if (loading) {
-    return <p className="text-sm text-muted-foreground">Cargando bibliografía...</p>;
+    return <p className="text-sm text-muted-foreground">Cargando bibliografia...</p>;
   }
 
   if (nodes.length === 0) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        No hay contenidos curriculares mapeados en el plan.
-      </p>
-    );
+    return <p className="text-sm text-muted-foreground">No hay contenidos curriculares mapeados en el plan.</p>;
   }
 
   return (
     <div className="space-y-2">
-      <Label>Bibliografía (Modo C) — seleccioná 2 a 5 fuentes</Label>
-      <div className="space-y-2 rounded-md border p-3 max-h-60 overflow-y-auto">
+      <Label>Bibliografia (Modo C) - selecciona 1 a 5 fuentes</Label>
+      <div className="max-h-60 space-y-2 overflow-y-auto rounded-md border p-3">
         {nodes.map((node) => (
           <div key={node.id} className="flex items-start gap-2">
             <Checkbox
@@ -98,15 +90,12 @@ export default function BibliographySelector({
               disabled={disabled || (!selected.includes(node.id) && selected.length >= 5)}
             />
             <div className="text-sm">
-              <span className="font-medium text-muted-foreground">[{node.node_type}]</span>{" "}
-              {node.name}
+              <span className="font-medium text-muted-foreground">[{node.node_type}]</span> {node.name}
             </div>
           </div>
         ))}
       </div>
-      <p className="text-xs text-muted-foreground">
-        {selected.length}/5 seleccionadas
-      </p>
+      <p className="text-xs text-muted-foreground">{selected.length}/5 seleccionadas</p>
     </div>
   );
 }

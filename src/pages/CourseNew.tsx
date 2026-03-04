@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, ArrowRight, Check, ExternalLink, Loader2, Upload } from "lucide-react";
 
 import { useAuth } from "@/contexts/AuthContext";
@@ -45,6 +45,16 @@ interface SupportedProgram {
   school_type: SchoolType | null;
   orientation: string | null;
   speciality: string | null;
+}
+
+function candidateScopeLabel(candidate: Pick<CurriculumCandidate, "school_type" | "orientation" | "speciality">): string {
+  const parts = [
+    candidate.school_type || "Generico",
+    candidate.orientation || null,
+    candidate.speciality || null,
+  ].filter(Boolean);
+
+  return parts.join(" · ");
 }
 
 function normalize(value: string | null | undefined): string {
@@ -115,7 +125,13 @@ interface WizardState {
 
 export default function CourseNew() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
+  const queryCycle = searchParams.get("cycle");
+  const initialCycle = queryCycle === "BASIC" || queryCycle === "UPPER" ? queryCycle : "";
+  const queryYearLevel = Number(searchParams.get("year_level"));
+  const initialYearLevel = Number.isInteger(queryYearLevel) && queryYearLevel >= 1 && queryYearLevel <= 6 ? queryYearLevel : null;
+  const initialCurriculumId = searchParams.get("curriculum_document_id") || "";
   const [step, setStep] = useState(1);
   const [schools, setSchools] = useState<SchoolOption[]>([]);
   const [supportedPrograms, setSupportedPrograms] = useState<SupportedProgram[]>([]);
@@ -123,7 +139,7 @@ export default function CourseNew() {
   const [resolutionStatus, setResolutionStatus] = useState<ResolutionStatus>("idle");
   const [resolutionError, setResolutionError] = useState("");
   const [curriculumCandidates, setCurriculumCandidates] = useState<CurriculumCandidate[]>([]);
-  const [selectedCurriculumId, setSelectedCurriculumId] = useState("");
+  const [selectedCurriculumId, setSelectedCurriculumId] = useState(initialCurriculumId);
   const [officialIndexUrl, setOfficialIndexUrl] = useState(
     "https://abc.gob.ar/secretarias/areas/subsecretaria-de-educacion/educacion-secundaria/educacion-secundaria/disenos-curriculares"
   );
@@ -132,11 +148,11 @@ export default function CourseNew() {
     province: "PBA",
     schoolId: "",
     schoolType: "COMUN",
-    cycle: "",
-    yearLevel: null,
-    subject: "",
-    orientation: "",
-    speciality: "",
+    cycle: initialCycle,
+    yearLevel: initialYearLevel,
+    subject: searchParams.get("subject") || "",
+    orientation: searchParams.get("orientation") || "",
+    speciality: searchParams.get("speciality") || "",
     newSchoolName: "",
     newSchoolDistrict: "",
     newSchoolLocality: "",
@@ -225,6 +241,41 @@ export default function CourseNew() {
   }, [state.subject, state.cycle, state.yearLevel, state.schoolType, state.orientation, state.speciality]);
 
   useEffect(() => {
+    if (!initialCurriculumId) return;
+
+    let active = true;
+
+    const loadSelectedCurriculum = async () => {
+      const { data, error } = await supabase
+        .from("curriculum_documents")
+        .select("id, subject, cycle, year_level, official_url, official_title, source_provider, fetched_at, school_type, orientation, speciality")
+        .eq("id", initialCurriculumId)
+        .maybeSingle();
+
+      if (!active || error || !data) return;
+
+      setCurriculumCandidates([
+        {
+          ...data,
+          display_title: data.official_title || data.subject,
+          is_official_domain: isAllowedOfficialUrl(data.official_url),
+        } as CurriculumCandidate,
+      ]);
+      setSelectedCurriculumId(data.id);
+      setResolutionStatus("resolved");
+      setResolutionError("");
+    };
+
+    loadSelectedCurriculum();
+
+    return () => {
+      active = false;
+    };
+  }, [initialCurriculumId]);
+
+  useEffect(() => {
+    if (initialCurriculumId) return;
+
     const shouldResolve =
       !!state.subject &&
       !!state.cycle &&
@@ -276,7 +327,7 @@ export default function CourseNew() {
 
         if (data?.status === "ambiguous" && Array.isArray(data.candidates)) {
           setCurriculumCandidates(data.candidates);
-          setSelectedCurriculumId(data.candidates[0]?.id || "");
+          setSelectedCurriculumId("");
           setResolutionStatus("ambiguous");
           setResolutionError("");
           return;
@@ -293,6 +344,7 @@ export default function CourseNew() {
       active = false;
     };
   }, [
+    initialCurriculumId,
     needsOrientation,
     needsSpeciality,
     state.cycle,
@@ -425,6 +477,13 @@ export default function CourseNew() {
         speciality: needsSpeciality ? state.speciality : null,
       };
 
+      const courseDetailUrl = (courseId: string) => {
+        const params = new URLSearchParams();
+        if (selectedCurriculumId) params.set("curriculum_document_id", selectedCurriculumId);
+        const query = params.toString();
+        return query ? `/course/${courseId}?${query}` : `/course/${courseId}`;
+      };
+
       let usedLegacyCourseInsert = false;
       let course: { id: string } | null = null;
 
@@ -482,7 +541,7 @@ export default function CourseNew() {
           description: "El curso se creo, pero el borrador inicial del plan no pudo completarse automaticamente.",
           variant: "destructive",
         });
-        navigate(`/course/${course!.id}`);
+        navigate(courseDetailUrl(course!.id));
         return;
       }
 
@@ -498,7 +557,7 @@ export default function CourseNew() {
               description: "El curso quedo vinculado a su programa oficial y recibio un borrador inicial del plan.",
             }
       );
-      navigate(`/course/${course!.id}`);
+      navigate(courseDetailUrl(course!.id));
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
@@ -821,6 +880,35 @@ export default function CourseNew() {
                         El documento fue resuelto en la base curricular pero todavia no tiene URL oficial registrada.
                       </p>
                     )}
+                  </div>
+                )}
+
+                {resolutionStatus === "ambiguous" && !selectedCurriculum && curriculumCandidates.length > 0 && (
+                  <div className="space-y-3 rounded-md border border-warning/40 bg-warning/5 p-4">
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium">Hay mas de un programa posible para esta combinacion.</p>
+                      <p className="text-sm text-muted-foreground">
+                        Revise el alcance de cada documento y seleccione manualmente el correcto antes de crear el curso.
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      {curriculumCandidates.map((candidate) => (
+                        <button
+                          key={candidate.id}
+                          type="button"
+                          onClick={() => setSelectedCurriculumId(candidate.id)}
+                          className="w-full rounded-md border bg-background p-3 text-left transition-colors hover:border-primary/50"
+                        >
+                          <p className="font-medium text-foreground">{candidate.display_title}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {candidateScopeLabel(candidate)}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Fuente: {candidate.source_provider} · Dominio oficial: {candidate.is_official_domain ? "Si" : "No verificado"}
+                          </p>
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 )}
 

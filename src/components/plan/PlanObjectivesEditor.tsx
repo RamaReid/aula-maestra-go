@@ -13,9 +13,10 @@ interface Objective {
 interface Props {
   planId: string;
   readOnly: boolean;
+  onDirty?: () => Promise<void> | void;
 }
 
-export default function PlanObjectivesEditor({ planId, readOnly }: Props) {
+export default function PlanObjectivesEditor({ planId, readOnly, onDirty }: Props) {
   const [objectives, setObjectives] = useState<Objective[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -35,6 +36,7 @@ export default function PlanObjectivesEditor({ planId, readOnly }: Props) {
 
   const handleAdd = async () => {
     if (objectives.length >= 8) return;
+    await onDirty?.();
     const { data } = await supabase
       .from("plan_objectives")
       .insert({ plan_id: planId, description: "", order_index: objectives.length })
@@ -44,11 +46,13 @@ export default function PlanObjectivesEditor({ planId, readOnly }: Props) {
   };
 
   const handleDelete = async (id: string) => {
+    await onDirty?.();
     await supabase.from("plan_objectives").delete().eq("id", id);
     setObjectives((prev) => prev.filter((o) => o.id !== id));
   };
 
   const handleBlur = async (id: string, description: string) => {
+    await onDirty?.();
     await supabase.from("plan_objectives").update({ description }).eq("id", id);
   };
 

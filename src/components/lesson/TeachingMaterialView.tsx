@@ -81,7 +81,7 @@ export default function TeachingMaterialView({ material }: TeachingMaterialViewP
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm text-muted-foreground">Producto Esperado</CardTitle>
+          <CardTitle className="text-sm text-muted-foreground">Producto / evidencia minima</CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-sm">{material.expected_product}</p>
