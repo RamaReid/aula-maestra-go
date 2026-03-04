@@ -9,7 +9,7 @@ import {
   SchoolType,
 } from "./curriculumCommon.ts";
 
-export { CurriculumCycle, SchoolType } from "./curriculumCommon.ts";
+export type { CurriculumCycle, SchoolType } from "./curriculumCommon.ts";
 
 export type CurriculumImportPayload = {
   file_name?: string | null;
@@ -59,7 +59,7 @@ function normalizeNullable(value: string | null | undefined): string | null {
 }
 
 function bytesToSha256(buffer: Uint8Array): Promise<string> {
-  return crypto.subtle.digest("SHA-256", buffer.buffer).then((hashBuffer) => {
+  return crypto.subtle.digest("SHA-256", buffer.buffer as ArrayBuffer).then((hashBuffer) => {
     return Array.from(new Uint8Array(hashBuffer))
       .map((byte) => byte.toString(16).padStart(2, "0"))
       .join("");
@@ -357,7 +357,7 @@ async function upsertDocument(
     status: "VERIFIED" as const,
     content_hash: contentHash,
     official_url: payload.official_url || null,
-    official_title: payload.official_title || deriveOfficialTitle(rawText, payload.file_name),
+    official_title: payload.official_title || deriveOfficialTitle(rawText, payload.file_name ?? "programa_oficial.pdf"),
     source_provider: resolveSourceProvider(payload),
     fetched_at: new Date().toISOString(),
     raw_text: rawText,
