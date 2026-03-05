@@ -827,8 +827,19 @@ export default function CourseNew() {
                 </div>
 
                 {resolutionStatus === "resolving" && (
-                  <div className="rounded-md border p-4 text-sm text-muted-foreground">
-                    Buscando y resolviendo el programa oficial correspondiente...
+                  <div className="rounded-md border p-4">
+                    <div className="curriculum-book-loader">
+                      <div className="curriculum-book-icon" aria-hidden="true">
+                        <span className="curriculum-book-cover" />
+                        <span className="curriculum-book-page curriculum-book-page-1" />
+                        <span className="curriculum-book-page curriculum-book-page-2" />
+                        <span className="curriculum-book-page curriculum-book-page-3" />
+                      </div>
+                      <div className="space-y-1 text-sm text-muted-foreground">
+                        <p>Buscando y resolviendo el programa oficial correspondiente...</p>
+                        <p className="text-xs">Revisamos base curricular, coincidencias y dominio oficial.</p>
+                      </div>
+                    </div>
                   </div>
                 )}
 

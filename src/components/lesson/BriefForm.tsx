@@ -162,6 +162,7 @@ export default function BriefForm({ lessonId, courseId, brief, onUpdate }: Brief
 
       <BibliographySelector
         courseId={courseId}
+        lessonId={lessonId}
         selected={bibliografia}
         onChange={setBibliografia}
         disabled={isConfirmed}

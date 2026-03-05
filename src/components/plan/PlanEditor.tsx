@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { X, Plus, RotateCcw, ShieldCheck } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { X, Plus, RotateCcw, ShieldCheck, Maximize2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import PlanObjectivesEditor from "./PlanObjectivesEditor";
 import PlanLessonsEditor from "./PlanLessonsEditor";
@@ -20,6 +21,15 @@ interface PlanData {
   evaluacion_marco: string;
   resources: string;
 }
+
+type ExpandableField = "fundamentacion" | "estrategias_marco" | "evaluacion_marco" | "resources";
+
+const fieldTitles: Record<ExpandableField, string> = {
+  fundamentacion: "Fundamentacion",
+  estrategias_marco: "Estrategias marco",
+  evaluacion_marco: "Evaluacion marco",
+  resources: "Recursos",
+};
 
 interface Props {
   planId: string;
@@ -98,6 +108,7 @@ export default function PlanEditor({
   const [bootstrapping, setBootstrapping] = useState(false);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [newStrategy, setNewStrategy] = useState("");
+  const [expandedField, setExpandedField] = useState<ExpandableField | null>(null);
   const [currentStatus, setCurrentStatus] = useState(planStatus);
   const [hasEditedAfterValidation, setHasEditedAfterValidation] = useState(false);
   const transitioningRef = useRef(false);
@@ -342,26 +353,40 @@ export default function PlanEditor({
           </TabsList>
 
           <TabsContent value="fundamentacion" className="space-y-2 pt-2">
-            <Label>Fundamentacion</Label>
+            <div className="flex items-center justify-between gap-2">
+              <Label>Fundamentacion</Label>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setExpandedField("fundamentacion")}>
+                <Maximize2 className="mr-2 h-4 w-4" />
+                Expandir
+              </Button>
+            </div>
             <Textarea
               value={plan.fundamentacion}
               onChange={(e) => updateField("fundamentacion", e.target.value)}
               placeholder="Escribir la fundamentacion del plan..."
               rows={6}
               disabled={readOnly}
+              onDoubleClick={() => setExpandedField("fundamentacion")}
             />
             <p className="text-xs text-muted-foreground">{plan.fundamentacion.length} caracteres</p>
           </TabsContent>
 
           <TabsContent value="estrategias" className="space-y-4 pt-2">
             <div className="space-y-2">
-              <Label>Estrategias marco</Label>
+              <div className="flex items-center justify-between gap-2">
+                <Label>Estrategias marco</Label>
+                <Button type="button" variant="ghost" size="sm" onClick={() => setExpandedField("estrategias_marco")}>
+                  <Maximize2 className="mr-2 h-4 w-4" />
+                  Expandir
+                </Button>
+              </div>
               <Textarea
                 value={plan.estrategias_marco}
                 onChange={(e) => updateField("estrategias_marco", e.target.value)}
                 placeholder="Describir las estrategias generales..."
                 rows={4}
                 disabled={readOnly}
+                onDoubleClick={() => setExpandedField("estrategias_marco")}
               />
             </div>
 
@@ -396,24 +421,38 @@ export default function PlanEditor({
           </TabsContent>
 
           <TabsContent value="evaluacion" className="space-y-2 pt-2">
-            <Label>Evaluacion marco</Label>
+            <div className="flex items-center justify-between gap-2">
+              <Label>Evaluacion marco</Label>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setExpandedField("evaluacion_marco")}>
+                <Maximize2 className="mr-2 h-4 w-4" />
+                Expandir
+              </Button>
+            </div>
             <Textarea
               value={plan.evaluacion_marco}
               onChange={(e) => updateField("evaluacion_marco", e.target.value)}
               placeholder="Describir el marco de evaluacion..."
               rows={6}
               disabled={readOnly}
+              onDoubleClick={() => setExpandedField("evaluacion_marco")}
             />
           </TabsContent>
 
           <TabsContent value="recursos" className="space-y-2 pt-2">
-            <Label>Recursos</Label>
+            <div className="flex items-center justify-between gap-2">
+              <Label>Recursos</Label>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setExpandedField("resources")}>
+                <Maximize2 className="mr-2 h-4 w-4" />
+                Expandir
+              </Button>
+            </div>
             <Textarea
               value={plan.resources}
               onChange={(e) => updateField("resources", e.target.value)}
               placeholder="Describir materiales, soportes y alternativas low-tech..."
               rows={5}
               disabled={readOnly}
+              onDoubleClick={() => setExpandedField("resources")}
             />
           </TabsContent>
 
@@ -432,6 +471,26 @@ export default function PlanEditor({
             {validating ? "Validando..." : ctaLabel}
           </Button>
         )}
+
+        <Dialog open={!!expandedField} onOpenChange={(open) => !open && setExpandedField(null)}>
+          <DialogContent className="max-w-5xl">
+            <DialogHeader>
+              <DialogTitle>{expandedField ? fieldTitles[expandedField] : "Editor"}</DialogTitle>
+            </DialogHeader>
+            {expandedField && (
+              <div className="space-y-2">
+                <Textarea
+                  value={plan[expandedField]}
+                  onChange={(event) => updateField(expandedField, event.target.value)}
+                  rows={24}
+                  disabled={readOnly}
+                  className="max-h-[70vh] min-h-[60vh]"
+                />
+                <p className="text-xs text-muted-foreground">{plan[expandedField].length} caracteres</p>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </CardContent>
     </Card>
   );

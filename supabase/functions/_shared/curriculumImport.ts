@@ -192,6 +192,170 @@ function isLikelyContentLine(line: string): boolean {
   return false;
 }
 
+function isBibliographyHeading(line: string): boolean {
+  const normalized = normalizeText(line);
+  return normalized === "bibliografia" || normalized.startsWith("bibliografia ");
+}
+
+function isLikelyPageArtifactLine(line: string): boolean {
+  const compact = line.trim();
+  if (!compact) return true;
+  if (/^\d+$/.test(compact)) return true;
+  if (/^\d+\s*\|/.test(compact)) return true;
+  if (/\|\s*DGCyE\s*\|/i.test(compact)) return true;
+  if (/^pagina\s+\d+/i.test(compact)) return true;
+  return false;
+}
+
+function isLikelyBibliographyNoise(line: string): boolean {
+  const normalized = normalizeText(line);
+  if (!normalized) return true;
+  if (isLikelyPageArtifactLine(line)) return true;
+
+  return (
+    normalized.startsWith("isbn") ||
+    normalized.startsWith("cdd") ||
+    normalized.startsWith("indice") ||
+    normalized.startsWith("equipo de especialistas") ||
+    normalized.startsWith("diseno curricular para") ||
+    normalized.startsWith("educacion secundaria")
+  );
+}
+
+function isRepeatedAuthorMarker(raw: string): boolean {
+  const value = raw.replace(/[,:.;]+$/g, "").replace(/\s+/g, "");
+  if (!value || value.length < 2) return false;
+  return value.replace(/\p{Pd}/gu, "").length === 0;
+}
+
+function cleanBibliographyCandidate(line: string): string {
+  return line
+    .replace(/^[\u2022*-]\s+/u, "")
+    .replace(/^\d+[\).]\s+/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isLikelyBibliographyEntryStart(line: string, hasLastAuthor: boolean): boolean {
+  const candidate = cleanBibliographyCandidate(line);
+  if (!candidate || candidate.length < 14) return false;
+  if (isLikelyBibliographyNoise(candidate)) return false;
+
+  const commaCount = (candidate.match(/,/g) || []).length;
+  const hasYear = /\b(1[89]\d{2}|20\d{2})\b/.test(candidate);
+  const hasEditionFallback = /\bvarias\s+ediciones\b/i.test(candidate);
+  const firstToken = candidate.split(",")[0] || "";
+  const repeatedAuthor = isRepeatedAuthorMarker(firstToken);
+  const authorLike = /^[\p{Lu}][^,]{1,90},/u.test(candidate);
+
+  if (!authorLike && !(repeatedAuthor && hasLastAuthor)) return false;
+  if (commaCount < 3) return false;
+  if (!hasYear && !hasEditionFallback && commaCount < 4) return false;
+
+  return true;
+}
+
+function buildAuthorCarry(parts: string[]): string | null {
+  if (parts.length === 0) return null;
+
+  const surname = parts[0].trim();
+  if (!surname) return null;
+  if (parts.length === 1) return surname;
+
+  const maybeGivenName = parts[1].trim();
+  if (
+    maybeGivenName &&
+    maybeGivenName.length <= 48 &&
+    /^[\p{L}.'\- ]+$/u.test(maybeGivenName) &&
+    !/\b(en|vol\.?|libro|trad\.?|edicion|ediciones)\b/i.test(maybeGivenName) &&
+    !/\d/.test(maybeGivenName)
+  ) {
+    return `${surname}, ${maybeGivenName}`.replace(/\s+/g, " ").trim();
+  }
+
+  return surname;
+}
+
+function normalizeBibliographyEntry(
+  rawEntry: string,
+  lastAuthor: string | null
+): { citation: string; carryAuthor: string | null } | null {
+  const cleaned = cleanBibliographyCandidate(rawEntry);
+  if (!cleaned || isLikelyBibliographyNoise(cleaned)) return null;
+
+  const commaCount = (cleaned.match(/,/g) || []).length;
+  const hasYear = /\b(1[89]\d{2}|20\d{2})\b/.test(cleaned);
+  const hasEditionFallback = /\bvarias\s+ediciones\b/i.test(cleaned);
+  const parts = cleaned.split(",").map((part) => part.trim()).filter(Boolean);
+  if (parts.length < 2) return null;
+
+  const firstToken = parts[0];
+  const repeatedAuthor = isRepeatedAuthorMarker(firstToken);
+  const authorLike = /^[\p{Lu}][^,]{1,90}$/u.test(firstToken);
+  if (!authorLike && !(repeatedAuthor && lastAuthor)) return null;
+  if (commaCount < 3) return null;
+  if (!hasYear && !hasEditionFallback && commaCount < 4) return null;
+
+  if (repeatedAuthor) {
+    if (!lastAuthor) return null;
+    const rest = parts.slice(1).join(", ").trim();
+    if (!rest) return null;
+    return {
+      citation: `${lastAuthor}, ${rest}`.replace(/\s+/g, " ").trim(),
+      carryAuthor: lastAuthor,
+    };
+  }
+
+  return {
+    citation: cleaned.replace(/\s+/g, " ").trim(),
+    carryAuthor: buildAuthorCarry(parts),
+  };
+}
+
+function isLikelyAuthorityLine(line: string): boolean {
+  const cleaned = cleanBibliographyCandidate(line);
+  if (!cleaned) return false;
+  if (isLikelyBibliographyNoise(cleaned)) return true;
+
+  const normalized = normalizeText(cleaned);
+  const commaCount = (cleaned.match(/,/g) || []).length;
+  const hasYear = /\b(1[89]\d{2}|20\d{2})\b/.test(cleaned);
+  if (hasYear && commaCount >= 2) return false;
+
+  const institutionalTokens = [
+    "autoridades",
+    "direccion general",
+    "dgcye",
+    "ministerio",
+    "subsecretaria",
+    "gobernacion",
+    "consejo general",
+    "equipo de especialistas",
+    "equipo tecnico",
+    "provincia de buenos aires",
+  ];
+
+  if (institutionalTokens.some((token) => normalized.includes(token))) return true;
+
+  if (
+    /\b(ministro|subsecretari[oa]|director(?:a)?(?:\s+general|\s+provincial)?|gobernador|presidente|vicepresidente|secretari[oa]|coordinador(?:a)?|jef[ea]|inspector(?:a)?)\b/i.test(
+      cleaned
+    )
+  ) {
+    return true;
+  }
+
+  if (
+    /^(lic\.|prof\.|dr\.|dra\.)\s+[\p{Lu}][\p{L}'-]+(?:\s+[\p{Lu}][\p{L}'-]+){1,4}$/u.test(cleaned) &&
+    commaCount <= 1 &&
+    !hasYear
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
 function extractCurriculumNodes(rawText: string): DraftNode[] {
   const lines = rawText
     .split("\n")
@@ -202,6 +366,11 @@ function extractCurriculumNodes(rawText: string): DraftNode[] {
   let currentEje: (DraftNode & { fingerprint: string }) | null = null;
   let currentUnidad: (DraftNode & { fingerprint: string }) | null = null;
   let currentBloque: (DraftNode & { fingerprint: string }) | null = null;
+  let bibliographyParent: (DraftNode & { fingerprint: string }) | null = null;
+  let inBibliographySection = false;
+  let bibliographyDraft = "";
+  let lastBibliographyAuthor: string | null = null;
+  let authorityLineStreak = 0;
   let orderIndex = 0;
 
   const pushNode = (
@@ -229,7 +398,82 @@ function extractCurriculumNodes(rawText: string): DraftNode[] {
     return node;
   };
 
+  const flushBibliographyDraft = () => {
+    const parsed = normalizeBibliographyEntry(bibliographyDraft, lastBibliographyAuthor);
+    bibliographyDraft = "";
+    if (!parsed) return;
+
+    pushNode(
+      "CONTENIDO",
+      parsed.citation,
+      bibliographyParent?.tempId || currentEje?.tempId || null
+    );
+    lastBibliographyAuthor = parsed.carryAuthor || lastBibliographyAuthor;
+  };
+
   for (const line of lines) {
+    if (isBibliographyHeading(line)) {
+      flushBibliographyDraft();
+      currentEje = pushNode("EJE", line, null);
+      currentUnidad = null;
+      currentBloque = pushNode("BLOQUE", "Fuentes bibliograficas", currentEje?.tempId || null);
+      bibliographyParent = currentBloque || currentEje;
+      inBibliographySection = true;
+      lastBibliographyAuthor = null;
+      authorityLineStreak = 0;
+      continue;
+    }
+
+    if (inBibliographySection) {
+      const startsBibliographyEntry = isLikelyBibliographyEntryStart(
+        line,
+        Boolean(lastBibliographyAuthor)
+      );
+      const likelyAuthorityLine = isLikelyAuthorityLine(line);
+      const exitsBibliography =
+        isLikelySectionHeading(line) &&
+        !isBibliographyHeading(line) &&
+        !startsBibliographyEntry;
+
+      if (exitsBibliography) {
+        flushBibliographyDraft();
+        inBibliographySection = false;
+        bibliographyParent = null;
+        lastBibliographyAuthor = null;
+        authorityLineStreak = 0;
+      } else {
+        if (likelyAuthorityLine && !startsBibliographyEntry) {
+          authorityLineStreak += 1;
+          if (authorityLineStreak >= 3) {
+            flushBibliographyDraft();
+            inBibliographySection = false;
+            bibliographyParent = null;
+            lastBibliographyAuthor = null;
+            authorityLineStreak = 0;
+          }
+          continue;
+        }
+
+        authorityLineStreak = 0;
+
+        if (isLikelyBibliographyNoise(line)) {
+          continue;
+        }
+
+        const candidate = cleanBibliographyCandidate(line);
+        if (!candidate) continue;
+
+        if (startsBibliographyEntry) {
+          flushBibliographyDraft();
+          bibliographyDraft = candidate;
+        } else if (bibliographyDraft.length > 0) {
+          bibliographyDraft = `${bibliographyDraft} ${candidate}`.replace(/\s+/g, " ").trim();
+        }
+
+        continue;
+      }
+    }
+
     if (isLikelyUnitHeading(line)) {
       currentUnidad = pushNode("UNIDAD", line, currentEje?.tempId || null);
       currentBloque = null;
@@ -262,6 +506,7 @@ function extractCurriculumNodes(rawText: string): DraftNode[] {
     }
   }
 
+  flushBibliographyDraft();
   return nodes.map(({ fingerprint: _fingerprint, ...node }) => node);
 }
 

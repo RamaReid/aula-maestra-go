@@ -11,13 +11,53 @@ interface Node {
 
 interface BibliographySelectorProps {
   courseId: string;
+  lessonId?: string;
   selected: string[];
   onChange: (ids: string[]) => void;
   disabled?: boolean;
 }
 
+function normalizeName(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function shouldHideNode(name: string): boolean {
+  const normalized = normalizeName(name);
+  return (
+    normalized.startsWith("isbn ") ||
+    normalized.startsWith("cdd ") ||
+    normalized === "equipo de especialistas" ||
+    normalized.startsWith("diseno curricular para") ||
+    normalized.startsWith("educacion secundaria") ||
+    /^lic\.\s+/.test(normalized)
+  );
+}
+
+function isLikelyBibliographyEntry(name: string): boolean {
+  if (shouldHideNode(name)) return false;
+
+  const normalized = normalizeName(name);
+  const commaCount = (name.match(/,/g) || []).length;
+  const hasYear = /\b(1[89]\d{2}|20\d{2})\b/.test(name);
+  const hasEditionFallback = /\bvarias\s+ediciones\b/i.test(name);
+  const hasAuthorPrefix = /^[A-ZÁÉÍÓÚÑ][^,]{1,90},/.test(name.trim());
+
+  if (normalized.includes("dgcye | diseno curricular")) return false;
+  if (!hasAuthorPrefix) return false;
+  if (commaCount < 3) return false;
+  if (!hasYear && !hasEditionFallback && commaCount < 4) return false;
+
+  return true;
+}
+
 export default function BibliographySelector({
   courseId,
+  lessonId,
   selected,
   onChange,
   disabled,
@@ -34,29 +74,76 @@ export default function BibliographySelector({
         return;
       }
 
-      const { data: mappings } = await supabase
-        .from("plan_content_mappings")
-        .select("curriculum_node_id")
-        .eq("plan_id", plan.id);
+      let nodeIds: string[] = [];
 
-      if (!mappings || mappings.length === 0) {
+      if (lessonId) {
+        const { data: lesson } = await supabase
+          .from("lessons")
+          .select("plan_lesson_id")
+          .eq("id", lessonId)
+          .maybeSingle();
+
+        if (lesson?.plan_lesson_id) {
+          const { data: links } = await supabase
+            .from("plan_lesson_content_links")
+            .select("plan_content_mapping_id")
+            .eq("plan_lesson_id", lesson.plan_lesson_id);
+
+          const mappingIds = (links || []).map((link) => link.plan_content_mapping_id);
+          if (mappingIds.length > 0) {
+            const { data: lessonMappings } = await supabase
+              .from("plan_content_mappings")
+              .select("curriculum_node_id")
+              .in("id", mappingIds);
+
+            nodeIds = (lessonMappings || []).map((mapping) => mapping.curriculum_node_id);
+          }
+        }
+      }
+
+      if (nodeIds.length === 0) {
+        const { data: mappings } = await supabase
+          .from("plan_content_mappings")
+          .select("curriculum_node_id")
+          .eq("plan_id", plan.id);
+
+        if (mappings && mappings.length > 0) {
+          nodeIds = mappings.map((mapping) => mapping.curriculum_node_id);
+        }
+      }
+
+      if (nodeIds.length === 0) {
         setLoading(false);
         return;
       }
 
-      const nodeIds = mappings.map((mapping) => mapping.curriculum_node_id);
       const { data: nodesData } = await supabase
         .from("curriculum_nodes")
-        .select("id, name, node_type")
-        .in("id", nodeIds)
+        .select("id, name, node_type, order_index")
+        .in("id", Array.from(new Set(nodeIds)))
         .order("order_index");
 
-      setNodes(nodesData || []);
+      const rawNodes = (nodesData || []) as Array<Node & { order_index?: number }>;
+      const contentFirst = rawNodes.filter((node) =>
+        ["CONTENIDO", "BLOQUE", "UNIDAD"].includes(node.node_type)
+      );
+      const candidates = contentFirst.length > 0 ? contentFirst : rawNodes;
+      const bibliographyOnly = candidates.filter((node) => isLikelyBibliographyEntry(node.name));
+      const filtered = (bibliographyOnly.length > 0 ? bibliographyOnly : candidates).filter(
+        (node) => !shouldHideNode(node.name)
+      );
+      const dedupMap = new Map<string, Node>();
+      filtered.forEach((node) => {
+        const key = `${node.node_type}:${normalizeName(node.name)}`;
+        if (!dedupMap.has(key)) dedupMap.set(key, node);
+      });
+
+      setNodes(Array.from(dedupMap.values()));
       setLoading(false);
     };
 
     fetchNodes();
-  }, [courseId]);
+  }, [courseId, lessonId]);
 
   const toggle = (nodeId: string) => {
     if (disabled) return;
@@ -75,7 +162,11 @@ export default function BibliographySelector({
   }
 
   if (nodes.length === 0) {
-    return <p className="text-sm text-muted-foreground">No hay contenidos curriculares mapeados en el plan.</p>;
+    return (
+      <p className="text-sm text-muted-foreground">
+        No hay fuentes curriculares limpias para esta clase. Revisa mapeos de contenidos en la anual.
+      </p>
+    );
   }
 
   return (
