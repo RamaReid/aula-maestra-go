@@ -67,79 +67,113 @@ export default function BibliographySelector({
 
   useEffect(() => {
     const fetchNodes = async () => {
-      const { data: plan } = await supabase.from("plans").select("id").eq("course_id", courseId).single();
+      setLoading(true);
 
-      if (!plan) {
-        setLoading(false);
-        return;
-      }
+      const cleanCandidates = (rawNodes: Array<Node & { order_index?: number }>): Node[] => {
+        const contentFirst = rawNodes.filter((node) =>
+          ["CONTENIDO", "BLOQUE", "UNIDAD"].includes(node.node_type)
+        );
+        const candidates = contentFirst.length > 0 ? contentFirst : rawNodes;
+        const bibliographyOnly = candidates.filter((node) => isLikelyBibliographyEntry(node.name));
+        const filtered = (bibliographyOnly.length > 0 ? bibliographyOnly : candidates).filter(
+          (node) => !shouldHideNode(node.name)
+        );
+        const dedupMap = new Map<string, Node>();
+        filtered.forEach((node) => {
+          const key = `${node.node_type}:${normalizeName(node.name)}`;
+          if (!dedupMap.has(key)) dedupMap.set(key, node);
+        });
+        return Array.from(dedupMap.values());
+      };
 
-      let nodeIds: string[] = [];
+      const fetchNodesByIds = async (ids: string[]): Promise<Node[]> => {
+        const dedupedIds = Array.from(new Set(ids.filter(Boolean)));
+        if (dedupedIds.length === 0) return [];
 
-      if (lessonId) {
-        const { data: lesson } = await supabase
-          .from("lessons")
-          .select("plan_lesson_id")
-          .eq("id", lessonId)
-          .maybeSingle();
+        const { data: nodesData } = await supabase
+          .from("curriculum_nodes")
+          .select("id, name, node_type, order_index")
+          .in("id", dedupedIds)
+          .order("order_index");
 
-        if (lesson?.plan_lesson_id) {
-          const { data: links } = await supabase
-            .from("plan_lesson_content_links")
-            .select("plan_content_mapping_id")
-            .eq("plan_lesson_id", lesson.plan_lesson_id);
+        return cleanCandidates((nodesData || []) as Array<Node & { order_index?: number }>);
+      };
 
-          const mappingIds = (links || []).map((link) => link.plan_content_mapping_id);
-          if (mappingIds.length > 0) {
-            const { data: lessonMappings } = await supabase
-              .from("plan_content_mappings")
-              .select("curriculum_node_id")
-              .in("id", mappingIds);
+      try {
+        const { data: plan } = await supabase.from("plans").select("id").eq("course_id", courseId).single();
+        if (!plan) {
+          setNodes([]);
+          return;
+        }
 
-            nodeIds = (lessonMappings || []).map((mapping) => mapping.curriculum_node_id);
+        const nodeIdSources: string[][] = [];
+
+        if (lessonId) {
+          const { data: lesson } = await supabase
+            .from("lessons")
+            .select("plan_lesson_id")
+            .eq("id", lessonId)
+            .maybeSingle();
+
+          if (lesson?.plan_lesson_id) {
+            const { data: links } = await supabase
+              .from("plan_lesson_content_links")
+              .select("plan_content_mapping_id")
+              .eq("plan_lesson_id", lesson.plan_lesson_id);
+
+            const mappingIds = (links || []).map((link) => link.plan_content_mapping_id);
+            if (mappingIds.length > 0) {
+              const { data: lessonMappings } = await supabase
+                .from("plan_content_mappings")
+                .select("curriculum_node_id")
+                .in("id", mappingIds);
+
+              nodeIdSources.push((lessonMappings || []).map((mapping) => mapping.curriculum_node_id));
+            }
           }
         }
-      }
 
-      if (nodeIds.length === 0) {
-        const { data: mappings } = await supabase
+        const { data: planMappings } = await supabase
           .from("plan_content_mappings")
           .select("curriculum_node_id")
           .eq("plan_id", plan.id);
 
-        if (mappings && mappings.length > 0) {
-          nodeIds = mappings.map((mapping) => mapping.curriculum_node_id);
+        if ((planMappings || []).length > 0) {
+          nodeIdSources.push((planMappings || []).map((mapping) => mapping.curriculum_node_id));
         }
-      }
 
-      if (nodeIds.length === 0) {
+        for (const sourceIds of nodeIdSources) {
+          const resolved = await fetchNodesByIds(sourceIds);
+          if (resolved.length > 0) {
+            setNodes(resolved);
+            return;
+          }
+        }
+
+        const { data: courseData, error: courseError } = await supabase
+          .from("courses")
+          .select("curriculum_document_id")
+          .eq("id", courseId)
+          .maybeSingle();
+
+        if (!courseError && courseData?.curriculum_document_id) {
+          const { data: documentNodes } = await supabase
+            .from("curriculum_nodes")
+            .select("id, name, node_type, order_index")
+            .eq("curriculum_document_id", courseData.curriculum_document_id)
+            .order("order_index");
+
+          const fromDocument = cleanCandidates((documentNodes || []) as Array<Node & { order_index?: number }>);
+          if (fromDocument.length > 0) {
+            setNodes(fromDocument);
+            return;
+          }
+        }
+
+        setNodes([]);
+      } finally {
         setLoading(false);
-        return;
       }
-
-      const { data: nodesData } = await supabase
-        .from("curriculum_nodes")
-        .select("id, name, node_type, order_index")
-        .in("id", Array.from(new Set(nodeIds)))
-        .order("order_index");
-
-      const rawNodes = (nodesData || []) as Array<Node & { order_index?: number }>;
-      const contentFirst = rawNodes.filter((node) =>
-        ["CONTENIDO", "BLOQUE", "UNIDAD"].includes(node.node_type)
-      );
-      const candidates = contentFirst.length > 0 ? contentFirst : rawNodes;
-      const bibliographyOnly = candidates.filter((node) => isLikelyBibliographyEntry(node.name));
-      const filtered = (bibliographyOnly.length > 0 ? bibliographyOnly : candidates).filter(
-        (node) => !shouldHideNode(node.name)
-      );
-      const dedupMap = new Map<string, Node>();
-      filtered.forEach((node) => {
-        const key = `${node.node_type}:${normalizeName(node.name)}`;
-        if (!dedupMap.has(key)) dedupMap.set(key, node);
-      });
-
-      setNodes(Array.from(dedupMap.values()));
-      setLoading(false);
     };
 
     fetchNodes();

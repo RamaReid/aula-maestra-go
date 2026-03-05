@@ -58,6 +58,93 @@ function isFilosofiaSubject(subject: string): boolean {
   return normalizeKey(subject) === "filosofia";
 }
 
+function isCurriculumNoiseText(normalized: string): boolean {
+  return (
+    normalized.startsWith("diseno curricular para") ||
+    normalized.startsWith("educacion secundaria") ||
+    normalized.startsWith("isbn") ||
+    normalized.startsWith("cdd") ||
+    normalized.startsWith("indice") ||
+    normalized.startsWith("presentacion") ||
+    normalized.startsWith("equipo de especialistas") ||
+    normalized.startsWith("direccion general") ||
+    normalized.startsWith("dgcye")
+  );
+}
+
+function isCurriculumNoiseNode(node: CurriculumNodeRow): boolean {
+  const normalized = normalizeKey(node.name);
+  if (!normalized) return true;
+  if (isCurriculumNoiseText(normalized)) return true;
+  if (/^\d+$/.test(normalized)) return true;
+  return false;
+}
+
+function isLikelyBibliographyNodeName(name: string): boolean {
+  const normalized = normalizeKey(name);
+  if (!normalized || isCurriculumNoiseText(normalized)) return false;
+
+  const trimmed = name.trim();
+  const commaCount = (trimmed.match(/,/g) || []).length;
+  const hasAuthorPrefix = /^[A-ZÁÉÍÓÚÑ][^,]{1,90},/.test(trimmed);
+  const hasYear = /\b(1[89]\d{2}|20\d{2})\b/.test(trimmed);
+  const hasEditionFallback = /\bvarias\s+ediciones\b/i.test(trimmed);
+
+  if (!hasAuthorPrefix) return false;
+  if (commaCount < 2) return false;
+  if (!hasYear && !hasEditionFallback && commaCount < 3) return false;
+  return true;
+}
+
+function uniqueNodes(nodes: CurriculumNodeRow[]): CurriculumNodeRow[] {
+  const byId = new Map<string, CurriculumNodeRow>();
+  for (const node of nodes) {
+    if (!byId.has(node.id)) byId.set(node.id, node);
+  }
+  return Array.from(byId.values());
+}
+
+function selectPlanningNodes(nodes: CurriculumNodeRow[]): CurriculumNodeRow[] {
+  const preferred = nodes.filter(
+    (node) =>
+      ["CONTENIDO", "BLOQUE", "UNIDAD"].includes(node.node_type) &&
+      !isCurriculumNoiseNode(node)
+  );
+  if (preferred.length > 0) return preferred;
+
+  const fallback = nodes.filter((node) => !isCurriculumNoiseNode(node));
+  if (fallback.length > 0) return fallback;
+
+  return nodes;
+}
+
+function buildNodePools(nodes: CurriculumNodeRow[]): {
+  nodesForPrompt: CurriculumNodeRow[];
+  nodesForMappings: CurriculumNodeRow[];
+  coreNodes: CurriculumNodeRow[];
+  bibliographyNodes: CurriculumNodeRow[];
+} {
+  const planningNodes = selectPlanningNodes(nodes);
+  const bibliographyNodes = uniqueNodes(
+    planningNodes.filter((node) => isLikelyBibliographyNodeName(node.name))
+  );
+
+  const coreNodes = uniqueNodes(
+    planningNodes.filter((node) => !isLikelyBibliographyNodeName(node.name))
+  );
+
+  const safeCoreNodes = coreNodes.length > 0 ? coreNodes : planningNodes;
+  const nodesForPrompt = uniqueNodes([...safeCoreNodes, ...bibliographyNodes]).slice(0, 180);
+  const nodesForMappings = uniqueNodes([...safeCoreNodes, ...bibliographyNodes]).slice(0, 260);
+
+  return {
+    nodesForPrompt,
+    nodesForMappings,
+    coreNodes: safeCoreNodes,
+    bibliographyNodes,
+  };
+}
+
 function buildActivitiesSummary(operation: string, evidence: string): string {
   return `Operacion: ${operation} Evidencia minima: ${evidence}`;
 }
@@ -613,6 +700,7 @@ serve(async (req) => {
       course.subject,
       curriculumDocument.official_title || null
     );
+    const nodePools = buildNodePools(nodes);
 
     const { data: planLessons, error: planLessonsError } = await adminClient
       .from("plan_lessons")
@@ -631,7 +719,7 @@ serve(async (req) => {
 
     const targetPlanStatus = (lessonCount || 0) > 0 ? "EDITED" : "INCOMPLETE";
 
-    const nodeNames = nodes.map((node) => `[${node.node_type}] ${node.name}`);
+    const nodeNames = nodePools.nodesForPrompt.map((node) => `[${node.node_type}] ${node.name}`);
     const subjectCanonNote = isFyHctSubject(course.subject)
       ? [
           "Canon disciplinar obligatorio para FyHyCyT:",
@@ -723,7 +811,7 @@ ${nodeNames.join("\n")}`;
     const normalized = normalizeBootstrapPayload(
       aiPayload,
       course.subject,
-      nodes.map((node) => node.name),
+      nodePools.nodesForPrompt.map((node) => node.name),
       planLessons.length
     );
 
@@ -751,7 +839,7 @@ ${nodeNames.join("\n")}`;
       await adminClient.from("plan_objectives").insert(objectiveRows);
     }
 
-    const mappingRows = nodes.map((node, index: number) => ({
+    const mappingRows = nodePools.nodesForMappings.map((node, index: number) => ({
       plan_id: body.plan_id!,
       curriculum_node_id: node.id,
       order_index: index,
@@ -789,15 +877,37 @@ ${nodeNames.join("\n")}`;
       .delete()
       .in("plan_lesson_id", planLessons.map((lesson: any) => lesson.id));
 
-    if (nodes.length > 0 && mappingIdByNodeId.size > 0) {
-      const linkRows = planLessons.flatMap((lesson: any, index: number) => {
-        const firstNode = nodes[index % nodes.length];
-        const secondNode = nodes[(index + 1) % nodes.length];
-        const mappingIds = [firstNode, secondNode]
-          .map((node) => mappingIdByNodeId.get(node.id))
-          .filter((value, valueIndex, array): value is string => !!value && array.indexOf(value) === valueIndex);
+    if (nodePools.nodesForMappings.length > 0 && mappingIdByNodeId.size > 0) {
+      const coreNodesForLinking = nodePools.coreNodes.filter((node) => mappingIdByNodeId.has(node.id));
+      const bibliographyNodesForLinking = nodePools.bibliographyNodes.filter((node) =>
+        mappingIdByNodeId.has(node.id)
+      );
 
-        return mappingIds.map((mappingId) => ({
+      const linkRows = planLessons.flatMap((lesson: any, index: number) => {
+        const mappingIds = new Set<string>();
+
+        if (coreNodesForLinking.length > 0) {
+          const firstNode = coreNodesForLinking[index % coreNodesForLinking.length];
+          const secondNode = coreNodesForLinking[(index + 1) % coreNodesForLinking.length];
+          const firstMappingId = mappingIdByNodeId.get(firstNode.id);
+          const secondMappingId = mappingIdByNodeId.get(secondNode.id);
+          if (firstMappingId) mappingIds.add(firstMappingId);
+          if (secondMappingId) mappingIds.add(secondMappingId);
+        }
+
+        if (bibliographyNodesForLinking.length > 0) {
+          const bibliographyNode = bibliographyNodesForLinking[index % bibliographyNodesForLinking.length];
+          const bibliographyMappingId = mappingIdByNodeId.get(bibliographyNode.id);
+          if (bibliographyMappingId) mappingIds.add(bibliographyMappingId);
+        }
+
+        if (mappingIds.size === 0) {
+          const fallbackNode = nodePools.nodesForMappings[index % nodePools.nodesForMappings.length];
+          const fallbackMappingId = mappingIdByNodeId.get(fallbackNode.id);
+          if (fallbackMappingId) mappingIds.add(fallbackMappingId);
+        }
+
+        return Array.from(mappingIds).map((mappingId) => ({
           plan_lesson_id: lesson.id,
           plan_content_mapping_id: mappingId,
         }));
@@ -813,6 +923,8 @@ ${nodeNames.join("\n")}`;
         success: true,
         plan_status: targetPlanStatus,
         synthetic_nodes_created: syntheticNodesCreated,
+        prompt_nodes_count: nodePools.nodesForPrompt.length,
+        bibliography_nodes_count: nodePools.bibliographyNodes.length,
         objectives_count: objectiveRows.length,
         content_mappings_count: mappingRows.length,
         lessons_count: normalized.lessons.length,

@@ -22,6 +22,13 @@ interface PlanData {
   resources: string;
 }
 
+interface MappedCurriculumNode {
+  id: string;
+  name: string;
+  node_type: string;
+  order_index?: number | null;
+}
+
 type ExpandableField = "fundamentacion" | "estrategias_marco" | "evaluacion_marco" | "resources";
 
 const fieldTitles: Record<ExpandableField, string> = {
@@ -94,6 +101,16 @@ function buildRepairGuidance(errors: string[]) {
   return Array.from(new Set([...steps, ...lessonRepairs]));
 }
 
+function isLikelyBibliographyNode(name: string): boolean {
+  const trimmed = name.trim();
+  const commaCount = (trimmed.match(/,/g) || []).length;
+  const hasAuthorPrefix = /^[A-ZÁÉÍÓÚÑ][^,]{1,90},/.test(trimmed);
+  const hasYear = /\b(1[89]\d{2}|20\d{2})\b/.test(trimmed);
+  const hasEditionFallback = /\bvarias\s+ediciones\b/i.test(trimmed);
+
+  return hasAuthorPrefix && commaCount >= 2 && (hasYear || hasEditionFallback || commaCount >= 3);
+}
+
 export default function PlanEditor({
   planId,
   courseId,
@@ -109,6 +126,7 @@ export default function PlanEditor({
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [newStrategy, setNewStrategy] = useState("");
   const [expandedField, setExpandedField] = useState<ExpandableField | null>(null);
+  const [mappedNodes, setMappedNodes] = useState<MappedCurriculumNode[]>([]);
   const [currentStatus, setCurrentStatus] = useState(planStatus);
   const [hasEditedAfterValidation, setHasEditedAfterValidation] = useState(false);
   const transitioningRef = useRef(false);
@@ -122,6 +140,27 @@ export default function PlanEditor({
     setHasEditedAfterValidation(planStatus === "EDITED");
   }, [planStatus]);
 
+  const fetchMappedNodes = useCallback(async () => {
+    const { data: mappings } = await supabase
+      .from("plan_content_mappings")
+      .select("curriculum_node_id")
+      .eq("plan_id", planId);
+
+    const nodeIds = Array.from(new Set((mappings || []).map((mapping) => mapping.curriculum_node_id)));
+    if (nodeIds.length === 0) {
+      setMappedNodes([]);
+      return;
+    }
+
+    const { data: nodes } = await supabase
+      .from("curriculum_nodes")
+      .select("id, name, node_type, order_index")
+      .in("id", nodeIds)
+      .order("order_index");
+
+    setMappedNodes((nodes || []) as MappedCurriculumNode[]);
+  }, [planId]);
+
   useEffect(() => {
     const fetch = async () => {
       const { data } = await supabase
@@ -131,11 +170,12 @@ export default function PlanEditor({
         .single();
 
       if (data) setPlan(data);
+      await fetchMappedNodes();
       setLoading(false);
     };
 
     fetch();
-  }, [planId]);
+  }, [planId, fetchMappedNodes]);
 
   const transitionToEdited = useCallback(async () => {
     if (transitioningRef.current || readOnly) return;
@@ -218,6 +258,7 @@ export default function PlanEditor({
         .single();
 
       if (refreshedPlan) setPlan(refreshedPlan);
+      await fetchMappedNodes();
 
       const nextStatus =
         data?.plan_status === "EDITED" || data?.plan_status === "VALIDATED" ? data.plan_status : "INCOMPLETE";
@@ -293,6 +334,9 @@ export default function PlanEditor({
     }
   };
 
+  const bibliographyNodes = mappedNodes.filter((node) => isLikelyBibliographyNode(node.name));
+  const curricularNodes = mappedNodes.filter((node) => !isLikelyBibliographyNode(node.name));
+
   const ctaLabel = currentStatus === "EDITED" ? "Validar cambios" : "Validar plan";
   const showCta = !readOnly && !courseArchived && currentStatus !== "VALIDATED";
 
@@ -343,11 +387,12 @@ export default function PlanEditor({
         )}
 
         <Tabs defaultValue="fundamentacion">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-7">
             <TabsTrigger value="fundamentacion">Fundamentacion</TabsTrigger>
             <TabsTrigger value="estrategias">Estrategias</TabsTrigger>
             <TabsTrigger value="evaluacion">Evaluacion</TabsTrigger>
             <TabsTrigger value="recursos">Recursos</TabsTrigger>
+            <TabsTrigger value="contenidos">Contenidos</TabsTrigger>
             <TabsTrigger value="propositos">Propositos</TabsTrigger>
             <TabsTrigger value="clases">Clases</TabsTrigger>
           </TabsList>
@@ -454,6 +499,50 @@ export default function PlanEditor({
               disabled={readOnly}
               onDoubleClick={() => setExpandedField("resources")}
             />
+          </TabsContent>
+
+          <TabsContent value="contenidos" className="space-y-4 pt-2">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-md border p-3">
+                <p className="text-sm font-medium">Nodos curriculares del plan</p>
+                <p className="text-xs text-muted-foreground">
+                  {curricularNodes.length} nodos mapeados para trazabilidad de clases.
+                </p>
+                <div className="mt-3 max-h-56 space-y-2 overflow-y-auto pr-1">
+                  {curricularNodes.length > 0 ? (
+                    curricularNodes.map((node) => (
+                      <p key={node.id} className="text-sm">
+                        <span className="font-medium text-muted-foreground">[{node.node_type}]</span> {node.name}
+                      </p>
+                    ))
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      No hay nodos curriculares mapeados. Revisa el programa oficial y vuelve a rearmar el borrador.
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-md border p-3">
+                <p className="text-sm font-medium">Bibliografia detectada</p>
+                <p className="text-xs text-muted-foreground">
+                  {bibliographyNodes.length} fuentes detectadas para soporte de brief y materiales.
+                </p>
+                <div className="mt-3 max-h-56 space-y-2 overflow-y-auto pr-1">
+                  {bibliographyNodes.length > 0 ? (
+                    bibliographyNodes.map((node) => (
+                      <p key={node.id} className="text-sm">
+                        <span className="font-medium text-muted-foreground">[{node.node_type}]</span> {node.name}
+                      </p>
+                    ))
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      No se detectaron fuentes bibliograficas en el mapeo actual. Puede requerir reimportar el programa.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
           </TabsContent>
 
           <TabsContent value="propositos" className="pt-2">
