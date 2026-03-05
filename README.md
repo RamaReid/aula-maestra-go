@@ -75,6 +75,13 @@ Read those files before changing:
 - reading material generation
 - the framing of AI inside the product
 
+## Lovable operation PRDs
+
+For platform dependencies and rollout with Lovable Cloud:
+
+- `docs/PRD_LOVABLE_ENV_BASE.md` (baseline env/data requirements)
+- `docs/PRD_LOVABLE_CORE_FLOW.md` (core product flow requirements)
+
 ## How can I deploy this project?
 
 Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
