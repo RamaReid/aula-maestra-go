@@ -1,55 +1,25 @@
 
 
-# Diagnostico: No se pueden importar programas
+# Aplicar fix de entorno en Lovable Cloud
 
-## Problemas encontrados
+## Estado actual
 
-Hay dos bloqueantes principales:
+- **Migración `20260305113000`**: Existe en el repo pero NO fue aplicada. La columna `courses.curriculum_document_id` no existe en la base de datos.
+- **Edge function `bootstrap-course-plan`**: Sin logs recientes, necesita redeploy con el fix de tipado (`adminClient: any`).
 
-### 1. Faltan columnas en la tabla `curriculum_documents`
+## Pasos de implementación
 
-La tabla en la base de datos solo tiene: `id`, `province`, `subject`, `cycle`, `year_level`, `status`, `official_url`, `content_hash`, `created_at`, `updated_at`.
+### Paso 1: Aplicar migración de base de datos
+Ejecutar SQL para agregar `curriculum_document_id` a `courses` con FK y índice. Esto es lo que está en la migración `20260305113000`.
 
-Pero el codigo (tanto el frontend como las edge functions) esperan columnas que no existen:
-- `source_provider`
-- `school_type`
-- `orientation`
-- `speciality`
-- `official_title`
-- `fetched_at`
+### Paso 2: Redeploy de `bootstrap-course-plan`
+Forzar deploy de la edge function para que tome el cambio de tipado en `ensureCurriculumNodes`.
 
-Esto causa los errores 400 que se ven en los network requests: `"column curriculum_documents.source_provider does not exist"`.
+### Paso 3: Verificación post-deploy
+- Confirmar que `public.courses.curriculum_document_id` existe via query
+- Confirmar que `bootstrap-course-plan` deploya sin errores
+- Verificar logs de la función
 
-### 2. Errores de compilacion en las Edge Functions
-
-Hay 4 errores de TypeScript que impiden el deploy de las funciones:
-- Re-export de tipos sin `export type` (isolatedModules)
-- `ArrayBufferLike` no asignable a `BufferSource`
-- Argumento `string | null` donde se espera `string`
-
-Esto hace que `import-curriculum-pdf` y `resolve-curriculum-document` no esten activas, por eso las llamadas fallan con "Failed to fetch".
-
-## Plan de correccion
-
-### Paso 1: Migracion de base de datos
-Agregar las 6 columnas faltantes a `curriculum_documents`:
-
-```sql
-ALTER TABLE public.curriculum_documents
-  ADD COLUMN IF NOT EXISTS source_provider text NOT NULL DEFAULT 'MANUAL',
-  ADD COLUMN IF NOT EXISTS school_type text,
-  ADD COLUMN IF NOT EXISTS orientation text,
-  ADD COLUMN IF NOT EXISTS speciality text,
-  ADD COLUMN IF NOT EXISTS official_title text,
-  ADD COLUMN IF NOT EXISTS fetched_at timestamptz;
-```
-
-### Paso 2: Fixes de tipado en Edge Functions
-En `supabase/functions/_shared/curriculumImport.ts`:
-- Cambiar `export { ... }` a `export type { ... }`
-- Castear el buffer a `ArrayBuffer` para `crypto.subtle.digest`
-- Manejar el `null` en `deriveOfficialTitle` con fallback
-
-### Paso 3: Fix de tipos en el frontend
-En `Course.tsx`, `CourseNew.tsx` y `CurriculumImport.tsx`: los tipos se alinean automaticamente cuando se regenere `types.ts` tras la migracion.
+### Paso 4: Actualizar `types.ts`
+Tras la migración, el archivo de tipos se regenera automáticamente para incluir `curriculum_document_id` en la interfaz de `courses`.
 
