@@ -437,12 +437,6 @@ export default function PlanEditor({
               onDoubleClick={() => setExpandedField("fundamentacion")}
             />
             <p className="text-xs text-muted-foreground">{plan.fundamentacion.length} caracteres</p>
-            <div className="rounded-md border bg-muted/20 p-3">
-              <p className="mb-2 text-xs font-medium text-muted-foreground">Vista de lectura</p>
-              <div className="max-h-40 overflow-y-auto whitespace-pre-line text-sm text-foreground">
-                {plan.fundamentacion}
-              </div>
-            </div>
           </TabsContent>
 
           <TabsContent value="estrategias" className="space-y-4 pt-2">

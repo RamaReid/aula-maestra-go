@@ -48,14 +48,52 @@ interface SupportedProgram {
   speciality: string | null;
 }
 
+const ORIENTATION_SUGGESTIONS = [
+  "Ciencias Sociales",
+  "Ciencias Naturales",
+  "Economía y Administración",
+  "Arte",
+  "Comunicación",
+  "Educación Física",
+  "Lenguas Extranjeras",
+];
+
+const TECH_SPECIALITY_SUGGESTIONS = [
+  "Técnico en Aeronáutica",
+  "Técnico en Automotores",
+  "Técnico en Aviónica",
+  "Técnico en Computación",
+  "Técnico en Electromecánica",
+  "Técnico en Electrónica",
+  "Técnico en Maestro Mayor de Obras",
+  "Técnico en Multimedios",
+  "Técnico en Naval",
+  "Técnico en Química",
+  "Técnico en Servicios Turísticos",
+  "Técnico en Informática Personal y Profesional",
+  "Técnico en Administración de las Organizaciones",
+  "Técnico en Producción Agropecuaria con Orientación en Agroalimentos",
+  "Informática",
+  "Programación",
+  "Alimentos",
+  "Administración agropecuaria",
+];
+
+const SPECIALITY_ALIAS_TO_CANON: Record<string, string> = {
+  informatica: "Técnico en Informática Personal y Profesional",
+  programacion: "Técnico en Informática Personal y Profesional",
+  alimentos: "Técnico en Producción Agropecuaria con Orientación en Agroalimentos",
+  "administracion agropecuaria": "Técnico en Producción Agropecuaria con Orientación en Agroalimentos",
+};
+
 function candidateScopeLabel(candidate: Pick<CurriculumCandidate, "school_type" | "orientation" | "speciality">): string {
   const parts = [
-    candidate.school_type || "Generico",
+    candidate.school_type || "Genérico",
     candidate.orientation || null,
     candidate.speciality || null,
   ].filter(Boolean);
 
-  return parts.join(" · ");
+  return parts.join(" | ");
 }
 
 function normalize(value: string | null | undefined): string {
@@ -80,6 +118,13 @@ function isAllowedOfficialUrl(url: string | null): boolean {
 function isMissingCurriculumColumnError(error: { message?: string } | null | undefined): boolean {
   const message = error?.message || "";
   return message.includes("curriculum_document_id") && message.includes("courses");
+}
+
+function canonicalizeSpeciality(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  const normalized = normalize(trimmed);
+  return SPECIALITY_ALIAS_TO_CANON[normalized] || trimmed;
 }
 
 function scoreCandidate(
@@ -126,7 +171,7 @@ interface WizardState {
 }
 
 function contextModeLabel(value: CourseContextMode): string {
-  if (value === "ORIENTACION") return "Orientacion";
+  if (value === "ORIENTACION") return "Orientación";
   if (value === "TECNICATURA") return "Tecnicatura";
   return "Ninguna / Normal";
 }
@@ -210,22 +255,18 @@ export default function CourseNew() {
     return matchingPrograms.some((program) => !!program.speciality);
   }, [manualSpeciality, matchingPrograms, state.cycle, state.schoolType]);
 
-  const steps = useMemo(() => {
-    const base = [
+  const steps = useMemo(
+    () => [
       { num: 1, label: "Provincia" },
       { num: 2, label: "Materia" },
       { num: 3, label: "Escuela" },
       { num: 4, label: "Ciclo" },
-      { num: 5, label: "Ano" },
-    ];
-
-    if (needsOrientation) base.push({ num: 6, label: "Orientacion" });
-    if (needsSpeciality) base.push({ num: 7, label: "Especialidad" });
-
-    base.push({ num: 8, label: "Programa oficial" });
-    base.push({ num: 9, label: "Confirmacion" });
-    return base;
-  }, [needsOrientation, needsSpeciality]);
+      { num: 5, label: "Año" },
+      { num: 6, label: "Programa oficial" },
+      { num: 7, label: "Confirmación" },
+    ],
+    []
+  );
 
   useEffect(() => {
     supabase
@@ -316,7 +357,7 @@ export default function CourseNew() {
             year_level: state.yearLevel,
             school_type: state.schoolType,
             orientation: needsOrientation ? state.orientation : null,
-            speciality: needsSpeciality ? state.speciality : null,
+            speciality: needsSpeciality ? canonicalizeSpeciality(state.speciality) : null,
           },
         });
 
@@ -353,7 +394,7 @@ export default function CourseNew() {
         setCurriculumCandidates([]);
         setSelectedCurriculumId("");
         setResolutionStatus("not_found");
-        setResolutionError(data?.reason || "No se encontro un programa disponible para esa combinacion.");
+        setResolutionError(data?.reason || "No se encontró un programa disponible para esa combinación.");
       };
 
     resolveCurriculum();
@@ -380,16 +421,18 @@ export default function CourseNew() {
       case 2:
         return !!state.subject;
       case 3:
-        return !!state.schoolId;
+        return (
+          !!state.schoolId &&
+          (state.contextMode !== "ORIENTACION" || !!state.orientation.trim()) &&
+          (state.contextMode !== "TECNICATURA" || !!state.speciality.trim())
+        );
       case 4:
         return !!state.cycle;
       case 5:
         return !!state.yearLevel;
       case 6:
-        return !needsOrientation || !!state.orientation.trim();
+        return !!selectedCurriculumId && (resolutionStatus === "resolved" || resolutionStatus === "ambiguous");
       case 7:
-        return !needsSpeciality || !!state.speciality.trim();
-      case 8:
         return !!selectedCurriculumId && (resolutionStatus === "resolved" || resolutionStatus === "ambiguous");
       default:
         return true;
@@ -398,16 +441,12 @@ export default function CourseNew() {
 
   const nextStep = () => {
     let next = step + 1;
-    if (next === 6 && !needsOrientation) next++;
-    if (next === 7 && !needsSpeciality) next++;
-    if (next > 9) next = 9;
+    if (next > 7) next = 7;
     setStep(next);
   };
 
   const prevStep = () => {
     let prev = step - 1;
-    if (prev === 7 && !needsSpeciality) prev--;
-    if (prev === 6 && !needsOrientation) prev--;
     if (prev < 1) prev = 1;
     setStep(prev);
   };
@@ -452,7 +491,7 @@ export default function CourseNew() {
     if (!selectedCurriculumId) {
       toast({
         title: "Falta programa oficial",
-        description: "Resolve y confirma primero el programa oficial del curso.",
+        description: "Resolvé y confirmá primero el programa oficial del curso.",
         variant: "destructive",
       });
       return;
@@ -477,8 +516,8 @@ export default function CourseNew() {
 
       if (!limitData.can_create) {
         toast({
-          title: "Limite alcanzado",
-          description: `Alcanzaste el limite de cursos (${limitData.current}/${limitData.max})`,
+          title: "Límite alcanzado",
+          description: `Alcanzaste el límite de cursos (${limitData.current}/${limitData.max})`,
           variant: "destructive",
         });
         return;
@@ -491,7 +530,7 @@ export default function CourseNew() {
         year_level: state.yearLevel!,
         academic_year: new Date().getFullYear(),
         orientation: needsOrientation ? state.orientation : null,
-        speciality: needsSpeciality ? state.speciality : null,
+        speciality: needsSpeciality ? canonicalizeSpeciality(state.speciality) : null,
       };
 
       const courseDetailUrl = (courseId: string) => {
@@ -555,7 +594,7 @@ export default function CourseNew() {
       if (bootstrapError) {
         toast({
           title: "Curso creado con bootstrap pendiente",
-          description: "El curso se creo, pero el borrador inicial del plan no pudo completarse automaticamente.",
+          description: "El curso se creó, pero el borrador inicial del plan no pudo completarse automáticamente.",
           variant: "destructive",
         });
         navigate(courseDetailUrl(course!.id));
@@ -567,11 +606,11 @@ export default function CourseNew() {
           ? {
               title: "Curso creado con compatibilidad",
               description:
-                "El curso se creo en una base sin curriculum_document_id. El backend de Lovable Cloud sigue desactualizado.",
+                "El curso se creó en una base sin curriculum_document_id. El backend de Lovable Cloud sigue desactualizado.",
             }
           : {
               title: "Curso creado",
-              description: "El curso quedo vinculado a su programa oficial y recibio un borrador inicial del plan.",
+              description: "El curso quedó vinculado a su programa oficial y recibió un borrador inicial del plan.",
             }
       );
       navigate(courseDetailUrl(course!.id));
@@ -594,7 +633,7 @@ export default function CourseNew() {
           <div>
             <h1 className="text-lg font-semibold text-foreground">Nuevo curso</h1>
             <p className="text-sm text-muted-foreground">
-              Paso {steps.findIndex((item) => item.num === step) + 1} de {steps.length} -{" "}
+              Paso {steps.findIndex((item) => item.num === step) + 1} de {steps.length} —{" "}
               {steps.find((item) => item.num === step)?.label}
             </p>
           </div>
@@ -609,11 +648,9 @@ export default function CourseNew() {
               {step === 2 && "Materia"}
               {step === 3 && "Escuela"}
               {step === 4 && "Ciclo"}
-              {step === 5 && "Ano"}
-              {step === 6 && "Orientacion"}
-              {step === 7 && "Especialidad"}
-              {step === 8 && "Programa oficial"}
-              {step === 9 && "Confirmacion"}
+              {step === 5 && "Año"}
+              {step === 6 && "Programa oficial"}
+              {step === 7 && "Confirmación"}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -641,7 +678,7 @@ export default function CourseNew() {
                       speciality: "",
                     }))
                   }
-                  placeholder="Ej: Filosofia, Historia, Matematica..."
+                  placeholder="Ej: Filosofía, Historia, Matemática..."
                 />
               </div>
             )}
@@ -659,12 +696,12 @@ export default function CourseNew() {
                           setState((prev) => ({
                             ...prev,
                             schoolId: value,
-                            schoolType: school?.school_type || "COMUN",
+                            schoolType: prev.contextMode === "TECNICATURA" ? "TECNICA" : school?.school_type || "COMUN",
                           }));
                         }}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Elegi una escuela..." />
+                          <SelectValue placeholder="Elegí una escuela..." />
                         </SelectTrigger>
                         <SelectContent>
                           {schools.map((school) => (
@@ -685,7 +722,10 @@ export default function CourseNew() {
                             contextMode: value as CourseContextMode,
                             orientation: value === "ORIENTACION" ? prev.orientation : "",
                             speciality: value === "TECNICATURA" ? prev.speciality : "",
-                            schoolType: value === "TECNICATURA" ? "TECNICA" : prev.schoolType,
+                            schoolType:
+                              value === "TECNICATURA"
+                                ? "TECNICA"
+                                : selectedSchool?.school_type || prev.schoolType,
                           }))
                         }
                       >
@@ -694,14 +734,56 @@ export default function CourseNew() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="NINGUNA">Ninguna / Normal</SelectItem>
-                          <SelectItem value="ORIENTACION">Orientacion</SelectItem>
+                          <SelectItem value="ORIENTACION">Orientación</SelectItem>
                           <SelectItem value="TECNICATURA">Tecnicatura</SelectItem>
                         </SelectContent>
                       </Select>
                       <p className="text-xs text-muted-foreground">
-                        Define si este curso usa orientacion, tecnicatura o ninguna modalidad extra.
+                        Definí si este curso usa orientación, tecnicatura o ninguna modalidad extra.
                       </p>
                     </div>
+                    {state.contextMode === "ORIENTACION" && (
+                      <div className="space-y-2">
+                        <Label>Orientación</Label>
+                        <Input
+                          list="orientation-options"
+                          value={state.orientation}
+                          onChange={(event) =>
+                            setState((prev) => ({ ...prev, orientation: event.target.value }))
+                          }
+                          placeholder="Ej: Ciencias Sociales, Economía y Administración..."
+                        />
+                        <datalist id="orientation-options">
+                          {ORIENTATION_SUGGESTIONS.map((orientation) => (
+                            <option key={orientation} value={orientation} />
+                          ))}
+                        </datalist>
+                        <p className="text-xs text-muted-foreground">
+                          Podés elegir una sugerencia oficial o escribir una variante local.
+                        </p>
+                      </div>
+                    )}
+                    {state.contextMode === "TECNICATURA" && (
+                      <div className="space-y-2">
+                        <Label>Tecnicatura / especialidad</Label>
+                        <Input
+                          list="speciality-options"
+                          value={state.speciality}
+                          onChange={(event) =>
+                            setState((prev) => ({ ...prev, speciality: event.target.value }))
+                          }
+                          placeholder="Ej: Técnico en Informática Personal y Profesional..."
+                        />
+                        <datalist id="speciality-options">
+                          {TECH_SPECIALITY_SUGGESTIONS.map((speciality) => (
+                            <option key={speciality} value={speciality} />
+                          ))}
+                        </datalist>
+                        <p className="text-xs text-muted-foreground">
+                          Alias locales como “Informática” o “Programación” se normalizan al nombre canónico.
+                        </p>
+                      </div>
+                    )}
                     <Button
                       variant="outline"
                       size="sm"
@@ -755,8 +837,8 @@ export default function CourseNew() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="COMUN">Comun</SelectItem>
-                          <SelectItem value="TECNICA">Tecnica</SelectItem>
+                          <SelectItem value="COMUN">Común</SelectItem>
+                          <SelectItem value="TECNICA">Técnica</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -787,18 +869,22 @@ export default function CourseNew() {
                       ...prev,
                       cycle: value as Cycle,
                       yearLevel: null,
-                      contextMode: "NINGUNA",
-                      orientation: "",
-                      speciality: "",
+                      ...(value === "BASIC"
+                        ? {
+                            contextMode: "NINGUNA" as CourseContextMode,
+                            orientation: "",
+                            speciality: "",
+                          }
+                        : {}),
                     }))
                   }
                 >
                   <SelectTrigger>
-                        <SelectValue placeholder="Elegi ciclo..." />
+                        <SelectValue placeholder="Elegí ciclo..." />
                       </SelectTrigger>
                       <SelectContent>
                         {availableCycles.includes("BASIC") && (
-                          <SelectItem value="BASIC">Ciclo Basico (1 a 3)</SelectItem>
+                          <SelectItem value="BASIC">Ciclo Básico (1 a 3)</SelectItem>
                         )}
                         {availableCycles.includes("UPPER") && (
                           <SelectItem value="UPPER">Ciclo Superior (4 a 6)</SelectItem>
@@ -806,14 +892,14 @@ export default function CourseNew() {
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground">
-                      Selecciona el ciclo para ayudar a resolver el programa oficial correcto.
+                      Seleccioná el ciclo para ayudar a resolver el programa oficial correcto.
                     </p>
               </div>
             )}
 
             {step === 5 && (
               <div className="space-y-2">
-                <Label>Ano</Label>
+                <Label>Año</Label>
                 <Select
                   value={state.yearLevel?.toString() || ""}
                   onValueChange={(value) =>
@@ -821,54 +907,28 @@ export default function CourseNew() {
                   }
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Elegi ano..." />
+                    <SelectValue placeholder="Elegí año..." />
                   </SelectTrigger>
                   <SelectContent>
                     {yearOptions.map((year) => (
                       <SelectItem key={year} value={year.toString()}>
-                        {year} ano
+                        {year} año
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  Selecciona el ano para ajustar la resolucion del diseno curricular.
+                  Seleccioná el año para ajustar la resolución del diseño curricular.
                 </p>
               </div>
             )}
 
-            {step === 6 && needsOrientation && (
-              <div className="space-y-2">
-                <Label>Orientacion</Label>
-                <Input
-                  value={state.orientation}
-                  onChange={(event) =>
-                    setState((prev) => ({ ...prev, orientation: event.target.value }))
-                  }
-                  placeholder="Ej: Ciencias Sociales, Economia y Administracion..."
-                />
-              </div>
-            )}
-
-            {step === 7 && needsSpeciality && (
-              <div className="space-y-2">
-                <Label>Especialidad</Label>
-                <Input
-                  value={state.speciality}
-                  onChange={(event) =>
-                    setState((prev) => ({ ...prev, speciality: event.target.value }))
-                  }
-                  placeholder="Ej: Electromecanica, Informatica..."
-                />
-              </div>
-            )}
-
-            {step === 8 && (
+            {step === 6 && (
               <div className="space-y-4">
                 <div className="space-y-1">
                   <Label>Programa oficial</Label>
                   <p className="text-sm text-muted-foreground">
-                    Antes de crear el curso resolvemos el diseno curricular oficial para que la planificacion tenga una base curricular explicita.
+                    Antes de crear el curso resolvemos el diseño curricular oficial para que la planificación tenga una base curricular explícita.
                   </p>
                 </div>
 
@@ -893,7 +953,7 @@ export default function CourseNew() {
                   <div className="space-y-3 rounded-md border p-4">
                     {resolutionStatus === "ambiguous" && curriculumCandidates.length > 1 && (
                       <div className="space-y-2">
-                        <Label>Elegi el documento correcto</Label>
+                        <Label>Elegí el documento correcto</Label>
                         <Select value={selectedCurriculumId} onValueChange={setSelectedCurriculumId}>
                           <SelectTrigger>
                             <SelectValue />
@@ -918,7 +978,7 @@ export default function CourseNew() {
                       </p>
                       <p>
                         <span className="text-muted-foreground">Dominio oficial:</span>{" "}
-                        {selectedCurriculum.is_official_domain ? "Si" : "No verificado"}
+                        {selectedCurriculum.is_official_domain ? "Sí" : "No verificado"}
                       </p>
                     </div>
 
@@ -934,7 +994,7 @@ export default function CourseNew() {
                       </a>
                     ) : (
                       <p className="text-sm text-muted-foreground">
-                        El documento fue resuelto en la base curricular pero todavia no tiene URL oficial registrada.
+                        El documento fue resuelto en la base curricular, pero todavía no tiene URL oficial registrada.
                       </p>
                     )}
                   </div>
@@ -943,9 +1003,9 @@ export default function CourseNew() {
                 {resolutionStatus === "ambiguous" && !selectedCurriculum && curriculumCandidates.length > 0 && (
                   <div className="space-y-3 rounded-md border border-warning/40 bg-warning/5 p-4">
                     <div className="space-y-1">
-                      <p className="text-sm font-medium">Hay mas de un programa posible para esta combinacion.</p>
+                      <p className="text-sm font-medium">Hay más de un programa posible para esta combinación.</p>
                       <p className="text-sm text-muted-foreground">
-                        Revise el alcance de cada documento y seleccione manualmente el correcto antes de crear el curso.
+                        Revisá el alcance de cada documento y seleccioná manualmente el correcto antes de crear el curso.
                       </p>
                     </div>
                     <div className="space-y-2">
@@ -961,7 +1021,7 @@ export default function CourseNew() {
                             {candidateScopeLabel(candidate)}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            Fuente: {candidate.source_provider} · Dominio oficial: {candidate.is_official_domain ? "Si" : "No verificado"}
+                            Fuente: {candidate.source_provider} | Dominio oficial: {candidate.is_official_domain ? "Sí" : "No verificado"}
                           </p>
                         </button>
                       ))}
@@ -987,7 +1047,7 @@ export default function CourseNew() {
                       rel="noreferrer"
                       className="inline-flex items-center gap-2 underline underline-offset-4"
                     >
-                      Revisar indice oficial de disenos curriculares
+                      Revisar índice oficial de diseños curriculares
                       <ExternalLink className="h-4 w-4" />
                     </a>
                   </div>
@@ -995,7 +1055,7 @@ export default function CourseNew() {
               </div>
             )}
 
-            {step === 9 && (
+            {step === 7 && (
               <div className="space-y-3">
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   <span className="text-muted-foreground">Provincia:</span>
@@ -1007,21 +1067,21 @@ export default function CourseNew() {
                   <span className="text-muted-foreground">Tipo:</span>
                   <span>{state.schoolType}</span>
                   <span className="text-muted-foreground">Ciclo:</span>
-                  <span>{state.cycle === "BASIC" ? "Basico" : "Superior"}</span>
-                  <span className="text-muted-foreground">Ano:</span>
+                  <span>{state.cycle === "BASIC" ? "Básico" : "Superior"}</span>
+                  <span className="text-muted-foreground">Año:</span>
                   <span>{state.yearLevel}</span>
                   <span className="text-muted-foreground">Modalidad:</span>
                   <span>{contextModeLabel(state.contextMode)}</span>
                   {needsOrientation && (
                     <>
-                      <span className="text-muted-foreground">Orientacion:</span>
+                      <span className="text-muted-foreground">Orientación:</span>
                       <span>{state.orientation}</span>
                     </>
                   )}
                   {needsSpeciality && (
                     <>
                       <span className="text-muted-foreground">Especialidad:</span>
-                      <span>{state.speciality}</span>
+                      <span>{canonicalizeSpeciality(state.speciality)}</span>
                     </>
                   )}
                   <span className="text-muted-foreground">Programa oficial:</span>
@@ -1035,7 +1095,7 @@ export default function CourseNew() {
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 Anterior
               </Button>
-              {step === 9 ? (
+              {step === 7 ? (
                 <Button onClick={handleCreate} disabled={creating}>
                   {creating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Check className="h-4 w-4 mr-2" />}
                   Crear curso
