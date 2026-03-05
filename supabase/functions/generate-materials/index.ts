@@ -39,6 +39,40 @@ function isFilosofiaSubject(subject: string): boolean {
   return normalizeKey(subject) === "filosofia";
 }
 
+function isLikelyBibliographySource(name: string): boolean {
+  const trimmed = (name || "").trim();
+  if (!trimmed) return false;
+  const normalized = normalizeKey(trimmed);
+  if (
+    normalized.startsWith("diseno curricular para") ||
+    normalized.startsWith("educacion secundaria") ||
+    normalized.startsWith("isbn") ||
+    normalized.startsWith("cdd") ||
+    normalized.startsWith("indice") ||
+    normalized.startsWith("presentacion") ||
+    normalized.startsWith("equipo de especialistas")
+  ) {
+    return false;
+  }
+
+  const commaCount = (trimmed.match(/,/g) || []).length;
+  const hasAuthorPrefix = /^[A-ZÁÉÍÓÚÑ][^,]{1,90},/.test(trimmed);
+  const hasYear = /\b(1[89]\d{2}|20\d{2})\b/.test(trimmed);
+  const hasEditionFallback = /\bvarias\s+ediciones\b/i.test(trimmed);
+  return hasAuthorPrefix && commaCount >= 2 && (hasYear || hasEditionFallback || commaCount >= 3);
+}
+
+function buildReadingSourcesParagraph(bibliographyNodes: Array<{ name: string }>): string {
+  const labels = bibliographyNodes
+    .map((node) => (node.name || "").replace(/\s+/g, " ").trim())
+    .filter((label) => label.length > 0)
+    .slice(0, 6);
+
+  if (labels.length === 0) return "";
+
+  return `<p><strong>Fuentes de base del texto:</strong> ${labels.join(" | ")}.</p>`;
+}
+
 function extractLessonCanon(
   activitiesSummary: string | null | undefined,
   fallbackTheme: string
@@ -146,6 +180,10 @@ function validateReadingMaterial(
     if (!regex.test(html)) {
       reasons.push(`Falta tag data-ref para nodo ${nodeId}`);
     }
+  }
+
+  if (!/fuentes de base del texto\s*:/i.test(stripHtml(html))) {
+    reasons.push("Falta trazabilidad final de fuentes usadas");
   }
 
   return { valid: reasons.length === 0, reasons };
@@ -600,12 +638,26 @@ serve(async (req) => {
         .select("id, name, node_type")
         .in("id", brief.bibliografia_confirmada);
 
-      const curriculumContext = (nodes || [])
+      const bibliographyNodes = (nodes || []).filter((node: any) =>
+        isLikelyBibliographySource(node.name || "")
+      );
+      if (bibliographyNodes.length === 0) {
+        await adminClient.from("lessons").update({ is_generating: false }).eq("id", lessonId);
+        return new Response(
+          JSON.stringify({
+            error:
+              "La bibliografia confirmada no contiene fuentes validas (autor/titulo). Reabre el brief y selecciona fuentes bibliograficas reales.",
+          }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const curriculumContext = bibliographyNodes
         .map((n: any) => `[${n.node_type}] ${n.name}`)
         .join("\n");
 
-      const bibliographyIds = (nodes || []).map((n: any) => n.id);
-      const bibliographyContext = (nodes || [])
+      const bibliographyIds = bibliographyNodes.map((n: any) => n.id);
+      const bibliographyContext = bibliographyNodes
         .map((n: any) => `- ${n.name} [${n.node_type}] (ID: ${n.id})`)
         .join("\n");
       const disciplineCanon = isFyHctSubject(course.subject)
@@ -838,7 +890,7 @@ ${formatSequenceNeighbor("Entrada esperada", previousPlanLesson)}
 ${formatSequenceNeighbor("Salida a preparar", nextPlanLesson)}
 
 CONTENIDOS CURRICULARES A REFERENCIAR:
-${(nodes || []).map((n: any) => `- ${n.name} (ID: ${n.id})`).join("\n")}
+${bibliographyNodes.map((n: any) => `- ${n.name} (ID: ${n.id})`).join("\n")}
 
 FUENTES CONFIRMADAS:
 ${bibliographyContext || "- Sin detalle disponible"}
@@ -858,7 +910,9 @@ REGLAS OBLIGATORIAS:
 10. El texto no debe ser una explicación genérica del tema. Debe preparar o sostener la operacion de esta clase y ayudar a producir la evidencia minima.
 11. Si la materia es FyHyCyT, prioriza casos, validacion, metodos, evidencias, decisiones y relaciones ciencia-tecnologia-sociedad. No la conviertas en filosofia abstracta sin situacion.
 12. Si la materia es Filosofía, prioriza problema, conceptos, posiciones, argumentos y objeciones. No la conviertas en metodologia científica.
-13. Mantené trazabilidad explícita con la bibliografía confirmada y los nodos curriculares seleccionados.`;
+13. Mantené trazabilidad explícita con la bibliografía confirmada y los nodos curriculares seleccionados.
+14. No copies fragmentos extensos de obras protegidas. Prioriza paráfrasis; si usas cita textual, que no supere 20 palabras.
+15. El último párrafo debe iniciar con "Fuentes de base del texto:" y nombrar las fuentes usadas.`;
 
         let readingHtml = "";
         let readingValid = false;
@@ -885,6 +939,10 @@ REGLAS OBLIGATORIAS:
           );
 
           readingHtml = cleanMarkdownArtifacts(readingResult.choices[0].message.content || "");
+          const sourcesParagraph = buildReadingSourcesParagraph(bibliographyNodes);
+          if (sourcesParagraph && !/fuentes de base del texto\s*:/i.test(stripHtml(readingHtml))) {
+            readingHtml = `${readingHtml}\n${sourcesParagraph}`;
+          }
 
           const validation = validateReadingMaterial(readingHtml, bibliographyIds, course.subject);
           

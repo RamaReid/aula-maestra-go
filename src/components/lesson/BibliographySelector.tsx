@@ -75,9 +75,7 @@ export default function BibliographySelector({
         );
         const candidates = contentFirst.length > 0 ? contentFirst : rawNodes;
         const bibliographyOnly = candidates.filter((node) => isLikelyBibliographyEntry(node.name));
-        const filtered = (bibliographyOnly.length > 0 ? bibliographyOnly : candidates).filter(
-          (node) => !shouldHideNode(node.name)
-        );
+        const filtered = bibliographyOnly.filter((node) => !shouldHideNode(node.name));
         const dedupMap = new Map<string, Node>();
         filtered.forEach((node) => {
           const key = `${node.node_type}:${normalizeName(node.name)}`;
@@ -215,7 +213,7 @@ export default function BibliographySelector({
               disabled={disabled || (!selected.includes(node.id) && selected.length >= 5)}
             />
             <div className="text-sm">
-              <span className="font-medium text-muted-foreground">[{node.node_type}]</span> {node.name}
+              <span className="font-medium text-muted-foreground">[FUENTE]</span> {node.name}
             </div>
           </div>
         ))}

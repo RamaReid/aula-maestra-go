@@ -1,8 +1,10 @@
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertTriangle, Download, Eye } from "lucide-react";
+import { AlertTriangle, Copy, Download, Eye } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 interface ReadingMaterialViewProps {
   material: {
@@ -28,6 +30,8 @@ const statusVariant = (s: string): "default" | "secondary" | "destructive" => {
 };
 
 export default function ReadingMaterialView({ material, pdfBase64 }: ReadingMaterialViewProps) {
+  const [downloadError, setDownloadError] = useState("");
+
   const displayHtml = material.content_html
     .replace(/```(?:html|HTML)?\s*/gi, "")
     .replace(/<span\s+data-ref="[^"]*"\s*><\/span>/gi, "")
@@ -49,6 +53,54 @@ export default function ReadingMaterialView({ material, pdfBase64 }: ReadingMate
     const blob = new Blob([byteArray], { type: "application/pdf" });
     const url = URL.createObjectURL(blob);
     window.open(url, "_blank");
+  };
+
+  const extractStoragePath = (url: string): string | null => {
+    try {
+      const parsed = new URL(url);
+      const marker = "/storage/v1/object/public/reading-materials-pdf/";
+      const markerIndex = parsed.pathname.indexOf(marker);
+      if (markerIndex === -1) return null;
+      return decodeURIComponent(parsed.pathname.slice(markerIndex + marker.length));
+    } catch {
+      return null;
+    }
+  };
+
+  const downloadFromStorageApi = async () => {
+    if (!material.pdf_url) return;
+    setDownloadError("");
+
+    const path = extractStoragePath(material.pdf_url);
+    if (!path) {
+      setDownloadError("No se pudo resolver la ruta del PDF para descarga alternativa.");
+      return;
+    }
+
+    const { data, error } = await supabase.storage.from("reading-materials-pdf").download(path);
+    if (error || !data) {
+      setDownloadError(error?.message || "No se pudo descargar el PDF desde la API.");
+      return;
+    }
+
+    const url = URL.createObjectURL(data);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "material-lectura.pdf";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const copyPdfLink = async () => {
+    if (!material.pdf_url) return;
+    setDownloadError("");
+    try {
+      await navigator.clipboard.writeText(material.pdf_url);
+    } catch {
+      setDownloadError("No se pudo copiar el enlace al portapapeles.");
+    }
   };
 
   return (
@@ -88,13 +140,32 @@ export default function ReadingMaterialView({ material, pdfBase64 }: ReadingMate
       </Card>
 
       {material.pdf_url && (
-        <div className="flex items-center gap-3">
-          <Button variant="outline" size="sm" className="text-xs" asChild>
-            <a href={material.pdf_url} target="_blank" rel="noopener noreferrer" download>
+        <div className="space-y-2">
+          <p className="text-xs text-muted-foreground">
+            Si tu navegador bloquea el dominio de Supabase (ERR_BLOCKED_BY_CLIENT), usa la descarga alternativa.
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button variant="outline" size="sm" className="text-xs" asChild>
+              <a href={material.pdf_url} target="_blank" rel="noopener noreferrer" download>
+                <Download className="mr-1 h-3 w-3" />
+                Descargar PDF
+              </a>
+            </Button>
+            <Button variant="outline" size="sm" className="text-xs" onClick={downloadFromStorageApi}>
               <Download className="mr-1 h-3 w-3" />
-              Descargar PDF
-            </a>
-          </Button>
+              Descarga alternativa
+            </Button>
+            <Button variant="outline" size="sm" className="text-xs" onClick={copyPdfLink}>
+              <Copy className="mr-1 h-3 w-3" />
+              Copiar enlace
+            </Button>
+          </div>
+          {downloadError && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription className="text-xs">{downloadError}</AlertDescription>
+            </Alert>
+          )}
         </div>
       )}
 

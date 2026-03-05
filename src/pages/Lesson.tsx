@@ -16,6 +16,7 @@ import { useEntitlements } from "@/hooks/useEntitlements";
 import { StatusBadge, briefLabel, briefTone, materialLabel, materialTone, lessonStatusLabel, lessonStatusTone } from "@/components/ui/StatusBadge";
 import { StepHeader } from "@/components/ui/StepHeader";
 import { SkeletonList } from "@/components/ui/SkeletonList";
+import { ThinkingBook } from "@/components/ui/ThinkingBook";
 
 function extractCanonSummary(activitiesSummary?: string | null, fallbackTheme?: string | null) {
   const summary = (activitiesSummary || "").trim();
@@ -35,6 +36,53 @@ function extractCanonSummary(activitiesSummary?: string | null, fallbackTheme?: 
       .replace(/\s+/g, " ")
       .trim(),
   };
+}
+
+function isLikelyBibliographyEntry(name: string): boolean {
+  const trimmed = name.trim();
+  const commaCount = (trimmed.match(/,/g) || []).length;
+  const hasAuthorPrefix = /^[A-ZÁÉÍÓÚÑ][^,]{1,90},/.test(trimmed);
+  const hasYear = /\b(1[89]\d{2}|20\d{2})\b/.test(trimmed);
+  const hasEditionFallback = /\bvarias\s+ediciones\b/i.test(trimmed);
+
+  return hasAuthorPrefix && commaCount >= 2 && (hasYear || hasEditionFallback || commaCount >= 3);
+}
+
+function isNoiseNode(name: string): boolean {
+  const normalized = name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, "");
+
+  return (
+    normalized.includes("isbn") ||
+    normalized.includes("cdd") ||
+    normalized.includes("disenocurricular") ||
+    normalized.includes("educacionsecundaria") ||
+    normalized.includes("directorageneral") ||
+    normalized.includes("presidentadelconsejo") ||
+    normalized.includes("subsecretariadeeducacion") ||
+    normalized.includes("directoraprovincial") ||
+    normalized.includes("autoridades")
+  );
+}
+
+async function parseFunctionErrorMessage(error: any): Promise<string> {
+  if (!error) return "Error desconocido";
+  if (typeof error.message === "string" && !error.context) return error.message;
+
+  try {
+    const context = error.context as Response | undefined;
+    if (context) {
+      const payload = await context.json();
+      if (payload?.error) return payload.error;
+    }
+  } catch {
+    // Ignore context parsing errors.
+  }
+
+  return typeof error.message === "string" ? error.message : "Error desconocido";
 }
 
 export default function Lesson() {
@@ -97,7 +145,7 @@ export default function Lesson() {
             .select("id, name, node_type")
             .in("id", nodeIds)
             .order("order_index");
-          setMappedCurriculumNodes(mappedNodes || []);
+          setMappedCurriculumNodes((mappedNodes || []).filter((node) => !isNoiseNode(node.name)));
         } else {
           setMappedCurriculumNodes([]);
         }
@@ -113,7 +161,8 @@ export default function Lesson() {
         .from("curriculum_nodes")
         .select("id, name, node_type")
         .in("id", briefRes.data.bibliografia_confirmada);
-      setBibliographyNodes(nodes || []);
+      const filteredSources = (nodes || []).filter((node) => isLikelyBibliographyEntry(node.name));
+      setBibliographyNodes(filteredSources);
     } else {
       setBibliographyNodes([]);
     }
@@ -131,7 +180,11 @@ export default function Lesson() {
         body: { lesson_id: lessonId },
       });
       if (error) {
-        toast({ title: "Error al generar", description: error.message, variant: "destructive" });
+        toast({
+          title: "Error al generar",
+          description: await parseFunctionErrorMessage(error),
+          variant: "destructive",
+        });
         return;
       }
       if (data?.error) {
@@ -155,7 +208,11 @@ export default function Lesson() {
         body: { lesson_id: lessonId, regenerate_only: "teaching" },
       });
       if (error) {
-        toast({ title: "Error al regenerar", description: error.message, variant: "destructive" });
+        toast({
+          title: "Error al regenerar",
+          description: await parseFunctionErrorMessage(error),
+          variant: "destructive",
+        });
         return;
       }
       if (data?.error) {
@@ -176,7 +233,11 @@ export default function Lesson() {
         body: { lesson_id: lessonId, regenerate_only: "reading" },
       });
       if (error) {
-        toast({ title: "Error al regenerar", description: error.message, variant: "destructive" });
+        toast({
+          title: "Error al regenerar",
+          description: await parseFunctionErrorMessage(error),
+          variant: "destructive",
+        });
         return;
       }
       if (data?.error) {
@@ -281,6 +342,17 @@ export default function Lesson() {
       <main className="mx-auto max-w-6xl px-4 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-8">
           <div className="space-y-8">
+            {lesson.is_generating && (
+              <Card>
+                <CardContent className="pt-6">
+                  <ThinkingBook
+                    title="Estamos elaborando el material de la clase"
+                    detail="Cuando termine, la seccion de materiales se actualiza automaticamente."
+                  />
+                </CardContent>
+              </Card>
+            )}
+
             {planLesson && (
               <Card>
                 <CardHeader className="pb-3">
@@ -336,7 +408,7 @@ export default function Lesson() {
                       {bibliographyNodes.length > 0 ? (
                         bibliographyNodes.map((node) => (
                           <Badge key={node.id} variant="secondary">
-                            [{node.node_type}] {node.name}
+                            [FUENTE] {node.name}
                           </Badge>
                         ))
                       ) : (
@@ -359,7 +431,7 @@ export default function Lesson() {
                         {referencedNodes.length > 0 ? (
                           referencedNodes.map((node) => (
                             <Badge key={node.id} variant="outline">
-                              [{node.node_type}] {node.name}
+                              [FUENTE] {node.name}
                             </Badge>
                           ))
                         ) : (

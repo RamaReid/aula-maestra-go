@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 type SchoolType = "COMUN" | "TECNICA";
 type Cycle = "BASIC" | "UPPER";
 type ResolutionStatus = "idle" | "resolving" | "resolved" | "ambiguous" | "not_found" | "error";
+type CourseContextMode = "NINGUNA" | "ORIENTACION" | "TECNICATURA";
 
 interface SchoolOption {
   id: string;
@@ -114,6 +115,7 @@ interface WizardState {
   cycle: Cycle | "";
   yearLevel: number | null;
   subject: string;
+  contextMode: CourseContextMode;
   orientation: string;
   speciality: string;
   newSchoolName: string;
@@ -121,6 +123,12 @@ interface WizardState {
   newSchoolLocality: string;
   newSchoolType: SchoolType;
   creatingNewSchool: boolean;
+}
+
+function contextModeLabel(value: CourseContextMode): string {
+  if (value === "ORIENTACION") return "Orientacion";
+  if (value === "TECNICATURA") return "Tecnicatura";
+  return "Ninguna / Normal";
 }
 
 export default function CourseNew() {
@@ -151,6 +159,11 @@ export default function CourseNew() {
     cycle: initialCycle,
     yearLevel: initialYearLevel,
     subject: searchParams.get("subject") || "",
+    contextMode: searchParams.get("speciality")
+      ? "TECNICATURA"
+      : searchParams.get("orientation")
+      ? "ORIENTACION"
+      : "NINGUNA",
     orientation: searchParams.get("orientation") || "",
     speciality: searchParams.get("speciality") || "",
     newSchoolName: "",
@@ -184,14 +197,18 @@ export default function CourseNew() {
         program.year_level === state.yearLevel
     );
   }, [state.cycle, state.subject, state.yearLevel, supportedPrograms]);
+  const manualOrientation = state.contextMode === "ORIENTACION";
+  const manualSpeciality = state.contextMode === "TECNICATURA";
   const needsOrientation = useMemo(() => {
+    if (manualOrientation) return state.cycle === "UPPER";
     if (!(state.cycle === "UPPER" && state.schoolType === "COMUN")) return false;
     return matchingPrograms.some((program) => !!program.orientation);
-  }, [matchingPrograms, state.cycle, state.schoolType]);
+  }, [manualOrientation, matchingPrograms, state.cycle, state.schoolType]);
   const needsSpeciality = useMemo(() => {
+    if (manualSpeciality) return state.cycle === "UPPER";
     if (!(state.cycle === "UPPER" && state.schoolType === "TECNICA")) return false;
     return matchingPrograms.some((program) => !!program.speciality);
-  }, [matchingPrograms, state.cycle, state.schoolType]);
+  }, [manualSpeciality, matchingPrograms, state.cycle, state.schoolType]);
 
   const steps = useMemo(() => {
     const base = [
@@ -238,7 +255,7 @@ export default function CourseNew() {
     setResolutionError("");
     setCurriculumCandidates([]);
     setSelectedCurriculumId("");
-  }, [state.subject, state.cycle, state.yearLevel, state.schoolType, state.orientation, state.speciality]);
+  }, [state.subject, state.cycle, state.yearLevel, state.schoolType, state.contextMode, state.orientation, state.speciality]);
 
   useEffect(() => {
     if (!initialCurriculumId) return;
@@ -619,6 +636,7 @@ export default function CourseNew() {
                       subject: event.target.value,
                       cycle: "",
                       yearLevel: null,
+                      contextMode: "NINGUNA",
                       orientation: "",
                       speciality: "",
                     }))
@@ -656,6 +674,33 @@ export default function CourseNew() {
                           ))}
                         </SelectContent>
                       </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Modalidad del curso</Label>
+                      <Select
+                        value={state.contextMode}
+                        onValueChange={(value) =>
+                          setState((prev) => ({
+                            ...prev,
+                            contextMode: value as CourseContextMode,
+                            orientation: value === "ORIENTACION" ? prev.orientation : "",
+                            speciality: value === "TECNICATURA" ? prev.speciality : "",
+                            schoolType: value === "TECNICATURA" ? "TECNICA" : prev.schoolType,
+                          }))
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="NINGUNA">Ninguna / Normal</SelectItem>
+                          <SelectItem value="ORIENTACION">Orientacion</SelectItem>
+                          <SelectItem value="TECNICATURA">Tecnicatura</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        Define si este curso usa orientacion, tecnicatura o ninguna modalidad extra.
+                      </p>
                     </div>
                     <Button
                       variant="outline"
@@ -742,6 +787,7 @@ export default function CourseNew() {
                       ...prev,
                       cycle: value as Cycle,
                       yearLevel: null,
+                      contextMode: "NINGUNA",
                       orientation: "",
                       speciality: "",
                     }))
@@ -964,6 +1010,8 @@ export default function CourseNew() {
                   <span>{state.cycle === "BASIC" ? "Basico" : "Superior"}</span>
                   <span className="text-muted-foreground">Ano:</span>
                   <span>{state.yearLevel}</span>
+                  <span className="text-muted-foreground">Modalidad:</span>
+                  <span>{contextModeLabel(state.contextMode)}</span>
                   {needsOrientation && (
                     <>
                       <span className="text-muted-foreground">Orientacion:</span>

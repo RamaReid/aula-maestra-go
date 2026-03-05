@@ -59,6 +59,7 @@ function isFilosofiaSubject(subject: string): boolean {
 }
 
 function isCurriculumNoiseText(normalized: string): boolean {
+  const compact = normalized.replace(/\s+/g, "");
   return (
     normalized.startsWith("diseno curricular para") ||
     normalized.startsWith("educacion secundaria") ||
@@ -68,7 +69,14 @@ function isCurriculumNoiseText(normalized: string): boolean {
     normalized.startsWith("presentacion") ||
     normalized.startsWith("equipo de especialistas") ||
     normalized.startsWith("direccion general") ||
-    normalized.startsWith("dgcye")
+    normalized.startsWith("dgcye") ||
+    compact.includes("directorageneral") ||
+    compact.includes("presidentadelconsejo") ||
+    compact.includes("subsecretariadeeducacion") ||
+    compact.includes("directoraprovincialdegestioneducativa") ||
+    compact.includes("gobernador") ||
+    compact.includes("ministro") ||
+    compact.includes("autoridades")
   );
 }
 
@@ -94,6 +102,39 @@ function isLikelyBibliographyNodeName(name: string): boolean {
   if (commaCount < 2) return false;
   if (!hasYear && !hasEditionFallback && commaCount < 3) return false;
   return true;
+}
+
+function formatReadableParagraphs(text: string, minParagraphs = 4): string {
+  const raw = (text || "").replace(/\r/g, "").trim();
+  if (!raw) return raw;
+
+  const existingParagraphs = raw
+    .split(/\n\s*\n/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean);
+  if (existingParagraphs.length >= minParagraphs) {
+    return existingParagraphs.join("\n\n");
+  }
+
+  const normalized = raw.replace(/\n+/g, " ").replace(/\s+/g, " ").trim();
+  const sentences = normalized.match(/[^.!?]+[.!?]+(?:\s|$)|[^.!?]+$/g) || [normalized];
+  if (sentences.length < 4) return normalized;
+
+  const targetParagraphs = Math.min(6, Math.max(minParagraphs, Math.ceil(sentences.length / 3)));
+  const chunkSize = Math.ceil(sentences.length / targetParagraphs);
+  const paragraphs: string[] = [];
+
+  for (let index = 0; index < sentences.length; index += chunkSize) {
+    const chunk = sentences
+      .slice(index, index + chunkSize)
+      .map((sentence) => sentence.trim())
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+    if (chunk) paragraphs.push(chunk);
+  }
+
+  return paragraphs.join("\n\n");
 }
 
 function uniqueNodes(nodes: CurriculumNodeRow[]): CurriculumNodeRow[] {
@@ -523,8 +564,8 @@ function normalizeBootstrapPayload(
   return {
     fundamentacion:
       typeof payload?.fundamentacion === "string" && payload.fundamentacion.trim().length > 0
-        ? payload.fundamentacion.trim()
-        : fallback.fundamentacion,
+        ? formatReadableParagraphs(payload.fundamentacion.trim())
+        : formatReadableParagraphs(fallback.fundamentacion),
     estrategias_marco:
       typeof payload?.estrategias_marco === "string" && payload.estrategias_marco.trim().length > 0
         ? payload.estrategias_marco.trim()

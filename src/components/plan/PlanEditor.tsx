@@ -111,6 +111,27 @@ function isLikelyBibliographyNode(name: string): boolean {
   return hasAuthorPrefix && commaCount >= 2 && (hasYear || hasEditionFallback || commaCount >= 3);
 }
 
+function isAuthorityOrNoiseNode(name: string): boolean {
+  const normalized = name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, "");
+
+  return (
+    normalized.includes("isbn") ||
+    normalized.includes("cdd") ||
+    normalized.includes("disenocurricular") ||
+    normalized.includes("educacionsecundaria") ||
+    normalized.includes("directorageneral") ||
+    normalized.includes("presidentadelconsejo") ||
+    normalized.includes("subsecretariadeeducacion") ||
+    normalized.includes("directoraprovincial") ||
+    normalized.includes("equipodeespecialistas") ||
+    normalized.includes("autoridades")
+  );
+}
+
 export default function PlanEditor({
   planId,
   courseId,
@@ -334,8 +355,9 @@ export default function PlanEditor({
     }
   };
 
-  const bibliographyNodes = mappedNodes.filter((node) => isLikelyBibliographyNode(node.name));
-  const curricularNodes = mappedNodes.filter((node) => !isLikelyBibliographyNode(node.name));
+  const visibleMappedNodes = mappedNodes.filter((node) => !isAuthorityOrNoiseNode(node.name));
+  const bibliographyNodes = visibleMappedNodes.filter((node) => isLikelyBibliographyNode(node.name));
+  const curricularNodes = visibleMappedNodes.filter((node) => !isLikelyBibliographyNode(node.name));
 
   const ctaLabel = currentStatus === "EDITED" ? "Validar cambios" : "Validar plan";
   const showCta = !readOnly && !courseArchived && currentStatus !== "VALIDATED";
@@ -387,12 +409,13 @@ export default function PlanEditor({
         )}
 
         <Tabs defaultValue="fundamentacion">
-          <TabsList className="grid w-full grid-cols-7">
+          <TabsList className="grid w-full grid-cols-8">
             <TabsTrigger value="fundamentacion">Fundamentacion</TabsTrigger>
             <TabsTrigger value="estrategias">Estrategias</TabsTrigger>
             <TabsTrigger value="evaluacion">Evaluacion</TabsTrigger>
             <TabsTrigger value="recursos">Recursos</TabsTrigger>
             <TabsTrigger value="contenidos">Contenidos</TabsTrigger>
+            <TabsTrigger value="bibliografia">Bibliografia</TabsTrigger>
             <TabsTrigger value="propositos">Propositos</TabsTrigger>
             <TabsTrigger value="clases">Clases</TabsTrigger>
           </TabsList>
@@ -414,6 +437,12 @@ export default function PlanEditor({
               onDoubleClick={() => setExpandedField("fundamentacion")}
             />
             <p className="text-xs text-muted-foreground">{plan.fundamentacion.length} caracteres</p>
+            <div className="rounded-md border bg-muted/20 p-3">
+              <p className="mb-2 text-xs font-medium text-muted-foreground">Vista de lectura</p>
+              <div className="max-h-40 overflow-y-auto whitespace-pre-line text-sm text-foreground">
+                {plan.fundamentacion}
+              </div>
+            </div>
           </TabsContent>
 
           <TabsContent value="estrategias" className="space-y-4 pt-2">
@@ -502,45 +531,45 @@ export default function PlanEditor({
           </TabsContent>
 
           <TabsContent value="contenidos" className="space-y-4 pt-2">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="rounded-md border p-3">
-                <p className="text-sm font-medium">Nodos curriculares del plan</p>
-                <p className="text-xs text-muted-foreground">
-                  {curricularNodes.length} nodos mapeados para trazabilidad de clases.
-                </p>
-                <div className="mt-3 max-h-56 space-y-2 overflow-y-auto pr-1">
-                  {curricularNodes.length > 0 ? (
-                    curricularNodes.map((node) => (
-                      <p key={node.id} className="text-sm">
-                        <span className="font-medium text-muted-foreground">[{node.node_type}]</span> {node.name}
-                      </p>
-                    ))
-                  ) : (
-                    <p className="text-sm text-muted-foreground">
-                      No hay nodos curriculares mapeados. Revisa el programa oficial y vuelve a rearmar el borrador.
+            <div className="rounded-md border p-3">
+              <p className="text-sm font-medium">Nodos curriculares del plan</p>
+              <p className="text-xs text-muted-foreground">
+                {curricularNodes.length} nodos mapeados para trazabilidad de clases.
+              </p>
+              <div className="mt-3 max-h-56 space-y-2 overflow-y-auto pr-1">
+                {curricularNodes.length > 0 ? (
+                  curricularNodes.map((node) => (
+                    <p key={node.id} className="text-sm">
+                      <span className="font-medium text-muted-foreground">[{node.node_type}]</span> {node.name}
                     </p>
-                  )}
-                </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No hay nodos curriculares mapeados. Revisa el programa oficial y vuelve a rearmar el borrador.
+                  </p>
+                )}
               </div>
+            </div>
+          </TabsContent>
 
-              <div className="rounded-md border p-3">
-                <p className="text-sm font-medium">Bibliografia detectada</p>
-                <p className="text-xs text-muted-foreground">
-                  {bibliographyNodes.length} fuentes detectadas para soporte de brief y materiales.
-                </p>
-                <div className="mt-3 max-h-56 space-y-2 overflow-y-auto pr-1">
-                  {bibliographyNodes.length > 0 ? (
-                    bibliographyNodes.map((node) => (
-                      <p key={node.id} className="text-sm">
-                        <span className="font-medium text-muted-foreground">[{node.node_type}]</span> {node.name}
-                      </p>
-                    ))
-                  ) : (
-                    <p className="text-sm text-muted-foreground">
-                      No se detectaron fuentes bibliograficas en el mapeo actual. Puede requerir reimportar el programa.
+          <TabsContent value="bibliografia" className="space-y-4 pt-2">
+            <div className="rounded-md border p-3">
+              <p className="text-sm font-medium">Bibliografia detectada</p>
+              <p className="text-xs text-muted-foreground">
+                {bibliographyNodes.length} fuentes detectadas para soporte de brief y materiales.
+              </p>
+              <div className="mt-3 max-h-56 space-y-2 overflow-y-auto pr-1">
+                {bibliographyNodes.length > 0 ? (
+                  bibliographyNodes.map((node) => (
+                    <p key={node.id} className="text-sm">
+                      <span className="font-medium text-muted-foreground">[FUENTE]</span> {node.name}
                     </p>
-                  )}
-                </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No se detectaron fuentes bibliograficas en el mapeo actual. Reimporta el programa y rearma el borrador.
+                  </p>
+                )}
               </div>
             </div>
           </TabsContent>

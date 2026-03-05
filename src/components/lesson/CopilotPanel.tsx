@@ -5,6 +5,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RefreshCw, Lock } from "lucide-react";
 import type { CopilotoMode } from "@/hooks/useEntitlements";
+import { ThinkingBook } from "@/components/ui/ThinkingBook";
 
 interface CurriculumNode {
   id: string;
@@ -50,6 +51,16 @@ export default function CopilotPanel({
             Actualizá tu plan para usar el Copiloto.
           </AlertDescription>
         </Alert>
+      )}
+
+      {isGenerating && (
+        <div className="rounded-md border p-3">
+          <ThinkingBook
+            compact
+            title="Copiloto en elaboracion"
+            detail="Esperando resultados de generacion."
+          />
+        </div>
       )}
 
       <div className="space-y-2">
