@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           academic_year: number
           created_at: string
+          curriculum_document_id: string | null
           id: string
           orientation: string | null
           school_id: string
@@ -31,6 +32,7 @@ export type Database = {
         Insert: {
           academic_year: number
           created_at?: string
+          curriculum_document_id?: string | null
           id?: string
           orientation?: string | null
           school_id: string
@@ -44,6 +46,7 @@ export type Database = {
         Update: {
           academic_year?: number
           created_at?: string
+          curriculum_document_id?: string | null
           id?: string
           orientation?: string | null
           school_id?: string
@@ -55,6 +58,13 @@ export type Database = {
           year_level?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "courses_curriculum_document_id_fkey"
+            columns: ["curriculum_document_id"]
+            isOneToOne: false
+            referencedRelation: "curriculum_documents"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "courses_school_id_fkey"
             columns: ["school_id"]
