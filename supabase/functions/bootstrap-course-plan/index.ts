@@ -479,7 +479,7 @@ function normalizeBootstrapPayload(
 }
 
 async function ensureCurriculumNodes(
-  adminClient: ReturnType<typeof createClient>,
+  adminClient: any,
   curriculumDocumentId: string,
   subject: string,
   officialTitle: string | null
