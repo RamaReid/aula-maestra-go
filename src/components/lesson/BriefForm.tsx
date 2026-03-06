@@ -160,13 +160,16 @@ export default function BriefForm({ lessonId, courseId, brief, onUpdate, planTyp
     try {
       const createdSourceIds: string[] = [];
       let processedCount = 0;
+      let failedCount = 0;
 
       for (const file of selectedFiles) {
         const extension = getFileExtension(file.name);
         if (!ALLOWED_EXTENSIONS.has(extension)) {
+          failedCount += 1;
           continue;
         }
         if (file.size > MAX_FILE_SIZE_BYTES) {
+          failedCount += 1;
           continue;
         }
 
@@ -178,6 +181,7 @@ export default function BriefForm({ lessonId, courseId, brief, onUpdate, planTyp
           .from("authorized-sources")
           .upload(filePath, file, { upsert: false, contentType: file.type || undefined });
         if (uploadError) {
+          failedCount += 1;
           continue;
         }
 
@@ -199,11 +203,9 @@ export default function BriefForm({ lessonId, courseId, brief, onUpdate, planTyp
           title: file.name,
           storage_path: filePath,
           mime_type: file.type || null,
-          status: "PROCESSED",
+          status: "PENDING",
           extracted_text: extractedText,
-          summary_text: extractedText
-            ? extractedText.slice(0, 600)
-            : "Fuente de docente cargada por archivo. Sin extraccion textual automatica en esta etapa.",
+          summary_text: extractedText ? extractedText.slice(0, 600) : null,
         };
 
         const { data: createdSource, error: sourceError } = await supabase
@@ -212,6 +214,7 @@ export default function BriefForm({ lessonId, courseId, brief, onUpdate, planTyp
           .select("id")
           .single();
         if (sourceError || !createdSource?.id) {
+          failedCount += 1;
           continue;
         }
 
@@ -221,6 +224,19 @@ export default function BriefForm({ lessonId, courseId, brief, onUpdate, planTyp
           lesson_id: lessonId,
         });
         if (targetError) {
+          failedCount += 1;
+          continue;
+        }
+
+        const { data: processResult, error: processError } = await supabase.functions.invoke(
+          "process-authorized-source",
+          {
+            body: { source_id: createdSource.id },
+          }
+        );
+
+        if (processError || processResult?.error) {
+          failedCount += 1;
           continue;
         }
 
@@ -233,7 +249,10 @@ export default function BriefForm({ lessonId, courseId, brief, onUpdate, planTyp
       }
       setSelectedFiles([]);
       if (processedCount > 0) {
-        toast({ title: `Fuentes cargadas: ${processedCount}` });
+        toast({
+          title: `Fuentes procesadas: ${processedCount}`,
+          description: failedCount > 0 ? `No se pudieron procesar ${failedCount} archivo(s).` : undefined,
+        });
       } else {
         toast({
           title: "No se pudo procesar la carga",
