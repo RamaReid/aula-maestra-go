@@ -24,6 +24,7 @@ import AgendaView from "@/components/plan/AgendaView";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { SkeletonList } from "@/components/ui/SkeletonList";
 import { StatusBadge, briefLabel, briefTone, lessonStatusLabel, lessonStatusTone } from "@/components/ui/StatusBadge";
+import { useEntitlements } from "@/hooks/useEntitlements";
 
 interface LessonWithPlanLesson {
   id: string;
@@ -62,13 +63,25 @@ interface PlanInfo {
 export default function Course() {
   const { courseId } = useParams<{ courseId: string }>();
   const [searchParams] = useSearchParams();
+  const { planType } = useEntitlements();
   const [course, setCourse] = useState<CourseInfo | null>(null);
   const [curriculum, setCurriculum] = useState<CurriculumInfo | null>(null);
   const [plan, setPlan] = useState<PlanInfo | null>(null);
   const [lessons, setLessons] = useState<LessonWithPlanLesson[]>([]);
   const [loading, setLoading] = useState(true);
   const [archiving, setArchiving] = useState(false);
+  const [preparingFreeView, setPreparingFreeView] = useState(false);
+  const [freePreparationError, setFreePreparationError] = useState<string | null>(null);
   const fallbackCurriculumId = searchParams.get("curriculum_document_id");
+  const isArchived = course?.status === "ARCHIVED";
+  const planValidated = plan?.status === "VALIDATED" || plan?.status === "EDITED";
+  const isFreePlan = planType === "FREE";
+  const defaultTab = planValidated ? (isFreePlan ? "agenda" : "planificacion") : "planificacion";
+  const tabGridCols = planValidated
+    ? isFreePlan
+      ? "grid-cols-2"
+      : "grid-cols-3"
+    : "grid-cols-1";
 
   const fetchData = useCallback(async () => {
     if (!courseId) return;
@@ -191,6 +204,35 @@ export default function Course() {
     fetchData();
   }, [fetchData]);
 
+  useEffect(() => {
+    if (!isFreePlan || !plan?.id || !course || isArchived || planValidated || preparingFreeView || freePreparationError) {
+      return;
+    }
+
+    const prepareFreePlan = async () => {
+      setPreparingFreeView(true);
+      setFreePreparationError(null);
+
+      try {
+        const { data, error } = await supabase.rpc("validate_plan", { p_plan_id: plan.id });
+        if (error) throw error;
+
+        const result = data as unknown as { success: boolean; errors: string[] };
+        if (!result.success) {
+          throw new Error(result.errors.join(". "));
+        }
+
+        await fetchData();
+      } catch (error: any) {
+        setFreePreparationError(error.message || "No se pudo preparar la secuencia del curso.");
+      } finally {
+        setPreparingFreeView(false);
+      }
+    };
+
+    prepareFreePlan();
+  }, [course, fetchData, freePreparationError, isArchived, isFreePlan, plan, planValidated, preparingFreeView]);
+
   const handlePlanValidated = () => fetchData();
 
   const handleArchive = async () => {
@@ -206,9 +248,6 @@ export default function Course() {
     }
     setArchiving(false);
   };
-
-  const isArchived = course?.status === "ARCHIVED";
-  const planValidated = plan?.status === "VALIDATED" || plan?.status === "EDITED";
 
   return (
     <div className="min-h-screen bg-background">
@@ -308,77 +347,99 @@ export default function Course() {
               </CardContent>
             </Card>
 
-            <Tabs defaultValue="planificacion">
-              <TabsList className={`grid w-full ${planValidated ? "grid-cols-3" : "grid-cols-1"}`}>
-                <TabsTrigger value="planificacion">Planificacion</TabsTrigger>
-                {planValidated && <TabsTrigger value="agenda">Agenda</TabsTrigger>}
-                {planValidated && <TabsTrigger value="lecciones">Lecciones</TabsTrigger>}
-              </TabsList>
-
-              <TabsContent value="planificacion" className="pt-4">
-                <PlanEditor
-                  planId={plan.id}
-                  courseId={courseId!}
-                  curriculumDocumentId={course?.curriculum_document_id}
-                  planStatus={plan.status}
-                  onValidated={handlePlanValidated}
-                  courseArchived={isArchived}
-                />
-              </TabsContent>
-
-              {planValidated && (
-                <TabsContent value="agenda" className="pt-4">
-                  <AgendaView courseId={courseId!} readOnly={isArchived} />
-                </TabsContent>
-              )}
-
-              {planValidated && (
-                <TabsContent value="lecciones" className="pt-4">
-                  {lessons.length === 0 ? (
-                    <EmptyState icon={BookOpen} title="No hay lecciones creadas para este curso" />
-                  ) : (
-                    <div className="space-y-3">
-                      {lessons.map((lesson) => (
-                        <Link key={lesson.id} to={`/lesson/${lesson.id}`}>
-                          <Card className="hover:border-primary/50 transition-colors cursor-pointer">
-                            <CardHeader className="pb-2">
-                              <div className="flex items-center justify-between">
-                                <CardTitle className="text-base">
-                                  Leccion {lesson.lesson_number}
-                                  {lesson.plan_lesson?.theme ? ` - ${lesson.plan_lesson.theme}` : ""}
-                                </CardTitle>
-                                <div className="flex gap-2">
-                                  <StatusBadge
-                                    tone={lessonStatusTone(lesson.status)}
-                                    label={lessonStatusLabel(lesson.status)}
-                                  />
-                                  {lesson.is_generating && (
-                                    <Badge variant="outline" className="animate-pulse">
-                                      Generando...
-                                    </Badge>
-                                  )}
-                                  <StatusBadge
-                                    tone={briefTone(lesson.brief_status)}
-                                    label={briefLabel(lesson.brief_status)}
-                                  />
-                                </div>
-                              </div>
-                            </CardHeader>
-                            {lesson.plan_lesson?.learning_outcome && (
-                              <CardContent>
-                                <p className="text-sm text-muted-foreground line-clamp-2">
-                                  {lesson.plan_lesson.learning_outcome}
-                                </p>
-                              </CardContent>
-                            )}
-                          </Card>
-                        </Link>
-                      ))}
-                    </div>
+            {isFreePlan && !planValidated ? (
+              <Card>
+                <CardContent className="py-10 text-center space-y-3">
+                  <p className="text-base font-medium text-foreground">
+                    {preparingFreeView ? "Preparando secuencia y clases" : "Todavia no pudimos preparar este curso"}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {preparingFreeView
+                      ? "La planificacion se usa en segundo plano para generar el contenido. En cuanto quede lista, vas a ver solo la secuencia y las clases."
+                      : freePreparationError || "No se pudo preparar la secuencia del curso."}
+                  </p>
+                  {freePreparationError && (
+                    <Button onClick={() => setFreePreparationError(null)} variant="outline">
+                      Reintentar
+                    </Button>
                   )}
-                </TabsContent>
-              )}
-            </Tabs>
+                </CardContent>
+              </Card>
+            ) : (
+              <Tabs key={`${planType}-${plan?.status ?? "no-plan"}`} defaultValue={defaultTab}>
+                <TabsList className={`grid w-full ${tabGridCols}`}>
+                  {!isFreePlan && <TabsTrigger value="planificacion">Planificacion</TabsTrigger>}
+                  {planValidated && <TabsTrigger value="agenda">{isFreePlan ? "Secuencia" : "Agenda"}</TabsTrigger>}
+                  {planValidated && <TabsTrigger value="lecciones">{isFreePlan ? "Clases" : "Lecciones"}</TabsTrigger>}
+                </TabsList>
+
+                {!isFreePlan && (
+                  <TabsContent value="planificacion" className="pt-4">
+                    <PlanEditor
+                      planId={plan.id}
+                      courseId={courseId!}
+                      curriculumDocumentId={course?.curriculum_document_id}
+                      planStatus={plan.status}
+                      onValidated={handlePlanValidated}
+                      courseArchived={isArchived}
+                    />
+                  </TabsContent>
+                )}
+
+                {planValidated && (
+                  <TabsContent value="agenda" className="pt-4">
+                    <AgendaView courseId={courseId!} readOnly={isArchived} />
+                  </TabsContent>
+                )}
+
+                {planValidated && (
+                  <TabsContent value="lecciones" className="pt-4">
+                    {lessons.length === 0 ? (
+                      <EmptyState icon={BookOpen} title="No hay lecciones creadas para este curso" />
+                    ) : (
+                      <div className="space-y-3">
+                        {lessons.map((lesson) => (
+                          <Link key={lesson.id} to={`/lesson/${lesson.id}`}>
+                            <Card className="hover:border-primary/50 transition-colors cursor-pointer">
+                              <CardHeader className="pb-2">
+                                <div className="flex items-center justify-between">
+                                  <CardTitle className="text-base">
+                                    Leccion {lesson.lesson_number}
+                                    {lesson.plan_lesson?.theme ? ` - ${lesson.plan_lesson.theme}` : ""}
+                                  </CardTitle>
+                                  <div className="flex gap-2">
+                                    <StatusBadge
+                                      tone={lessonStatusTone(lesson.status)}
+                                      label={lessonStatusLabel(lesson.status)}
+                                    />
+                                    {lesson.is_generating && (
+                                      <Badge variant="outline" className="animate-pulse">
+                                        Generando...
+                                      </Badge>
+                                    )}
+                                    <StatusBadge
+                                      tone={briefTone(lesson.brief_status)}
+                                      label={briefLabel(lesson.brief_status)}
+                                    />
+                                  </div>
+                                </div>
+                              </CardHeader>
+                              {lesson.plan_lesson?.learning_outcome && (
+                                <CardContent>
+                                  <p className="text-sm text-muted-foreground line-clamp-2">
+                                    {lesson.plan_lesson.learning_outcome}
+                                  </p>
+                                </CardContent>
+                              )}
+                            </Card>
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </TabsContent>
+                )}
+              </Tabs>
+            )}
           </div>
         ) : null}
       </main>
