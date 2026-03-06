@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { Archive, ArrowLeft, BookOpen } from "lucide-react";
+import { Archive, ArrowLeft, BookOpen, Sparkles } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -25,6 +25,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { SkeletonList } from "@/components/ui/SkeletonList";
 import { StatusBadge, briefLabel, briefTone, lessonStatusLabel, lessonStatusTone } from "@/components/ui/StatusBadge";
 import { useEntitlements } from "@/hooks/useEntitlements";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface LessonWithPlanLesson {
   id: string;
@@ -63,13 +64,15 @@ interface PlanInfo {
 export default function Course() {
   const { courseId } = useParams<{ courseId: string }>();
   const [searchParams] = useSearchParams();
-  const { planType } = useEntitlements();
+  const { planType, entitlements } = useEntitlements();
   const [course, setCourse] = useState<CourseInfo | null>(null);
   const [curriculum, setCurriculum] = useState<CurriculumInfo | null>(null);
   const [plan, setPlan] = useState<PlanInfo | null>(null);
   const [lessons, setLessons] = useState<LessonWithPlanLesson[]>([]);
   const [loading, setLoading] = useState(true);
   const [archiving, setArchiving] = useState(false);
+  const [selectedLessonIds, setSelectedLessonIds] = useState<string[]>([]);
+  const [preparingSelection, setPreparingSelection] = useState(false);
   const [preparingFreeView, setPreparingFreeView] = useState(false);
   const [freePreparationError, setFreePreparationError] = useState<string | null>(null);
   const fallbackCurriculumId = searchParams.get("curriculum_document_id");
@@ -82,6 +85,47 @@ export default function Course() {
       ? "grid-cols-2"
       : "grid-cols-3"
     : "grid-cols-1";
+
+  const selectedLessons = useMemo(
+    () => lessons.filter((lesson) => selectedLessonIds.includes(lesson.id)),
+    [lessons, selectedLessonIds]
+  );
+  const requiredFreeSelectionCount = 3;
+  const selectedLessonNumbers = selectedLessons
+    .map((lesson) => lesson.lesson_number)
+    .sort((a, b) => a - b);
+  const hasSequenceSelection =
+    selectedLessonNumbers.length > 1 &&
+    selectedLessonNumbers.every((lessonNumber, index) =>
+      index === 0 ? true : lessonNumber === selectedLessonNumbers[index - 1] + 1
+    );
+  const selectionIsReady =
+    selectedLessons.length > 0 &&
+    selectedLessons.every(
+      (lesson) =>
+        !lesson.is_generating &&
+        lesson.status !== "LOCKED" &&
+        (lesson.brief_status === "READY_FOR_PRODUCTION" || lesson.brief_status === "PRODUCED")
+    );
+  const selectionLimitReached = selectedLessonIds.length >= entitlements.max_classes_per_session;
+  const hasExactFreeSelection = selectedLessons.length === requiredFreeSelectionCount;
+
+  async function parseFunctionErrorMessage(error: any): Promise<string> {
+    if (!error) return "Error desconocido";
+    if (typeof error.message === "string" && !error.context) return error.message;
+
+    try {
+      const context = error.context as Response | undefined;
+      if (context) {
+        const payload = await context.json();
+        if (payload?.error) return payload.error;
+      }
+    } catch {
+      // Ignore context parsing errors.
+    }
+
+    return typeof error.message === "string" ? error.message : "Error desconocido";
+  }
 
   const fetchData = useCallback(async () => {
     if (!courseId) return;
@@ -205,6 +249,10 @@ export default function Course() {
   }, [fetchData]);
 
   useEffect(() => {
+    setSelectedLessonIds((current) => current.filter((lessonId) => lessons.some((lesson) => lesson.id === lessonId)));
+  }, [lessons]);
+
+  useEffect(() => {
     if (!isFreePlan || !plan?.id || !course || isArchived || planValidated || preparingFreeView || freePreparationError) {
       return;
     }
@@ -234,6 +282,115 @@ export default function Course() {
   }, [course, fetchData, freePreparationError, isArchived, isFreePlan, plan, planValidated, preparingFreeView]);
 
   const handlePlanValidated = () => fetchData();
+
+  const toggleLessonSelection = (lessonId: string) => {
+    const lesson = lessons.find((item) => item.id === lessonId);
+    if (!lesson) return;
+
+    setSelectedLessonIds((current) => {
+      if (current.includes(lessonId)) {
+        return current.filter((id) => id !== lessonId);
+      }
+      if (current.length >= entitlements.max_classes_per_session) {
+        toast({
+          title: "Límite de sesión",
+          description: `Podés preparar hasta ${entitlements.max_classes_per_session} clases por sesión en tu plan.`,
+          variant: "destructive",
+        });
+        return current;
+      }
+      return [...current, lessonId];
+    });
+  };
+
+  const handlePrepareSelection = async () => {
+    if (selectedLessons.length === 0) {
+      toast({
+        title: "Elegí al menos una clase",
+        description: "Seleccioná una clase o una secuencia corta antes de preparar.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (isFreePlan && !hasExactFreeSelection) {
+      toast({
+        title: "El plan Free prepara 3 clases",
+        description: "En Free tenés que elegir exactamente 3 clases del mismo curso.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!isFreePlan && selectedLessons.length > 1 && !hasSequenceSelection) {
+      toast({
+        title: "La secuencia debe ser consecutiva",
+        description: "Para preparar varias clases, elegí una secuencia continua sin saltos.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!selectionIsReady) {
+      toast({
+        title: "Hay clases incompletas",
+        description: "Cada clase seleccionada debe tener el brief listo para producción y no estar generándose.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setPreparingSelection(true);
+
+    try {
+      const orderedLessonIds = [...selectedLessons]
+        .sort((a, b) => a.lesson_number - b.lesson_number)
+        .map((lesson) => lesson.id);
+
+      const { data, error } = await supabase.functions.invoke("generate-materials", {
+        body: {
+          lesson_ids: orderedLessonIds,
+          mode: orderedLessonIds.length > 1 ? "full_session" : "single",
+        },
+      });
+
+      if (error) {
+        toast({
+          title: "Error al preparar",
+          description: await parseFunctionErrorMessage(error),
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (data?.error) {
+        toast({
+          title: "Error al preparar",
+          description: data.error,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: orderedLessonIds.length > 1 ? "Secuencia preparada" : "Clase preparada",
+        description:
+          orderedLessonIds.length > 1
+            ? `Se prepararon ${orderedLessonIds.length} clases de la secuencia seleccionada.`
+            : "La clase seleccionada quedó preparada.",
+      });
+      setSelectedLessonIds([]);
+      await fetchData();
+    } catch (error: any) {
+      toast({
+        title: "Error al preparar",
+        description: error.message || "Error desconocido",
+        variant: "destructive",
+      });
+    } finally {
+      setPreparingSelection(false);
+    }
+  };
 
   const handleArchive = async () => {
     if (!courseId) return;
@@ -398,41 +555,113 @@ export default function Course() {
                       <EmptyState icon={BookOpen} title="No hay lecciones creadas para este curso" />
                     ) : (
                       <div className="space-y-3">
+                        <Card>
+                          <CardContent className="flex flex-col gap-4 pt-6 md:flex-row md:items-center md:justify-between">
+                            <div className="space-y-1">
+                              <p className="text-sm font-medium text-foreground">
+                                Elegí una clase o una secuencia para preparar
+                              </p>
+                              <p className="text-sm text-muted-foreground">
+                                {isFreePlan
+                                  ? "En Free tenés que elegir exactamente 3 clases del mismo curso. Pueden ser tres clases puntuales o una secuencia."
+                                  : `Podés seleccionar 1 clase o hasta ${entitlements.max_classes_per_session} clases consecutivas.`}
+                              </p>
+                              {selectedLessons.length > 0 && (
+                                <p className="text-xs text-muted-foreground">
+                                  {isFreePlan && !hasExactFreeSelection
+                                    ? `Llevás ${selectedLessons.length}/3 clases seleccionadas.`
+                                    : isFreePlan && hasSequenceSelection
+                                      ? `Secuencia seleccionada: clases ${selectedLessonNumbers[0]} a ${selectedLessonNumbers[selectedLessonNumbers.length - 1]}.`
+                                      : isFreePlan
+                                        ? `Clases seleccionadas: ${selectedLessonNumbers.join(", ")}.`
+                                    : selectedLessons.length === 1
+                                      ? `Clase ${selectedLessonNumbers[0]} seleccionada.`
+                                      : hasSequenceSelection
+                                      ? `Secuencia seleccionada: clases ${selectedLessonNumbers[0]} a ${selectedLessonNumbers[selectedLessonNumbers.length - 1]}.`
+                                      : "La selección actual no forma una secuencia consecutiva."}
+                                </p>
+                              )}
+                            </div>
+                            <div className="flex flex-col gap-2 sm:flex-row">
+                              <Button
+                                variant="outline"
+                                onClick={() => setSelectedLessonIds([])}
+                                disabled={selectedLessonIds.length === 0 || preparingSelection}
+                              >
+                                Limpiar selección
+                              </Button>
+                              <Button
+                                onClick={handlePrepareSelection}
+                                disabled={
+                                  preparingSelection ||
+                                  selectedLessonIds.length === 0 ||
+                                  (isFreePlan && !hasExactFreeSelection)
+                                }
+                              >
+                                <Sparkles className="mr-2 h-4 w-4" />
+                                {preparingSelection
+                                  ? "Preparando..."
+                                  : isFreePlan || selectedLessons.length > 1
+                                    ? "Preparar secuencia"
+                                    : "Preparar clase"}
+                              </Button>
+                            </div>
+                          </CardContent>
+                        </Card>
+
                         {lessons.map((lesson) => (
-                          <Link key={lesson.id} to={`/lesson/${lesson.id}`}>
-                            <Card className="hover:border-primary/50 transition-colors cursor-pointer">
-                              <CardHeader className="pb-2">
-                                <div className="flex items-center justify-between">
-                                  <CardTitle className="text-base">
-                                    Leccion {lesson.lesson_number}
-                                    {lesson.plan_lesson?.theme ? ` - ${lesson.plan_lesson.theme}` : ""}
-                                  </CardTitle>
-                                  <div className="flex gap-2">
-                                    <StatusBadge
-                                      tone={lessonStatusTone(lesson.status)}
-                                      label={lessonStatusLabel(lesson.status)}
-                                    />
-                                    {lesson.is_generating && (
-                                      <Badge variant="outline" className="animate-pulse">
-                                        Generando...
-                                      </Badge>
+                          <Card key={lesson.id} className="transition-colors hover:border-primary/50">
+                            <CardHeader className="pb-2">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="flex items-start gap-3">
+                                  <Checkbox
+                                    checked={selectedLessonIds.includes(lesson.id)}
+                                    onCheckedChange={() => toggleLessonSelection(lesson.id)}
+                                    disabled={
+                                      preparingSelection ||
+                                      (!selectedLessonIds.includes(lesson.id) && selectionLimitReached)
+                                    }
+                                    aria-label={`Seleccionar lección ${lesson.lesson_number}`}
+                                    className="mt-1"
+                                  />
+                                  <div className="space-y-1">
+                                    <CardTitle className="text-base">
+                                      Leccion {lesson.lesson_number}
+                                      {lesson.plan_lesson?.theme ? ` - ${lesson.plan_lesson.theme}` : ""}
+                                    </CardTitle>
+                                    {lesson.plan_lesson?.learning_outcome && (
+                                      <p className="text-sm text-muted-foreground line-clamp-2">
+                                        {lesson.plan_lesson.learning_outcome}
+                                      </p>
                                     )}
-                                    <StatusBadge
-                                      tone={briefTone(lesson.brief_status)}
-                                      label={briefLabel(lesson.brief_status)}
-                                    />
+                                    <p className="text-xs text-muted-foreground">
+                                      {lesson.brief_status === "READY_FOR_PRODUCTION" || lesson.brief_status === "PRODUCED"
+                                        ? "Lista para preparar."
+                                        : "Completá el brief antes de prepararla."}
+                                    </p>
                                   </div>
                                 </div>
-                              </CardHeader>
-                              {lesson.plan_lesson?.learning_outcome && (
-                                <CardContent>
-                                  <p className="text-sm text-muted-foreground line-clamp-2">
-                                    {lesson.plan_lesson.learning_outcome}
-                                  </p>
-                                </CardContent>
-                              )}
-                            </Card>
-                          </Link>
+                                <div className="flex flex-wrap justify-end gap-2">
+                                  <StatusBadge
+                                    tone={lessonStatusTone(lesson.status)}
+                                    label={lessonStatusLabel(lesson.status)}
+                                  />
+                                  {lesson.is_generating && (
+                                    <Badge variant="outline" className="animate-pulse">
+                                      Generando...
+                                    </Badge>
+                                  )}
+                                  <StatusBadge
+                                    tone={briefTone(lesson.brief_status)}
+                                    label={briefLabel(lesson.brief_status)}
+                                  />
+                                  <Button asChild variant="outline" size="sm">
+                                    <Link to={`/lesson/${lesson.id}`}>Abrir clase</Link>
+                                  </Button>
+                                </div>
+                              </div>
+                            </CardHeader>
+                          </Card>
                         ))}
                       </div>
                     )}
