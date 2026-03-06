@@ -1,5 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Download } from "lucide-react";
+import { downloadStructuredPdf } from "@/lib/pdfExport";
 
 interface Activity {
   title: string;
@@ -23,6 +26,8 @@ interface TeachingMaterialViewProps {
     closure: string;
     status: string;
   };
+  canExportPdf?: boolean;
+  exportFileName?: string;
 }
 
 const statusLabel: Record<string, string> = {
@@ -37,22 +42,59 @@ const statusVariant = (s: string): "default" | "secondary" | "destructive" => {
   return "secondary";
 };
 
-export default function TeachingMaterialView({ material }: TeachingMaterialViewProps) {
+export default function TeachingMaterialView({
+  material,
+  canExportPdf = false,
+  exportFileName = "material-didactico.pdf",
+}: TeachingMaterialViewProps) {
   const activities = Array.isArray(material.activities) ? material.activities : [];
   const differentiation = Array.isArray(material.differentiation) ? material.differentiation : [];
+  const exportEnabled = canExportPdf && material.status === "VALIDATED";
+
+  const handleExportPdf = () => {
+    downloadStructuredPdf({
+      title: "Material Didactico",
+      filename: exportFileName,
+      sections: [
+        { title: "Proposito", body: [material.purpose] },
+        {
+          title: "Actividades",
+          body: activities.map(
+            (activity) =>
+              `${activity.title} (${activity.type}, ${activity.duration_minutes} min). ${activity.description}`
+          ),
+        },
+        { title: "Producto esperado", body: [material.expected_product] },
+        { title: "Criterios de logro", body: material.achievement_criteria || [] },
+        {
+          title: "Diferenciacion",
+          body: differentiation.map((item) => `${item.type}: ${item.description}`),
+        },
+        { title: "Cierre", body: [material.closure] },
+      ],
+    });
+  };
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold">Material Didáctico</h3>
-        <Badge variant={statusVariant(material.status)}>
-          {statusLabel[material.status] || material.status}
-        </Badge>
+        <h3 className="text-lg font-semibold">Material Didactico</h3>
+        <div className="flex items-center gap-2">
+          {exportEnabled && (
+            <Button variant="outline" size="sm" className="text-xs" onClick={handleExportPdf}>
+              <Download className="mr-1 h-3 w-3" />
+              Exportar PDF
+            </Button>
+          )}
+          <Badge variant={statusVariant(material.status)}>
+            {statusLabel[material.status] || material.status}
+          </Badge>
+        </div>
       </div>
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm text-muted-foreground">Propósito</CardTitle>
+          <CardTitle className="text-sm text-muted-foreground">Proposito</CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-sm">{material.purpose}</p>
@@ -64,16 +106,16 @@ export default function TeachingMaterialView({ material }: TeachingMaterialViewP
           <CardTitle className="text-sm text-muted-foreground">Actividades</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {activities.map((act, i) => (
-            <div key={i} className="rounded border p-3">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-sm font-medium">{act.title}</span>
+          {activities.map((activity, index) => (
+            <div key={index} className="rounded border p-3">
+              <div className="mb-1 flex items-center justify-between">
+                <span className="text-sm font-medium">{activity.title}</span>
                 <div className="flex gap-2">
-                  <Badge variant="outline" className="text-xs">{act.type}</Badge>
-                  <Badge variant="outline" className="text-xs">{act.duration_minutes} min</Badge>
+                  <Badge variant="outline" className="text-xs">{activity.type}</Badge>
+                  <Badge variant="outline" className="text-xs">{activity.duration_minutes} min</Badge>
                 </div>
               </div>
-              <p className="text-sm text-muted-foreground">{act.description}</p>
+              <p className="text-sm text-muted-foreground">{activity.description}</p>
             </div>
           ))}
         </CardContent>
@@ -90,12 +132,12 @@ export default function TeachingMaterialView({ material }: TeachingMaterialViewP
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm text-muted-foreground">Criterios de Logro</CardTitle>
+          <CardTitle className="text-sm text-muted-foreground">Criterios de logro</CardTitle>
         </CardHeader>
         <CardContent>
-          <ul className="list-disc list-inside text-sm space-y-1">
-            {material.achievement_criteria.map((c, i) => (
-              <li key={i}>{c}</li>
+          <ul className="list-disc list-inside space-y-1 text-sm">
+            {material.achievement_criteria.map((criterion, index) => (
+              <li key={index}>{criterion}</li>
             ))}
           </ul>
         </CardContent>
@@ -103,13 +145,13 @@ export default function TeachingMaterialView({ material }: TeachingMaterialViewP
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm text-muted-foreground">Diferenciación</CardTitle>
+          <CardTitle className="text-sm text-muted-foreground">Diferenciacion</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
-          {differentiation.map((d, i) => (
-            <div key={i} className="text-sm">
-              <Badge variant="outline" className="mr-2">{d.type}</Badge>
-              {d.description}
+          {differentiation.map((item, index) => (
+            <div key={index} className="text-sm">
+              <Badge variant="outline" className="mr-2">{item.type}</Badge>
+              {item.description}
             </div>
           ))}
         </CardContent>

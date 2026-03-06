@@ -396,7 +396,7 @@ serve(async (req) => {
     regenerateOnly = body.regenerate_only;
     if (lessonIds.length === 0) throw new Error("Al menos un lesson_id requerido");
     // G-1: max_classes_per_session limits lessons per invocation (1-3)
-    if (lessonIds.length > 3) {
+    if (false && lessonIds.length > 3) {
       return new Response(JSON.stringify({ error: "Máximo 3 lecciones por sesión" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -417,11 +417,21 @@ serve(async (req) => {
       .eq("user_id", userId)
       .single();
 
+    const { data: activeSubscription } = await adminClient
+      .from("subscriptions")
+      .select("plan_type")
+      .eq("user_id", userId)
+      .eq("status", "ACTIVE")
+      .maybeSingle();
+
     const { data: usageCounter } = await adminClient
       .from("usage_counters")
       .select("*")
       .eq("user_id", userId)
       .single();
+
+    const planType = activeSubscription?.plan_type || "FREE";
+    const isUnlimitedSequenceSession = mode === "full_session" && planType !== "FREE";
 
     if (entitlements && usageCounter) {
       // Lazy weekly reset
@@ -444,9 +454,16 @@ serve(async (req) => {
       }
 
       // G-1: Validate lessons count per invocation against max_classes_per_session
-      if (lessonIds.length > entitlements.max_classes_per_session) {
+      if (!isUnlimitedSequenceSession && lessonIds.length > entitlements.max_classes_per_session) {
         return new Response(
           JSON.stringify({ error: `Máximo ${entitlements.max_classes_per_session} clases por sesión en tu plan` }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      if (planType === "FREE" && mode === "full_session" && lessonIds.length !== 3) {
+        return new Response(
+          JSON.stringify({ error: "El plan Free requiere exactamente 3 clases por sesiÃ³n" }),
           { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }

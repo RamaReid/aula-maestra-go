@@ -91,6 +91,7 @@ export default function Course() {
     [lessons, selectedLessonIds]
   );
   const requiredFreeSelectionCount = 3;
+  const maxSelectableLessons = isFreePlan ? requiredFreeSelectionCount : lessons.length;
   const selectedLessonNumbers = selectedLessons
     .map((lesson) => lesson.lesson_number)
     .sort((a, b) => a - b);
@@ -107,7 +108,7 @@ export default function Course() {
         lesson.status !== "LOCKED" &&
         (lesson.brief_status === "READY_FOR_PRODUCTION" || lesson.brief_status === "PRODUCED")
     );
-  const selectionLimitReached = selectedLessonIds.length >= entitlements.max_classes_per_session;
+  const selectionLimitReached = selectedLessonIds.length >= maxSelectableLessons;
   const hasExactFreeSelection = selectedLessons.length === requiredFreeSelectionCount;
 
   async function parseFunctionErrorMessage(error: any): Promise<string> {
@@ -291,10 +292,12 @@ export default function Course() {
       if (current.includes(lessonId)) {
         return current.filter((id) => id !== lessonId);
       }
-      if (current.length >= entitlements.max_classes_per_session) {
+      if (current.length >= maxSelectableLessons) {
         toast({
           title: "Límite de sesión",
-          description: `Podés preparar hasta ${entitlements.max_classes_per_session} clases por sesión en tu plan.`,
+          description: isFreePlan
+            ? `En Free podés preparar exactamente ${requiredFreeSelectionCount} clases por sesión.`
+            : `Podés seleccionar hasta ${maxSelectableLessons} clases, que son las clases disponibles en este curso.`,
           variant: "destructive",
         });
         return current;
@@ -564,7 +567,7 @@ export default function Course() {
                               <p className="text-sm text-muted-foreground">
                                 {isFreePlan
                                   ? "En Free tenés que elegir exactamente 3 clases del mismo curso. Pueden ser tres clases puntuales o una secuencia."
-                                  : `Podés seleccionar 1 clase o hasta ${entitlements.max_classes_per_session} clases consecutivas.`}
+                                  : `Podés seleccionar 1 clase o una secuencia de hasta ${maxSelectableLessons} clases, que coincide con las clases existentes en el curso.`}
                               </p>
                               {selectedLessons.length > 0 && (
                                 <p className="text-xs text-muted-foreground">
@@ -613,7 +616,7 @@ export default function Course() {
                           <Card key={lesson.id} className="transition-colors hover:border-primary/50">
                             <CardHeader className="pb-2">
                               <div className="flex items-start justify-between gap-3">
-                                <div className="flex items-start gap-3">
+                                <div className="flex items-center gap-3">
                                   <Checkbox
                                     checked={selectedLessonIds.includes(lesson.id)}
                                     onCheckedChange={() => toggleLessonSelection(lesson.id)}
@@ -622,7 +625,6 @@ export default function Course() {
                                       (!selectedLessonIds.includes(lesson.id) && selectionLimitReached)
                                     }
                                     aria-label={`Seleccionar lección ${lesson.lesson_number}`}
-                                    className="mt-1"
                                   />
                                   <div className="space-y-1">
                                     <CardTitle className="text-base">

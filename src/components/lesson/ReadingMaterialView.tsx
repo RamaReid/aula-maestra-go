@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertTriangle, Copy, Download, Eye } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { downloadStructuredPdf } from "@/lib/pdfExport";
 
 interface ReadingMaterialViewProps {
   material: {
@@ -15,6 +16,8 @@ interface ReadingMaterialViewProps {
     validation_reasons?: string[];
   };
   pdfBase64?: string | null;
+  canExportPdf?: boolean;
+  exportFileName?: string;
 }
 
 const statusLabel: Record<string, string> = {
@@ -29,7 +32,33 @@ const statusVariant = (s: string): "default" | "secondary" | "destructive" => {
   return "secondary";
 };
 
-export default function ReadingMaterialView({ material, pdfBase64 }: ReadingMaterialViewProps) {
+function decodePdfBase64(pdfBase64: string): Blob {
+  const byteCharacters = atob(pdfBase64);
+  const byteNumbers = new Array(byteCharacters.length);
+  for (let i = 0; i < byteCharacters.length; i++) {
+    byteNumbers[i] = byteCharacters.charCodeAt(i);
+  }
+  const byteArray = new Uint8Array(byteNumbers);
+  return new Blob([byteArray], { type: "application/pdf" });
+}
+
+function downloadBlob(blob: Blob, fileName: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+export default function ReadingMaterialView({
+  material,
+  pdfBase64,
+  canExportPdf = false,
+  exportFileName = "material-lectura.pdf",
+}: ReadingMaterialViewProps) {
   const [downloadError, setDownloadError] = useState("");
 
   const displayHtml = material.content_html
@@ -41,18 +70,31 @@ export default function ReadingMaterialView({ material, pdfBase64 }: ReadingMate
     material.status === "INVALIDATED" &&
     material.validation_reasons &&
     material.validation_reasons.length > 0;
+  const exportEnabled = canExportPdf && material.status === "VALIDATED";
 
   const handleViewTempPdf = () => {
     if (!pdfBase64) return;
-    const byteCharacters = atob(pdfBase64);
-    const byteNumbers = new Array(byteCharacters.length);
-    for (let i = 0; i < byteCharacters.length; i++) {
-      byteNumbers[i] = byteCharacters.charCodeAt(i);
-    }
-    const byteArray = new Uint8Array(byteNumbers);
-    const blob = new Blob([byteArray], { type: "application/pdf" });
+    const blob = decodePdfBase64(pdfBase64);
     const url = URL.createObjectURL(blob);
     window.open(url, "_blank");
+  };
+
+  const handleDownloadTempPdf = () => {
+    if (!pdfBase64) return;
+    downloadBlob(decodePdfBase64(pdfBase64), exportFileName);
+  };
+
+  const handleExportHtmlFallback = () => {
+    const paragraphs = displayHtml
+      .split(/<\/p>/i)
+      .map((part) => part.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim())
+      .filter(Boolean);
+
+    downloadStructuredPdf({
+      title: "Material de Lectura",
+      filename: exportFileName,
+      sections: [{ body: paragraphs }],
+    });
   };
 
   const extractStoragePath = (url: string): string | null => {
@@ -83,14 +125,7 @@ export default function ReadingMaterialView({ material, pdfBase64 }: ReadingMate
       return;
     }
 
-    const url = URL.createObjectURL(data);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "material-lectura.pdf";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    downloadBlob(data, exportFileName);
   };
 
   const copyPdfLink = async () => {
@@ -120,10 +155,10 @@ export default function ReadingMaterialView({ material, pdfBase64 }: ReadingMate
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Material invalidado</AlertTitle>
           <AlertDescription>
-            <p className="mb-1">El material no pasó la validación después de 3 intentos:</p>
+            <p className="mb-1">El material no paso la validacion despues de 3 intentos:</p>
             <ul className="list-disc pl-4 text-xs space-y-0.5">
-              {material.validation_reasons!.map((reason, i) => (
-                <li key={i}>{reason}</li>
+              {material.validation_reasons!.map((reason, index) => (
+                <li key={index}>{reason}</li>
               ))}
             </ul>
           </AlertDescription>
@@ -139,7 +174,7 @@ export default function ReadingMaterialView({ material, pdfBase64 }: ReadingMate
         </CardContent>
       </Card>
 
-      {material.pdf_url && (
+      {exportEnabled && material.pdf_url && (
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground">
             Si tu navegador bloquea el dominio de Supabase (ERR_BLOCKED_BY_CLIENT), usa la descarga alternativa.
@@ -148,7 +183,7 @@ export default function ReadingMaterialView({ material, pdfBase64 }: ReadingMate
             <Button variant="outline" size="sm" className="text-xs" asChild>
               <a href={material.pdf_url} target="_blank" rel="noopener noreferrer" download>
                 <Download className="mr-1 h-3 w-3" />
-                Descargar PDF
+                Exportar PDF
               </a>
             </Button>
             <Button variant="outline" size="sm" className="text-xs" onClick={downloadFromStorageApi}>
@@ -169,12 +204,30 @@ export default function ReadingMaterialView({ material, pdfBase64 }: ReadingMate
         </div>
       )}
 
-      {!material.pdf_url && pdfBase64 && (
+      {exportEnabled && !material.pdf_url && pdfBase64 && (
+        <div className="space-y-2">
+          <Button variant="outline" size="sm" className="text-xs" onClick={handleDownloadTempPdf}>
+            <Download className="mr-1 h-3 w-3" />
+            Exportar PDF
+          </Button>
+        </div>
+      )}
+
+      {exportEnabled && !material.pdf_url && !pdfBase64 && (
+        <div className="space-y-2">
+          <Button variant="outline" size="sm" className="text-xs" onClick={handleExportHtmlFallback}>
+            <Download className="mr-1 h-3 w-3" />
+            Exportar PDF
+          </Button>
+        </div>
+      )}
+
+      {!exportEnabled && !material.pdf_url && pdfBase64 && (
         <div className="space-y-2">
           <Alert>
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription className="text-xs">
-              Este PDF no se guarda. Actualizá tu plan para almacenamiento permanente.
+              Este PDF no se guarda. Actualiza tu plan para almacenamiento permanente.
             </AlertDescription>
           </Alert>
           <Button variant="outline" size="sm" className="text-xs" onClick={handleViewTempPdf}>

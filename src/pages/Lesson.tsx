@@ -87,7 +87,7 @@ async function parseFunctionErrorMessage(error: any): Promise<string> {
 
 export default function Lesson() {
   const { lessonId } = useParams<{ lessonId: string }>();
-  const { entitlements } = useEntitlements();
+  const { entitlements, planType } = useEntitlements();
   const [lesson, setLesson] = useState<any>(null);
   const [planLesson, setPlanLesson] = useState<any>(null);
   const [brief, setBrief] = useState<any>(null);
@@ -305,6 +305,8 @@ export default function Lesson() {
   const briefIsDraft = !brief || brief.status === "IN_PROGRESS";
   const canonSummary = extractCanonSummary(planLesson?.activities_summary, planLesson?.theme);
   const referencedNodes = bibliographyNodes.filter((node) => referencedNodeIds.includes(node.id));
+  const canExportValidatedPdf = planType === "BASICO" || planType === "PREMIUM";
+  const lessonSlug = `leccion-${lesson.lesson_number}`;
 
   return (
     <div className="min-h-screen bg-background">
@@ -479,13 +481,22 @@ export default function Lesson() {
 
               {teachingMaterial && (
                 <div className="mt-6">
-                  <TeachingMaterialView material={teachingMaterial} />
+                  <TeachingMaterialView
+                    material={teachingMaterial}
+                    canExportPdf={canExportValidatedPdf}
+                    exportFileName={`${lessonSlug}-material-didactico.pdf`}
+                  />
                 </div>
               )}
 
               {readingMaterial && (
                 <div className="mt-6">
-                  <ReadingMaterialView material={readingMaterial} pdfBase64={pdfBase64} />
+                  <ReadingMaterialView
+                    material={readingMaterial}
+                    pdfBase64={pdfBase64}
+                    canExportPdf={canExportValidatedPdf}
+                    exportFileName={`${lessonSlug}-material-lectura.pdf`}
+                  />
                 </div>
               )}
             </section>
