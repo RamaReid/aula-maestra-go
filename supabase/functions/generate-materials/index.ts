@@ -62,15 +62,33 @@ function isLikelyBibliographySource(name: string): boolean {
   return hasAuthorPrefix && commaCount >= 2 && (hasYear || hasEditionFallback || commaCount >= 3);
 }
 
-function buildReadingSourcesParagraph(bibliographyNodes: Array<{ name: string }>): string {
-  const labels = bibliographyNodes
-    .map((node) => (node.name || "").replace(/\s+/g, " ").trim())
+function buildReadingSourcesParagraph(sourceLabels: string[]): string {
+  const labels = sourceLabels
+    .map((label) => (label || "").replace(/\s+/g, " ").trim())
     .filter((label) => label.length > 0)
     .slice(0, 6);
 
   if (labels.length === 0) return "";
 
   return `<p><strong>Fuentes de base del texto:</strong> ${labels.join(" | ")}.</p>`;
+}
+
+function sanitizeIdList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const unique = new Set<string>();
+  for (const item of value) {
+    if (typeof item !== "string") continue;
+    const cleaned = item.trim();
+    if (!cleaned) continue;
+    unique.add(cleaned);
+  }
+  return Array.from(unique);
+}
+
+function isAuthorizedSourceAllowedForPlan(planType: string, originType: string): boolean {
+  if (planType === "PREMIUM") return true;
+  if (planType === "BASICO") return originType === "DOCENTE_ARCHIVO" || originType === "CURRICULAR";
+  return false;
 }
 
 function extractLessonCanon(
@@ -395,7 +413,7 @@ serve(async (req) => {
     }
     regenerateOnly = body.regenerate_only;
     if (lessonIds.length === 0) throw new Error("Al menos un lesson_id requerido");
-    // G-1: max_classes_per_session limits lessons per invocation (1-3)
+    // Legacy fixed 3-lesson cap disabled. Session limits are enforced below by plan entitlements.
     if (false && lessonIds.length > 3) {
       return new Response(JSON.stringify({ error: "Máximo 3 lecciones por sesión" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -642,29 +660,253 @@ serve(async (req) => {
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      if (!brief.bibliografia_confirmada || brief.bibliografia_confirmada.length === 0) {
+      const requestedBibliographyIds = sanitizeIdList(brief.bibliografia_confirmada);
+      const requestedAuthorizedSourceIds = sanitizeIdList(brief.authorized_source_ids);
+      if (requestedBibliographyIds.length === 0 && requestedAuthorizedSourceIds.length === 0) {
         await adminClient.from("lessons").update({ is_generating: false }).eq("id", lessonId);
-        return new Response(JSON.stringify({ error: "Debe confirmar al menos una fuente bibliográfica" }), {
+        return new Response(JSON.stringify({ error: "Debe confirmar al menos una fuente para generar materiales" }), {
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
       // ── 3. Get curriculum context ──
-      const { data: nodes } = await adminClient
-        .from("curriculum_nodes")
-        .select("id, name, node_type")
-        .in("id", brief.bibliografia_confirmada);
+      const planMappedNodeIds = new Set<string>();
+      const { data: lessonLinks, error: lessonLinksError } = await adminClient
+        .from("plan_lesson_content_links")
+        .select("plan_content_mapping_id")
+        .eq("plan_lesson_id", planLesson.id);
 
-      const bibliographyNodes = (nodes || []).filter((node: any) =>
-        isLikelyBibliographySource(node.name || "")
-      );
-      if (bibliographyNodes.length === 0) {
+      if (lessonLinksError) {
+        await adminClient.from("lessons").update({ is_generating: false }).eq("id", lessonId);
+        return new Response(JSON.stringify({ error: lessonLinksError.message }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const lessonMappingIds = sanitizeIdList((lessonLinks || []).map((link: any) => link.plan_content_mapping_id));
+      if (lessonMappingIds.length > 0) {
+        const { data: lessonMappings, error: lessonMappingsError } = await adminClient
+          .from("plan_content_mappings")
+          .select("curriculum_node_id")
+          .eq("plan_id", planLesson.plan_id)
+          .in("id", lessonMappingIds);
+
+        if (lessonMappingsError) {
+          await adminClient.from("lessons").update({ is_generating: false }).eq("id", lessonId);
+          return new Response(JSON.stringify({ error: lessonMappingsError.message }), {
+            status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        for (const mapping of lessonMappings || []) {
+          if (typeof mapping.curriculum_node_id === "string" && mapping.curriculum_node_id.trim().length > 0) {
+            planMappedNodeIds.add(mapping.curriculum_node_id);
+          }
+        }
+      }
+
+      if (planMappedNodeIds.size === 0) {
+        const { data: planMappings, error: planMappingsError } = await adminClient
+          .from("plan_content_mappings")
+          .select("curriculum_node_id")
+          .eq("plan_id", planLesson.plan_id);
+
+        if (planMappingsError) {
+          await adminClient.from("lessons").update({ is_generating: false }).eq("id", lessonId);
+          return new Response(JSON.stringify({ error: planMappingsError.message }), {
+            status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        for (const mapping of planMappings || []) {
+          if (typeof mapping.curriculum_node_id === "string" && mapping.curriculum_node_id.trim().length > 0) {
+            planMappedNodeIds.add(mapping.curriculum_node_id);
+          }
+        }
+      }
+
+      if (planMappedNodeIds.size === 0 && course.curriculum_document_id) {
+        const { data: curriculumDocumentNodes, error: curriculumDocumentNodesError } = await adminClient
+          .from("curriculum_nodes")
+          .select("id")
+          .eq("curriculum_document_id", course.curriculum_document_id);
+
+        if (curriculumDocumentNodesError) {
+          await adminClient.from("lessons").update({ is_generating: false }).eq("id", lessonId);
+          return new Response(JSON.stringify({ error: curriculumDocumentNodesError.message }), {
+            status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        for (const node of curriculumDocumentNodes || []) {
+          if (typeof node.id === "string" && node.id.trim().length > 0) {
+            planMappedNodeIds.add(node.id);
+          }
+        }
+      }
+
+      let nodes: any[] = [];
+      if (requestedBibliographyIds.length > 0) {
+        const { data: fetchedNodes } = await adminClient
+          .from("curriculum_nodes")
+          .select("id, name, node_type, curriculum_document_id")
+          .in("id", requestedBibliographyIds);
+        nodes = fetchedNodes || [];
+
+        if (nodes.length !== requestedBibliographyIds.length) {
+          await adminClient.from("lessons").update({ is_generating: false }).eq("id", lessonId);
+          return new Response(
+            JSON.stringify({
+              error:
+                "La bibliografia confirmada contiene fuentes inexistentes o inaccesibles. Reabre el brief y vuelve a seleccionar.",
+            }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        if (course.curriculum_document_id) {
+          const outsideCourseDocument = nodes.filter(
+            (node: any) => node.curriculum_document_id !== course.curriculum_document_id
+          );
+          if (outsideCourseDocument.length > 0) {
+            await adminClient.from("lessons").update({ is_generating: false }).eq("id", lessonId);
+            return new Response(
+              JSON.stringify({
+                error:
+                  "La bibliografia confirmada incluye fuentes fuera del documento curricular del curso. Reabre el brief y ajusta las fuentes.",
+              }),
+              { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+        }
+
+        if (planMappedNodeIds.size > 0) {
+          const outsidePlanScope = requestedBibliographyIds.filter((id) => !planMappedNodeIds.has(id));
+          if (outsidePlanScope.length > 0) {
+            await adminClient.from("lessons").update({ is_generating: false }).eq("id", lessonId);
+            return new Response(
+              JSON.stringify({
+                error:
+                  "La bibliografia confirmada incluye fuentes fuera del alcance curricular de esta clase o plan. Reabre el brief y selecciona fuentes del curso.",
+              }),
+              { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+        }
+      }
+
+      const bibliographyNodes = nodes.filter((node: any) => isLikelyBibliographySource(node.name || ""));
+      if (requestedBibliographyIds.length > 0 && bibliographyNodes.length === 0) {
         await adminClient.from("lessons").update({ is_generating: false }).eq("id", lessonId);
         return new Response(
           JSON.stringify({
             error:
               "La bibliografia confirmada no contiene fuentes validas (autor/titulo). Reabre el brief y selecciona fuentes bibliograficas reales.",
           }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const authorizedSourcesRequested = requestedAuthorizedSourceIds.length > 0;
+      if (planType === "FREE" && authorizedSourcesRequested) {
+        await adminClient.from("lessons").update({ is_generating: false }).eq("id", lessonId);
+        return new Response(
+          JSON.stringify({ error: "El plan Free no permite agregar fuentes del docente." }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      let authorizedSources: any[] = [];
+      if (authorizedSourcesRequested) {
+        const { data: fetchedAuthorizedSources, error: authorizedSourcesError } = await adminClient
+          .from("authorized_sources")
+          .select("id, title, origin_type, media_type, status, summary_text, extracted_text")
+          .eq("course_id", lesson.course_id)
+          .in("id", requestedAuthorizedSourceIds);
+
+        if (authorizedSourcesError) {
+          await adminClient.from("lessons").update({ is_generating: false }).eq("id", lessonId);
+          return new Response(JSON.stringify({ error: authorizedSourcesError.message }), {
+            status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        authorizedSources = fetchedAuthorizedSources || [];
+        if (authorizedSources.length !== requestedAuthorizedSourceIds.length) {
+          await adminClient.from("lessons").update({ is_generating: false }).eq("id", lessonId);
+          return new Response(
+            JSON.stringify({
+              error: "Las fuentes del docente seleccionadas no existen en este curso o ya no estan disponibles.",
+            }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        const blockedByPlan = authorizedSources.filter(
+          (source) => !isAuthorizedSourceAllowedForPlan(planType, source.origin_type)
+        );
+        if (blockedByPlan.length > 0) {
+          await adminClient.from("lessons").update({ is_generating: false }).eq("id", lessonId);
+          return new Response(
+            JSON.stringify({
+              error: "Hay fuentes seleccionadas que no estan permitidas para tu plan actual.",
+            }),
+            { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        const sourcesNotProcessed = authorizedSources.filter(
+          (source) => source.status !== "PROCESSED" && source.status !== "APPROVED"
+        );
+        if (sourcesNotProcessed.length > 0) {
+          await adminClient.from("lessons").update({ is_generating: false }).eq("id", lessonId);
+          return new Response(
+            JSON.stringify({
+              error: "Hay fuentes del docente aun sin procesar. Espera su procesamiento o vuelve a cargar.",
+            }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        const { data: sourceTargets, error: sourceTargetsError } = await adminClient
+          .from("authorized_source_targets")
+          .select("source_id, target_type, lesson_id, sequence_key")
+          .in("source_id", requestedAuthorizedSourceIds);
+
+        if (sourceTargetsError) {
+          await adminClient.from("lessons").update({ is_generating: false }).eq("id", lessonId);
+          return new Response(JSON.stringify({ error: sourceTargetsError.message }), {
+            status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        const allowedByTarget = new Set<string>();
+        for (const target of sourceTargets || []) {
+          if (target.target_type === "LESSON" && target.lesson_id === lessonId) {
+            allowedByTarget.add(target.source_id);
+            continue;
+          }
+          if (target.target_type === "SEQUENCE") {
+            allowedByTarget.add(target.source_id);
+          }
+        }
+
+        const outOfScopeSources = requestedAuthorizedSourceIds.filter((id) => !allowedByTarget.has(id));
+        if (outOfScopeSources.length > 0) {
+          await adminClient.from("lessons").update({ is_generating: false }).eq("id", lessonId);
+          return new Response(
+            JSON.stringify({
+              error: "Hay fuentes del docente fuera del alcance de esta clase o secuencia.",
+            }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      }
+
+      if (bibliographyNodes.length === 0 && authorizedSources.length === 0) {
+        await adminClient.from("lessons").update({ is_generating: false }).eq("id", lessonId);
+        return new Response(
+          JSON.stringify({ error: "No hay fuentes validas para generar el material de esta clase." }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
@@ -677,6 +919,18 @@ serve(async (req) => {
       const bibliographyContext = bibliographyNodes
         .map((n: any) => `- ${n.name} [${n.node_type}] (ID: ${n.id})`)
         .join("\n");
+      const authorizedSourcesContext = authorizedSources
+        .map((source: any) => {
+          const summary = (source.summary_text || source.extracted_text || "").replace(/\s+/g, " ").trim();
+          const clipped = summary.length > 260 ? `${summary.slice(0, 257)}...` : summary;
+          const suffix = clipped ? ` | Resumen: ${clipped}` : "";
+          return `- ${source.title} [${source.origin_type}/${source.media_type}]${suffix}`;
+        })
+        .join("\n");
+      const allSourceLabels = [
+        ...bibliographyNodes.map((node: any) => node.name || ""),
+        ...authorizedSources.map((source: any) => source.title || ""),
+      ];
       const disciplineCanon = isFyHctSubject(course.subject)
         ? [
             "Canon disciplinar FyHyCyT:",
@@ -721,6 +975,9 @@ ${formatSequenceNeighbor("Salida a preparar", nextPlanLesson)}
 
 FUENTES CONFIRMADAS PARA ESTA CLASE:
 ${bibliographyContext || "- Sin detalle disponible"}
+
+FUENTES DOCENTE AUTORIZADAS:
+${authorizedSourcesContext || "- Sin detalle disponible"}
 
 ${disciplineCanon}
 
@@ -907,10 +1164,13 @@ ${formatSequenceNeighbor("Entrada esperada", previousPlanLesson)}
 ${formatSequenceNeighbor("Salida a preparar", nextPlanLesson)}
 
 CONTENIDOS CURRICULARES A REFERENCIAR:
-${bibliographyNodes.map((n: any) => `- ${n.name} (ID: ${n.id})`).join("\n")}
+${bibliographyNodes.length > 0 ? bibliographyNodes.map((n: any) => `- ${n.name} (ID: ${n.id})`).join("\n") : "- Sin nodos curriculares seleccionados"}
 
 FUENTES CONFIRMADAS:
 ${bibliographyContext || "- Sin detalle disponible"}
+
+FUENTES DOCENTE AUTORIZADAS:
+${authorizedSourcesContext || "- Sin detalle disponible"}
 
 ${disciplineCanon}
 
@@ -927,7 +1187,7 @@ REGLAS OBLIGATORIAS:
 10. El texto no debe ser una explicación genérica del tema. Debe preparar o sostener la operacion de esta clase y ayudar a producir la evidencia minima.
 11. Si la materia es FyHyCyT, prioriza casos, validacion, metodos, evidencias, decisiones y relaciones ciencia-tecnologia-sociedad. No la conviertas en filosofia abstracta sin situacion.
 12. Si la materia es Filosofía, prioriza problema, conceptos, posiciones, argumentos y objeciones. No la conviertas en metodologia científica.
-13. Mantené trazabilidad explícita con la bibliografía confirmada y los nodos curriculares seleccionados.
+13. Mantené trazabilidad explícita con la bibliografía confirmada, las fuentes del docente autorizadas y los nodos curriculares seleccionados.
 14. No copies fragmentos extensos de obras protegidas. Prioriza paráfrasis; si usas cita textual, que no supere 20 palabras.
 15. El último párrafo debe iniciar con "Fuentes de base del texto:" y nombrar las fuentes usadas.`;
 
@@ -956,7 +1216,7 @@ REGLAS OBLIGATORIAS:
           );
 
           readingHtml = cleanMarkdownArtifacts(readingResult.choices[0].message.content || "");
-          const sourcesParagraph = buildReadingSourcesParagraph(bibliographyNodes);
+          const sourcesParagraph = buildReadingSourcesParagraph(allSourceLabels);
           if (sourcesParagraph && !/fuentes de base del texto\s*:/i.test(stripHtml(readingHtml))) {
             readingHtml = `${readingHtml}\n${sourcesParagraph}`;
           }

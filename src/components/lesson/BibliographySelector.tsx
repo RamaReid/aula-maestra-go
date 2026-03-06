@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import type { PlanType } from "@/hooks/useEntitlements";
 
 interface Node {
   id: string;
@@ -9,13 +10,26 @@ interface Node {
   node_type: string;
 }
 
+interface AuthorizedSource {
+  id: string;
+  title: string;
+  media_type: string;
+  origin_type: string;
+  status: string;
+}
+
 interface BibliographySelectorProps {
   courseId: string;
   lessonId?: string;
   selected: string[];
   onChange: (ids: string[]) => void;
+  selectedAuthorized?: string[];
+  onAuthorizedChange?: (ids: string[]) => void;
   disabled?: boolean;
+  planType?: PlanType;
 }
+
+const MAX_SOURCES = 5;
 
 function normalizeName(value: string): string {
   return value
@@ -55,24 +69,35 @@ function isLikelyBibliographyEntry(name: string): boolean {
   return true;
 }
 
+function mapMediaLabel(mediaType: string): string {
+  const normalized = (mediaType || "").toUpperCase();
+  if (normalized === "DOC") return "DOC/DOCX";
+  if (normalized === "SHEET") return "XLS/XLSX";
+  return normalized || "ARCHIVO";
+}
+
 export default function BibliographySelector({
   courseId,
   lessonId,
   selected,
   onChange,
+  selectedAuthorized = [],
+  onAuthorizedChange,
   disabled,
+  planType = "FREE",
 }: BibliographySelectorProps) {
   const [nodes, setNodes] = useState<Node[]>([]);
+  const [authorizedSources, setAuthorizedSources] = useState<AuthorizedSource[]>([]);
   const [loading, setLoading] = useState(true);
+  const totalSelected = selected.length + selectedAuthorized.length;
+  const canUseAuthorizedSources = planType === "BASICO" || planType === "PREMIUM";
 
   useEffect(() => {
     const fetchNodes = async () => {
       setLoading(true);
 
       const cleanCandidates = (rawNodes: Array<Node & { order_index?: number }>): Node[] => {
-        const contentFirst = rawNodes.filter((node) =>
-          ["CONTENIDO", "BLOQUE", "UNIDAD"].includes(node.node_type)
-        );
+        const contentFirst = rawNodes.filter((node) => ["CONTENIDO", "BLOQUE", "UNIDAD"].includes(node.node_type));
         const candidates = contentFirst.length > 0 ? contentFirst : rawNodes;
         const bibliographyOnly = candidates.filter((node) => isLikelyBibliographyEntry(node.name));
         const filtered = bibliographyOnly.filter((node) => !shouldHideNode(node.name));
@@ -101,6 +126,7 @@ export default function BibliographySelector({
         const { data: plan } = await supabase.from("plans").select("id").eq("course_id", courseId).single();
         if (!plan) {
           setNodes([]);
+          setAuthorizedSources([]);
           return;
         }
 
@@ -140,44 +166,75 @@ export default function BibliographySelector({
           nodeIdSources.push((planMappings || []).map((mapping) => mapping.curriculum_node_id));
         }
 
+        let resolvedCurriculumNodes: Node[] = [];
         for (const sourceIds of nodeIdSources) {
           const resolved = await fetchNodesByIds(sourceIds);
           if (resolved.length > 0) {
-            setNodes(resolved);
-            return;
+            resolvedCurriculumNodes = resolved;
+            break;
           }
         }
 
-        const { data: courseData, error: courseError } = await supabase
-          .from("courses")
-          .select("curriculum_document_id")
-          .eq("id", courseId)
-          .maybeSingle();
+        if (resolvedCurriculumNodes.length === 0) {
+          const { data: courseData, error: courseError } = await supabase
+            .from("courses")
+            .select("curriculum_document_id")
+            .eq("id", courseId)
+            .maybeSingle();
 
-        if (!courseError && courseData?.curriculum_document_id) {
-          const { data: documentNodes } = await supabase
-            .from("curriculum_nodes")
-            .select("id, name, node_type, order_index")
-            .eq("curriculum_document_id", courseData.curriculum_document_id)
-            .order("order_index");
+          if (!courseError && courseData?.curriculum_document_id) {
+            const { data: documentNodes } = await supabase
+              .from("curriculum_nodes")
+              .select("id, name, node_type, order_index")
+              .eq("curriculum_document_id", courseData.curriculum_document_id)
+              .order("order_index");
 
-          const fromDocument = cleanCandidates((documentNodes || []) as Array<Node & { order_index?: number }>);
-          if (fromDocument.length > 0) {
-            setNodes(fromDocument);
-            return;
+            resolvedCurriculumNodes = cleanCandidates((documentNodes || []) as Array<Node & { order_index?: number }>);
           }
         }
 
-        setNodes([]);
+        setNodes(resolvedCurriculumNodes);
+
+        if (canUseAuthorizedSources && lessonId) {
+          const { data: targets, error: targetsError } = await supabase
+            .from("authorized_source_targets" as any)
+            .select("source_id")
+            .eq("lesson_id", lessonId);
+
+          if (targetsError) {
+            setAuthorizedSources([]);
+          } else {
+            const sourceIds = Array.from(
+              new Set(((targets || []) as Array<{ source_id: string }>).map((target) => target.source_id))
+            );
+            if (sourceIds.length === 0) {
+              setAuthorizedSources([]);
+            } else {
+              const { data: sourcesData } = await supabase
+                .from("authorized_sources" as any)
+                .select("id, title, media_type, origin_type, status")
+                .eq("course_id", courseId)
+                .in("id", sourceIds)
+                .order("created_at", { ascending: false });
+
+              const processed = ((sourcesData || []) as AuthorizedSource[]).filter(
+                (source) => source.status === "PROCESSED" || source.status === "APPROVED"
+              );
+              setAuthorizedSources(processed);
+            }
+          }
+        } else {
+          setAuthorizedSources([]);
+        }
       } finally {
         setLoading(false);
       }
     };
 
     fetchNodes();
-  }, [courseId, lessonId]);
+  }, [courseId, lessonId, canUseAuthorizedSources]);
 
-  const toggle = (nodeId: string) => {
+  const toggleCurriculum = (nodeId: string) => {
     if (disabled) return;
 
     if (selected.includes(nodeId)) {
@@ -185,40 +242,82 @@ export default function BibliographySelector({
       return;
     }
 
-    if (selected.length >= 5) return;
+    if (totalSelected >= MAX_SOURCES) return;
     onChange([...selected, nodeId]);
   };
 
-  if (loading) {
-    return <p className="text-sm text-muted-foreground">Cargando bibliografia...</p>;
-  }
+  const toggleAuthorized = (sourceId: string) => {
+    if (disabled || !onAuthorizedChange) return;
 
-  if (nodes.length === 0) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        No hay fuentes curriculares limpias para esta clase. Revisa mapeos de contenidos en la anual.
-      </p>
-    );
+    if (selectedAuthorized.includes(sourceId)) {
+      onAuthorizedChange(selectedAuthorized.filter((id) => id !== sourceId));
+      return;
+    }
+
+    if (totalSelected >= MAX_SOURCES) return;
+    onAuthorizedChange([...selectedAuthorized, sourceId]);
+  };
+
+  if (loading) {
+    return <p className="text-sm text-muted-foreground">Cargando fuentes...</p>;
   }
 
   return (
-    <div className="space-y-2">
-      <Label>Bibliografia (Modo C) - selecciona 1 a 5 fuentes</Label>
-      <div className="max-h-60 space-y-2 overflow-y-auto rounded-md border p-3">
-        {nodes.map((node) => (
-          <div key={node.id} className="flex items-start gap-2">
-            <Checkbox
-              checked={selected.includes(node.id)}
-              onCheckedChange={() => toggle(node.id)}
-              disabled={disabled || (!selected.includes(node.id) && selected.length >= 5)}
-            />
-            <div className="text-sm">
-              <span className="font-medium text-muted-foreground">[FUENTE]</span> {node.name}
-            </div>
-          </div>
-        ))}
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <Label>Fuentes curriculares y del docente - selecciona 1 a 5</Label>
+        <div className="max-h-60 space-y-2 overflow-y-auto rounded-md border p-3">
+          {nodes.length > 0 ? (
+            nodes.map((node) => (
+              <div key={node.id} className="flex items-start gap-2">
+                <Checkbox
+                  checked={selected.includes(node.id)}
+                  onCheckedChange={() => toggleCurriculum(node.id)}
+                  disabled={disabled || (!selected.includes(node.id) && totalSelected >= MAX_SOURCES)}
+                />
+                <div className="text-sm">
+                  <span className="font-medium text-muted-foreground">[CURRICULAR]</span> {node.name}
+                </div>
+              </div>
+            ))
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              No hay fuentes curriculares limpias para esta clase. Revisa mapeos de contenidos en la anual.
+            </p>
+          )}
+        </div>
       </div>
-      <p className="text-xs text-muted-foreground">{selected.length}/5 seleccionadas</p>
+
+      {canUseAuthorizedSources && (
+        <div className="space-y-2">
+          <Label>Fuentes del docente disponibles para esta clase</Label>
+          <div className="max-h-60 space-y-2 overflow-y-auto rounded-md border p-3">
+            {authorizedSources.length > 0 ? (
+              authorizedSources.map((source) => (
+                <div key={source.id} className="flex items-start gap-2">
+                  <Checkbox
+                    checked={selectedAuthorized.includes(source.id)}
+                    onCheckedChange={() => toggleAuthorized(source.id)}
+                    disabled={disabled || (!selectedAuthorized.includes(source.id) && totalSelected >= MAX_SOURCES)}
+                  />
+                  <div className="text-sm">
+                    <span className="font-medium text-muted-foreground">
+                      [DOCENTE/{mapMediaLabel(source.media_type)}]
+                    </span>{" "}
+                    {source.title}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Todavia no hay fuentes del docente procesadas para esta clase.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      <p className="text-xs text-muted-foreground">{totalSelected}/{MAX_SOURCES} seleccionadas</p>
     </div>
   );
 }

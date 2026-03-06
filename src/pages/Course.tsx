@@ -26,6 +26,7 @@ import { SkeletonList } from "@/components/ui/SkeletonList";
 import { StatusBadge, briefLabel, briefTone, lessonStatusLabel, lessonStatusTone } from "@/components/ui/StatusBadge";
 import { useEntitlements } from "@/hooks/useEntitlements";
 import { Checkbox } from "@/components/ui/checkbox";
+import { getMaxSelectableLessons, isConsecutiveSequence, isValidFreeSelection } from "@/lib/courseSelectionRules";
 
 interface LessonWithPlanLesson {
   id: string;
@@ -91,15 +92,11 @@ export default function Course() {
     [lessons, selectedLessonIds]
   );
   const requiredFreeSelectionCount = 3;
-  const maxSelectableLessons = isFreePlan ? requiredFreeSelectionCount : lessons.length;
+  const maxSelectableLessons = getMaxSelectableLessons(planType, lessons.length);
   const selectedLessonNumbers = selectedLessons
     .map((lesson) => lesson.lesson_number)
     .sort((a, b) => a - b);
-  const hasSequenceSelection =
-    selectedLessonNumbers.length > 1 &&
-    selectedLessonNumbers.every((lessonNumber, index) =>
-      index === 0 ? true : lessonNumber === selectedLessonNumbers[index - 1] + 1
-    );
+  const hasSequenceSelection = isConsecutiveSequence(selectedLessonNumbers);
   const selectionIsReady =
     selectedLessons.length > 0 &&
     selectedLessons.every(
@@ -109,7 +106,7 @@ export default function Course() {
         (lesson.brief_status === "READY_FOR_PRODUCTION" || lesson.brief_status === "PRODUCED")
     );
   const selectionLimitReached = selectedLessonIds.length >= maxSelectableLessons;
-  const hasExactFreeSelection = selectedLessons.length === requiredFreeSelectionCount;
+  const hasExactFreeSelection = isValidFreeSelection(selectedLessons.length);
 
   async function parseFunctionErrorMessage(error: any): Promise<string> {
     if (!error) return "Error desconocido";

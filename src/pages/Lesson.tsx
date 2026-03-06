@@ -94,6 +94,7 @@ export default function Lesson() {
   const [teachingMaterial, setTeachingMaterial] = useState<any>(null);
   const [readingMaterial, setReadingMaterial] = useState<any>(null);
   const [bibliographyNodes, setBibliographyNodes] = useState<any[]>([]);
+  const [authorizedSourceNodes, setAuthorizedSourceNodes] = useState<any[]>([]);
   const [mappedCurriculumNodes, setMappedCurriculumNodes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [pdfBase64, setPdfBase64] = useState<string | null>(null);
@@ -165,6 +166,17 @@ export default function Lesson() {
       setBibliographyNodes(filteredSources);
     } else {
       setBibliographyNodes([]);
+    }
+
+    if (briefRes.data?.authorized_source_ids?.length > 0) {
+      const { data: sources } = await supabase
+        .from("authorized_sources" as any)
+        .select("id, title, media_type, origin_type, status")
+        .in("id", briefRes.data.authorized_source_ids)
+        .order("created_at", { ascending: false });
+      setAuthorizedSourceNodes((sources || []) as any[]);
+    } else {
+      setAuthorizedSourceNodes([]);
     }
 
     setLoading(false);
@@ -421,6 +433,27 @@ export default function Lesson() {
                     </div>
                   </div>
 
+                  {(planType === "BASICO" || planType === "PREMIUM") && (
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        Fuentes del docente confirmadas
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {authorizedSourceNodes.length > 0 ? (
+                          authorizedSourceNodes.map((source) => (
+                            <Badge key={source.id} variant="secondary">
+                              [DOCENTE/{source.media_type}] {source.title}
+                            </Badge>
+                          ))
+                        ) : (
+                          <p className="text-sm text-muted-foreground">
+                            Esta clase todavia no tiene fuentes del docente seleccionadas.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   {readingMaterial && (
                     <div className="space-y-2">
                       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -460,6 +493,7 @@ export default function Lesson() {
                 courseId={lesson.course_id}
                 brief={brief}
                 onUpdate={fetchData}
+                planType={planType}
               />
             </section>
 
