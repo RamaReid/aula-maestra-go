@@ -201,35 +201,93 @@ export default function Landing() {
       </section>
 
       {/* ── Bloque 5 — Planes ── */}
-      <section id="planes" className="scroll-mt-16 border-t bg-muted/40">
+            <section id="planes" className="scroll-mt-16 border-t bg-muted/40">
         <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 md:py-20">
-          <h2 className="text-center text-2xl font-bold md:text-3xl">Elegí cómo empezar</h2>
+          <h2 className="text-center text-2xl font-bold md:text-3xl">Elegi como empezar</h2>
           <p className="mx-auto mt-3 max-w-xl text-center text-muted-foreground">
-            Distintas formas de usar la plataforma según tu nivel de necesidad y profundidad de
-            trabajo.
+            Comparativa actualizada de lo que incluye cada plan para que elijas con claridad.
           </p>
           <div className="mt-12 grid gap-6 sm:grid-cols-3">
             {[
-              { name: "Gratis", highlight: false },
-              { name: "Individual", highlight: true },
-              { name: "Integral", highlight: false },
-            ].map(({ name, highlight }) => (
+              {
+                name: "Gratis",
+                code: "FREE",
+                highlight: false,
+                summary: "Para probar el flujo completo en 1 curso.",
+                items: [
+                  "1 curso activo",
+                  "Hasta 35 estudiantes por curso",
+                  "2 sesiones semanales",
+                  "Exactamente 3 clases por sesion",
+                  "Sin exportacion PDF validada",
+                  "Sin fuentes del docente",
+                ],
+                cta: "Crear cuenta gratis",
+                to: "/register",
+              },
+              {
+                name: "Basico",
+                code: "BASICO",
+                highlight: true,
+                summary: "Produccion docente diaria con control de curso.",
+                items: [
+                  "Hasta 15 cursos activos",
+                  "Generacion por clase o secuencia",
+                  "Exportacion PDF validada",
+                  "Fuentes del docente por archivo (PDF, imagen, DOC, XLS, TXT)",
+                  "Copiloto en modo limited",
+                  "Sin busqueda libre en internet",
+                ],
+                cta: "Empezar Basico",
+                to: "/register",
+              },
+              {
+                name: "Premium",
+                code: "PREMIUM",
+                highlight: false,
+                summary: "Maxima profundidad para planificar y enriquecer materiales.",
+                items: [
+                  "Incluye todo Basico",
+                  "Fuentes por URL y video",
+                  "Consultas concretas en internet con aprobacion docente",
+                  "Tolerancia a typos en autor/canal/titulo",
+                  "Copiloto en modo full",
+                  "Mayor capacidad de personalizacion",
+                ],
+                cta: "Empezar Premium",
+                to: "/register",
+              },
+            ].map(({ name, code, highlight, summary, items, cta, to }) => (
               <Card
                 key={name}
                 className={highlight ? "border-primary ring-1 ring-primary/20" : "border"}
               >
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-lg">{name}</CardTitle>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg">{name}</CardTitle>
+                    <StatusBadge tone={highlight ? "success" : "neutral"} label={code} />
+                  </div>
                 </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">Próximamente más detalles.</p>
+                <CardContent className="space-y-4">
+                  <p className="text-sm text-muted-foreground">{summary}</p>
+                  <ul className="space-y-2 text-sm">
+                    {items.map((item) => (
+                      <li key={item} className="flex items-start gap-2">
+                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" />
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
                   <Button
                     className="mt-6 w-full"
                     variant={highlight ? "default" : "outline"}
                     size="sm"
                     asChild
                   >
-                    <Link to="/register">Empezar</Link>
+                    <Link to={to}>
+                      {cta}
+                      <ArrowRight className="ml-1 h-4 w-4" />
+                    </Link>
                   </Button>
                 </CardContent>
               </Card>
@@ -393,3 +451,4 @@ function CourseMockup() {
     </Card>
   );
 }
+
