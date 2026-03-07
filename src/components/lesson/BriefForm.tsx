@@ -409,7 +409,7 @@ export default function BriefForm({ lessonId, courseId, brief, onUpdate, planTyp
         .select("id, source_url")
         .in("id", authorizedSources);
 
-      if (((existing || []) as Array<{ id: string; source_url: string | null }>).some((row) => row.source_url === candidate.url)) {
+      if (((existing || []) as unknown as Array<{ id: string; source_url: string | null }>).some((row) => row.source_url === candidate.url)) {
         toast({ title: "Esta fuente ya fue agregada en la clase", variant: "destructive" });
         return;
       }
