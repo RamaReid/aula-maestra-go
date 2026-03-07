@@ -14,6 +14,119 @@ export type Database = {
   }
   public: {
     Tables: {
+      authorized_source_targets: {
+        Row: {
+          created_at: string
+          id: string
+          lesson_id: string | null
+          sequence_key: string | null
+          source_id: string
+          target_type: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lesson_id?: string | null
+          sequence_key?: string | null
+          source_id: string
+          target_type: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lesson_id?: string | null
+          sequence_key?: string | null
+          source_id?: string
+          target_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "authorized_source_targets_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "lessons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "authorized_source_targets_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "authorized_sources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      authorized_sources: {
+        Row: {
+          author_label: string | null
+          course_id: string
+          created_at: string
+          created_by: string
+          extracted_text: string | null
+          id: string
+          media_type: string
+          metadata: Json
+          mime_type: string | null
+          origin_type: string
+          plan_scope: Database["public"]["Enums"]["plan_type"]
+          processing_error: string | null
+          source_url: string | null
+          status: string
+          storage_path: string | null
+          summary_text: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          author_label?: string | null
+          course_id: string
+          created_at?: string
+          created_by?: string
+          extracted_text?: string | null
+          id?: string
+          media_type: string
+          metadata?: Json
+          mime_type?: string | null
+          origin_type: string
+          plan_scope: Database["public"]["Enums"]["plan_type"]
+          processing_error?: string | null
+          source_url?: string | null
+          status?: string
+          storage_path?: string | null
+          summary_text?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Update: {
+          author_label?: string | null
+          course_id?: string
+          created_at?: string
+          created_by?: string
+          extracted_text?: string | null
+          id?: string
+          media_type?: string
+          metadata?: Json
+          mime_type?: string | null
+          origin_type?: string
+          plan_scope?: Database["public"]["Enums"]["plan_type"]
+          processing_error?: string | null
+          source_url?: string | null
+          status?: string
+          storage_path?: string | null
+          summary_text?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "authorized_sources_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       courses: {
         Row: {
           academic_year: number
@@ -828,6 +941,10 @@ export type Database = {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
+        Returns: boolean
+      }
+      is_authorized_source_owner: {
+        Args: { _source_id: string; _user_id: string }
         Returns: boolean
       }
       is_course_not_archived_for_lesson: {
