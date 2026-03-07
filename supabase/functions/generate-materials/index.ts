@@ -948,7 +948,7 @@ serve(async (req) => {
 
       }
 
-      const bibliographyNodes = nodes.filter((node) => isLikelyBibliographySource(node.name || ""));
+      const bibliographyNodes = nodes;
       if (requestedBibliographyIds.length > 0 && bibliographyNodes.length === 0) {
         await adminClient.from("lessons").update({ is_generating: false }).eq("id", lessonId);
         return new Response(

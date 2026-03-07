@@ -199,8 +199,7 @@ export default function Lesson() {
         .from("curriculum_nodes")
         .select("id, name, node_type")
         .in("id", briefRes.data.bibliografia_confirmada);
-      const filteredSources = ((nodes || []) as CurriculumNodeRow[]).filter((node) => isLikelyBibliographyEntry(node.name));
-      setBibliographyNodes(filteredSources);
+      setBibliographyNodes((nodes || []) as CurriculumNodeRow[]);
     } else {
       setBibliographyNodes([]);
     }
@@ -457,13 +456,13 @@ export default function Lesson() {
 
                   <div className="space-y-2">
                     <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Bibliografia confirmada para generar
+                      Fuentes curriculares confirmadas para generar
                     </p>
                     <div className="flex flex-wrap gap-2">
                       {bibliographyNodes.length > 0 ? (
                         bibliographyNodes.map((node) => (
                           <Badge key={node.id} variant="secondary">
-                            [FUENTE] {node.name}
+                            [FUENTE CURRICULAR] {node.name}
                           </Badge>
                         ))
                       ) : (

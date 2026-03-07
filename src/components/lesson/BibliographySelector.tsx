@@ -105,7 +105,11 @@ export default function BibliographySelector({
 
       const cleanCandidates = (rawNodes: Array<Node & { order_index?: number }>): Node[] => {
         const bibliographyOnly = rawNodes.filter((node) => isLikelyBibliographyEntry(node.name));
-        const filtered = bibliographyOnly.filter((node) => !shouldHideNode(node.name));
+        const candidatePool =
+          bibliographyOnly.length > 0
+            ? bibliographyOnly
+            : rawNodes.filter((node) => ["CONTENIDO", "BLOQUE", "UNIDAD", "EJE"].includes(node.node_type));
+        const filtered = candidatePool.filter((node) => !shouldHideNode(node.name));
         const dedupMap = new Map<string, Node>();
         filtered.forEach((node) => {
           const key = `${node.node_type}:${normalizeName(node.name)}`;
