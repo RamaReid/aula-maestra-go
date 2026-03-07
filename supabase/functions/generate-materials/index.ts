@@ -91,6 +91,30 @@ function isAuthorizedSourceAllowedForPlan(planType: string, originType: string):
   return false;
 }
 
+function parseSequenceKeyTerm(sequenceKey: string | null | undefined): number | null {
+  if (!sequenceKey) return null;
+  const raw = sequenceKey.trim();
+  if (!raw) return null;
+
+  const explicit = raw.match(/(?:term|unit)\s*[:=_-]?\s*(\d+)/i);
+  if (explicit) return Number(explicit[1]);
+
+  if (/^\d+$/.test(raw)) return Number(raw);
+
+  const fallback = raw.match(/(\d+)/);
+  return fallback ? Number(fallback[1]) : null;
+}
+
+function areConsecutiveNumbers(values: number[]): boolean {
+  if (values.length <= 1) return true;
+  const ordered = [...new Set(values)].sort((a, b) => a - b);
+  if (ordered.length !== values.length) return false;
+  for (let i = 1; i < ordered.length; i += 1) {
+    if (ordered[i] - ordered[i - 1] !== 1) return false;
+  }
+  return true;
+}
+
 function extractLessonCanon(
   activitiesSummary: string | null | undefined,
   fallbackTheme: string
@@ -487,6 +511,75 @@ serve(async (req) => {
       }
     }
 
+    const { data: selectedLessonsMeta, error: selectedLessonsMetaError } = await userClient
+      .from("lessons")
+      .select("id, course_id, lesson_number, plan_lesson_id")
+      .in("id", lessonIds);
+
+    if (selectedLessonsMetaError || !selectedLessonsMeta) {
+      return new Response(JSON.stringify({ error: "No se pudieron validar las clases seleccionadas" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (selectedLessonsMeta.length !== lessonIds.length) {
+      return new Response(JSON.stringify({ error: "Alguna de las clases seleccionadas no existe o no te pertenece" }), {
+        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (mode === "full_session" && planType !== "FREE" && lessonIds.length > 1) {
+      const selectedPlanLessonIds = sanitizeIdList(selectedLessonsMeta.map((lesson: any) => lesson.plan_lesson_id));
+      const { data: selectedPlanLessons, error: selectedPlanLessonsError } = await userClient
+        .from("plan_lessons")
+        .select("id, lesson_number, term")
+        .in("id", selectedPlanLessonIds);
+
+      if (selectedPlanLessonsError || !selectedPlanLessons) {
+        return new Response(JSON.stringify({ error: "No se pudieron validar las unidades de la secuencia" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const planLessonById = new Map((selectedPlanLessons || []).map((row: any) => [row.id, row]));
+      const sequenceLessonNumbers: number[] = [];
+      const sequenceTerms: number[] = [];
+
+      for (const lessonMeta of selectedLessonsMeta as any[]) {
+        const row = planLessonById.get(lessonMeta.plan_lesson_id);
+        if (!row) {
+          return new Response(JSON.stringify({ error: "Hay clases sin plan de referencia para validar secuencia" }), {
+            status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        sequenceLessonNumbers.push(typeof row.lesson_number === "number" ? row.lesson_number : lessonMeta.lesson_number);
+        if (typeof row.term === "number") {
+          sequenceTerms.push(row.term);
+        }
+      }
+
+      if (!areConsecutiveNumbers(sequenceLessonNumbers)) {
+        return new Response(
+          JSON.stringify({ error: "La secuencia seleccionada debe estar formada por clases consecutivas." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      if (sequenceTerms.length !== sequenceLessonNumbers.length) {
+        return new Response(
+          JSON.stringify({ error: "La secuencia no se puede validar porque hay clases sin unidad asignada." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      if (new Set(sequenceTerms).size !== 1) {
+        return new Response(
+          JSON.stringify({ error: "La secuencia seleccionada debe pertenecer a una sola unidad." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
     // G-2: Validate all lessons belong to the same course and same user
     const allResults: any[] = [];
     let sharedCourseId: string | null = null;
@@ -598,7 +691,7 @@ serve(async (req) => {
 
       const { data: planLesson } = await userClient
         .from("plan_lessons")
-        .select("id, plan_id, lesson_number, theme, justification, learning_outcome, activities_summary")
+        .select("id, plan_id, lesson_number, term, theme, justification, learning_outcome, activities_summary")
         .eq("id", lesson.plan_lesson_id)
         .single();
       if (!planLesson) {
@@ -887,7 +980,11 @@ serve(async (req) => {
             continue;
           }
           if (target.target_type === "SEQUENCE") {
-            allowedByTarget.add(target.source_id);
+            const targetTerm = parseSequenceKeyTerm(target.sequence_key);
+            const currentTerm = typeof planLesson.term === "number" ? planLesson.term : null;
+            if (targetTerm !== null && currentTerm !== null && targetTerm === currentTerm) {
+              allowedByTarget.add(target.source_id);
+            }
           }
         }
 
