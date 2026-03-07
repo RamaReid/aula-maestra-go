@@ -639,6 +639,9 @@ export default function CourseNew() {
             </p>
           </div>
         </div>
+        <div className="mx-auto max-w-2xl px-4">
+          <Progress value={((steps.findIndex((item) => item.num === step) + 1) / steps.length) * 100} className="h-1.5" />
+        </div>
       </header>
 
       <main className="mx-auto max-w-2xl px-4 py-8">

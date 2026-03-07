@@ -79,6 +79,7 @@ export default function Demo() {
       {/* Header */}
       <header className="border-b bg-card">
         <div className="mx-auto max-w-4xl px-4 py-4">
+          <p className="text-xs font-bold tracking-tight text-muted-foreground mb-1">Docenc<span className="text-brand-accent">IA</span> · Demo</p>
           <h1 className="text-lg font-semibold text-foreground">Filosofía e Historia de la Ciencia y la Tecnología — 6.º año EESA</h1>
           <p className="text-sm text-muted-foreground">Provincia de Buenos Aires · 2 módulos semanales</p>
         </div>

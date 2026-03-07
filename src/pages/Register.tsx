@@ -142,6 +142,7 @@ export default function Register() {
           </p>
         </CardFooter>
       </Card>
+      </div>
     </div>
   );
 }

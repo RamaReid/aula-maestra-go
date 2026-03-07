@@ -333,27 +333,27 @@ export default function Dashboard() {
                   <CardHeader className="pb-2">
                     <div className="flex items-start justify-between gap-3">
                       <CardTitle className="text-base">{course.subject}</CardTitle>
-                      <div className="flex items-center gap-1">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          aria-label={`Archivar ${course.subject}`}
-                          onClick={() => setCourseToArchive(course)}
-                        >
-                          <Archive className="mr-2 h-4 w-4" />
-                          Archivar
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="text-destructive hover:text-destructive"
-                          aria-label={`Eliminar ${course.subject}`}
-                          onClick={() => setCourseToDelete(course)}
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Eliminar
-                        </Button>
-                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+                            <MoreVertical className="h-4 w-4" />
+                            <span className="sr-only">Acciones</span>
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => setCourseToArchive(course)}>
+                            <Archive className="mr-2 h-4 w-4" />
+                            Archivar
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={() => setCourseToDelete(course)}
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Eliminar
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-3">

@@ -640,20 +640,22 @@ export default function Course() {
                                     </p>
                                   </div>
                                 </div>
-                                <div className="flex flex-wrap justify-end gap-2">
-                                  <StatusBadge
-                                    tone={lessonStatusTone(lesson.status)}
-                                    label={lessonStatusLabel(lesson.status)}
-                                  />
-                                  {lesson.is_generating && (
-                                    <Badge variant="outline" className="animate-pulse">
-                                      Generando...
-                                    </Badge>
-                                  )}
-                                  <StatusBadge
-                                    tone={briefTone(lesson.brief_status)}
-                                    label={briefLabel(lesson.brief_status)}
-                                  />
+                                <div className="flex flex-col items-end gap-1.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">
+                                  <div className="flex flex-wrap gap-1.5">
+                                    <StatusBadge
+                                      tone={lessonStatusTone(lesson.status)}
+                                      label={lessonStatusLabel(lesson.status)}
+                                    />
+                                    {lesson.is_generating && (
+                                      <Badge variant="outline" className="animate-pulse">
+                                        Generando...
+                                      </Badge>
+                                    )}
+                                    <StatusBadge
+                                      tone={briefTone(lesson.brief_status)}
+                                      label={briefLabel(lesson.brief_status)}
+                                    />
+                                  </div>
                                   <Button asChild variant="outline" size="sm">
                                     <Link to={`/lesson/${lesson.id}`}>Abrir clase</Link>
                                   </Button>
