@@ -345,8 +345,14 @@ export default function BriefForm({
     try {
       await attempt(true);
     } catch (error) {
-      if (!authorizedSources.length || !isMissingAuthorizedSourceIdsColumn(error)) {
+      if (!isMissingAuthorizedSourceIdsColumn(error)) {
         throw error;
+      }
+
+      if (authorizedSources.length > 0) {
+        throw new Error(
+          "La base remota no tiene la columna authorized_source_ids en lesson_briefs. Aplica la migracion pendiente para confirmar fuentes del docente."
+        );
       }
 
       await attempt(false);
