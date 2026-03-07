@@ -199,10 +199,17 @@ function buildNodePools(nodes: CurriculumNodeRow[]): {
   const coreNodes = uniqueNodes(
     planningNodes.filter((node) => !isLikelyBibliographyNodeName(node.name))
   );
-
-  const safeCoreNodes = coreNodes.length > 0 ? coreNodes : planningNodes;
+  const nonBibliographyDocumentNodes = uniqueNodes(
+    safeDocumentNodes.filter((node) => !isLikelyBibliographyNodeName(node.name))
+  );
+  const safeCoreNodes =
+    coreNodes.length > 0
+      ? coreNodes
+      : nonBibliographyDocumentNodes.length > 0
+        ? nonBibliographyDocumentNodes
+        : planningNodes;
   const nodesForPrompt = uniqueNodes([...safeCoreNodes, ...bibliographyNodes]).slice(0, 180);
-  const nodesForMappings = uniqueNodes([...safeCoreNodes, ...bibliographyNodes]).slice(0, 260);
+  const nodesForMappings = uniqueNodes(safeCoreNodes).slice(0, 260);
 
   return {
     nodesForPrompt,
@@ -949,9 +956,6 @@ ${nodeNames.join("\n")}`;
 
     if (nodePools.nodesForMappings.length > 0 && mappingIdByNodeId.size > 0) {
       const coreNodesForLinking = nodePools.coreNodes.filter((node) => mappingIdByNodeId.has(node.id));
-      const bibliographyNodesForLinking = nodePools.bibliographyNodes.filter((node) =>
-        mappingIdByNodeId.has(node.id)
-      );
 
       const linkRows = (planLessons as PlanLessonSummary[]).flatMap((lesson, index: number) => {
         const mappingIds = new Set<string>();
@@ -963,12 +967,6 @@ ${nodeNames.join("\n")}`;
           const secondMappingId = mappingIdByNodeId.get(secondNode.id);
           if (firstMappingId) mappingIds.add(firstMappingId);
           if (secondMappingId) mappingIds.add(secondMappingId);
-        }
-
-        if (bibliographyNodesForLinking.length > 0) {
-          const bibliographyNode = bibliographyNodesForLinking[index % bibliographyNodesForLinking.length];
-          const bibliographyMappingId = mappingIdByNodeId.get(bibliographyNode.id);
-          if (bibliographyMappingId) mappingIds.add(bibliographyMappingId);
         }
 
         if (mappingIds.size === 0) {

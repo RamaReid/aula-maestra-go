@@ -210,7 +210,15 @@ export default function Lesson() {
             .select("id, name, node_type, parent_id, order_index")
             .in("id", nodeIds)
             .order("order_index");
-          setMappedCurriculumNodes(((mappedNodes || []) as CurriculumNodeRow[]).filter((node) => !isNoiseNode(node.name)));
+          const visibleMappedNodes = ((mappedNodes || []) as CurriculumNodeRow[]).filter(
+            (node) => !isNoiseNode(node.name)
+          );
+          const bibliographyNodeIds = new Set(
+            extractProtocolBibliographyNodes(visibleMappedNodes).map((node) => node.id)
+          );
+          setMappedCurriculumNodes(
+            visibleMappedNodes.filter((node) => !bibliographyNodeIds.has(node.id))
+          );
         } else {
           setMappedCurriculumNodes([]);
         }
