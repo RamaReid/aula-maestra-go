@@ -290,7 +290,7 @@ export default function BriefForm({ lessonId, courseId, brief, onUpdate, planTyp
         const { data: processResult, error: processError } = await supabase.functions.invoke(
           "process-authorized-source",
           {
-            body: { source_id: createdSource.id },
+            body: { source_id: (createdSource as any).id },
           }
         );
 
