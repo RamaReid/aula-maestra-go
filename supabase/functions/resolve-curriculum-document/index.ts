@@ -215,8 +215,7 @@ async function searchLocalCandidates(
     .eq("province", body.province)
     .eq("cycle", body.cycle)
     .eq("year_level", body.year_level)
-    .eq("status", "VERIFIED")
-    .eq("source_provider", "ABC_PBA_WEB");
+    .eq("status", "VERIFIED");
 
   if (error) throw new Error(error.message);
   return ((data || []) as CurriculumCandidate[]).filter((candidate) => subjectsMatch(candidate.subject, body.subject));
