@@ -14,6 +14,7 @@ import CourseNew from "./pages/CourseNew";
 import Course from "./pages/Course";
 import Lesson from "./pages/Lesson";
 import CurriculumImport from "./pages/CurriculumImport";
+import Billing from "./pages/Billing";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -43,6 +44,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <CurriculumImport />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/billing"
+              element={
+                <ProtectedRoute>
+                  <Billing />
                 </ProtectedRoute>
               }
             />

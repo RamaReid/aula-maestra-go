@@ -101,6 +101,21 @@ Fecha de referencia: 2026-03-06
 | QA-TECH-03 | BE | Edge function `generate-materials` con fixture | Respuesta consistente | Pendiente |
 | QA-TECH-04 | BE | Error durante secuencia larga | Sin inconsistencias invisibles para el usuario | Pendiente |
 
+## 9. Billing y suscripciones
+
+| ID | Tipo | Escenario | Resultado esperado | Estado |
+| --- | --- | --- | --- | --- |
+| QA-BILL-01 | BILLING | Usuario FREE abre Billing | Ve plan actual, limites y CTA de upgrade | Pendiente |
+| QA-BILL-02 | BILLING | Checkout BASICO devuelve `init_point` | Redireccion correcta a Mercado Pago | Pendiente |
+| QA-BILL-03 | BILLING | Checkout PREMIUM devuelve `init_point` | Redireccion correcta a Mercado Pago | Pendiente |
+| QA-BILL-04 | WEBHOOK | Notificacion valida de suscripcion | `billing_events` queda en `PROCESSED` | Pendiente |
+| QA-BILL-05 | WEBHOOK | Firma invalida | Respuesta `401`, sin sync de suscripcion | Pendiente |
+| QA-BILL-06 | WEBHOOK | Topic no soportado | Evento auditado como `IGNORED` | Pendiente |
+| QA-BILL-07 | ENTITLEMENTS | Upgrade a BASICO | `user_entitlements` refleja BASICO | Pendiente |
+| QA-BILL-08 | ENTITLEMENTS | Upgrade a PREMIUM | `user_entitlements` refleja PREMIUM | Pendiente |
+| QA-BILL-09 | MANUAL | Solicitud manual desde Billing | Registro creado en `manual_payment_requests` | Pendiente |
+| QA-BILL-10 | BILLING | Vuelta desde Mercado Pago a `/billing` | La UI informa confirmacion pendiente sin romper | Pendiente |
+
 ## Defectos a vigilar
 
 - Diferencia real entre BASICO y PREMIUM.
@@ -108,3 +123,5 @@ Fecha de referencia: 2026-03-06
 - Importacion por URL externa no oficial.
 - Sesiones largas pagas con resultados parciales.
 - Universo bibliografico no suficientemente cerrado en backend por curso, clase o secuencia.
+- Billing sin reconciliacion periodica automatizada.
+- Falta de flujo productivo para cancelacion al fin de periodo.

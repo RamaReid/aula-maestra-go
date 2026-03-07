@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { LogOut, Plus, ChevronDown, BookOpen, Upload, Trash2, Archive, MoreVertical } from "lucide-react";
+import { LogOut, Plus, ChevronDown, BookOpen, Upload, Trash2, Archive, MoreVertical, CreditCard } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { PlanType, useEntitlements } from "@/hooks/useEntitlements";
 import { StatusBadge, planTone, planLabel } from "@/components/ui/StatusBadge";
@@ -47,7 +47,7 @@ const planReadableLabel: Record<string, string> = {
   BASICO: "Básico",
   PREMIUM: "Premium",
 };
-const QA_EMAIL = "rgarciareid@gmail.com";
+const QA_EMAILS = new Set(["rgarciareid@gmail.com", "bigscholl@test.docencia.ai"]);
 
 export default function Dashboard() {
   const { profile, logout } = useAuth();
@@ -150,7 +150,7 @@ export default function Dashboard() {
   const activeCourses = courses.filter((c) => c.status === "ACTIVE");
   const archivedCourses = courses.filter((c) => c.status === "ARCHIVED");
   const primaryFreeCourse = activeCourses[0] || null;
-  const isQaUser = (profile?.email || "").toLowerCase() === QA_EMAIL;
+  const isQaUser = QA_EMAILS.has((profile?.email || "").toLowerCase());
 
   const handlePlanSwitch = async (nextPlan: PlanType) => {
     if (!isQaUser || nextPlan === planType) return;
@@ -213,10 +213,18 @@ export default function Dashboard() {
             </div>
 
             <div className="flex justify-end">
-              <Button variant="ghost" size="sm" onClick={logout}>
-                <LogOut className="mr-2 h-4 w-4" />
-                Salir
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button asChild variant="outline" size="sm">
+                  <Link to="/billing">
+                    <CreditCard className="mr-2 h-4 w-4" />
+                    Billing
+                  </Link>
+                </Button>
+                <Button variant="ghost" size="sm" onClick={logout}>
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Salir
+                </Button>
+              </div>
             </div>
           </div>
         </header>
@@ -292,10 +300,18 @@ export default function Dashboard() {
               </Badge>
             )}
           </div>
-          <Button variant="ghost" size="sm" onClick={logout}>
-            <LogOut className="mr-2 h-4 w-4" />
-            Salir
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button asChild variant="outline" size="sm">
+              <Link to="/billing">
+                <CreditCard className="mr-2 h-4 w-4" />
+                Billing
+              </Link>
+            </Button>
+            <Button variant="ghost" size="sm" onClick={logout}>
+              <LogOut className="mr-2 h-4 w-4" />
+              Salir
+            </Button>
+          </div>
         </div>
       </header>
 
