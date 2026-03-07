@@ -35,7 +35,11 @@ export default function Login() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <Card className="w-full max-w-sm">
+      <div className="w-full max-w-sm space-y-4">
+        <p className="text-center text-2xl font-bold tracking-tight">
+          Docenc<span className="text-brand-accent">IA</span>
+        </p>
+      <Card>
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">Iniciar sesión</CardTitle>
           <CardDescription>Ingresá con tu cuenta para continuar</CardDescription>
