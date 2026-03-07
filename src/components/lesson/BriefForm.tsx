@@ -444,13 +444,13 @@ export default function BriefForm({ lessonId, courseId, brief, onUpdate, planTyp
         .select("id")
         .single();
 
-      if (sourceError || !createdSource?.id) {
+      if (sourceError || !(createdSource as any)?.id) {
         toast({ title: "No se pudo guardar la fuente aprobada", variant: "destructive" });
         return;
       }
 
       const { error: targetError } = await supabase.from("authorized_source_targets" as any).insert({
-        source_id: createdSource.id,
+        source_id: (createdSource as any).id,
         target_type: "LESSON",
         lesson_id: lessonId,
       });
