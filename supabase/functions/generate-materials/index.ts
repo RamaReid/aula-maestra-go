@@ -534,7 +534,16 @@ async function callAI(
     throw new Error(`AI gateway error ${resp.status}: ${text}`);
   }
 
-  return await resp.json();
+  const fullResponse = await resp.json();
+  try {
+    console.log("AI_USAGE_LOG", JSON.stringify({
+      model: fullResponse.model,
+      id: fullResponse.id,
+      usage: fullResponse.usage ?? null,
+      feature: "generate-materials",
+    }));
+  } catch (_) { /* best-effort logging */ }
+  return fullResponse;
 }
 
 function isMissingCurriculumColumnError(error: { message?: string } | null | undefined): boolean {
