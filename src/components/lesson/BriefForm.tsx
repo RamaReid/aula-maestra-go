@@ -97,9 +97,10 @@ type PremiumQueryRequestUpdate = {
   approved_at: string;
 };
 
-const AUTHORIZED_SOURCES_TABLE = "authorized_sources" as never;
-const AUTHORIZED_SOURCE_TARGETS_TABLE = "authorized_source_targets" as never;
-const PREMIUM_QUERY_REQUESTS_TABLE = "premium_query_requests" as never;
+// Tables not yet in Cloud DB — use `as any` to bypass strict typing until migrations are applied
+const AUTHORIZED_SOURCES_TABLE = "authorized_sources" as any;
+const AUTHORIZED_SOURCE_TARGETS_TABLE = "authorized_source_targets" as any;
+const PREMIUM_QUERY_REQUESTS_TABLE = "premium_query_requests" as any;
 
 function isMissingAuthorizedSourceIdsColumn(error: unknown): boolean {
   const message = formatErrorMessage(error, "").toLowerCase();

@@ -613,7 +613,11 @@ export default function Lesson() {
               {teachingMaterial && (
                 <div className="mt-6">
                   <TeachingMaterialView
-                    material={teachingMaterial}
+                    material={{
+                      ...teachingMaterial,
+                      activities: Array.isArray(teachingMaterial.activities) ? teachingMaterial.activities as any : [],
+                      differentiation: Array.isArray(teachingMaterial.differentiation) ? teachingMaterial.differentiation as any : [],
+                    }}
                     canExportPdf={canExportValidatedPdf}
                     exportFileName={`${lessonSlug}-material-didactico.pdf`}
                   />
