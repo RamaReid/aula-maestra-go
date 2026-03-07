@@ -8,6 +8,8 @@ interface Node {
   id: string;
   name: string;
   node_type: string;
+  parent_id: string | null;
+  order_index?: number;
 }
 
 interface AuthorizedSource {
@@ -59,6 +61,15 @@ function shouldHideNode(name: string): boolean {
   );
 }
 
+function isBibliographyHeading(name: string): boolean {
+  const normalized = normalizeName(name);
+  return (
+    normalized.includes("bibliografia") ||
+    normalized.includes("bibliografica") ||
+    normalized.includes("fuentes bibliograficas")
+  );
+}
+
 function isLikelyBibliographyEntry(name: string): boolean {
   if (shouldHideNode(name)) return false;
 
@@ -103,104 +114,74 @@ export default function BibliographySelector({
     const fetchNodes = async () => {
       setLoading(true);
 
-      const cleanCandidates = (rawNodes: Array<Node & { order_index?: number }>): Node[] => {
-        const bibliographyOnly = rawNodes.filter((node) => isLikelyBibliographyEntry(node.name));
-        const candidatePool =
-          bibliographyOnly.length > 0
-            ? bibliographyOnly
-            : rawNodes.filter((node) => ["CONTENIDO", "BLOQUE", "UNIDAD", "EJE"].includes(node.node_type));
-        const filtered = candidatePool.filter((node) => !shouldHideNode(node.name));
+      const cleanCandidates = (rawNodes: Node[]): Node[] => {
+        const childrenByParent = new Map<string, Node[]>();
+        rawNodes.forEach((node) => {
+          if (!node.parent_id) return;
+          const current = childrenByParent.get(node.parent_id) || [];
+          current.push(node);
+          childrenByParent.set(node.parent_id, current);
+        });
+
+        const bibliographyRootIds = rawNodes
+          .filter((node) => isBibliographyHeading(node.name))
+          .map((node) => node.id);
+
+        const bibliographyDescendantIds = new Set<string>();
+        const queue = [...bibliographyRootIds];
+        while (queue.length > 0) {
+          const parentId = queue.shift()!;
+          const children = childrenByParent.get(parentId) || [];
+          children.forEach((child) => {
+            bibliographyDescendantIds.add(child.id);
+            queue.push(child.id);
+          });
+        }
+
+        const subtreeBibliography = rawNodes.filter(
+          (node) =>
+            bibliographyDescendantIds.has(node.id) &&
+            node.node_type === "CONTENIDO" &&
+            !shouldHideNode(node.name)
+        );
+        const bibliographyOnly =
+          subtreeBibliography.length > 0
+            ? subtreeBibliography
+            : rawNodes.filter(
+                (node) =>
+                  node.node_type === "CONTENIDO" &&
+                  isLikelyBibliographyEntry(node.name) &&
+                  !shouldHideNode(node.name)
+              );
+
         const dedupMap = new Map<string, Node>();
-        filtered.forEach((node) => {
-          const key = `${node.node_type}:${normalizeName(node.name)}`;
+        bibliographyOnly.forEach((node) => {
+          const key = normalizeName(node.name);
           if (!dedupMap.has(key)) dedupMap.set(key, node);
         });
-        return Array.from(dedupMap.values());
-      };
-
-      const fetchNodesByIds = async (ids: string[]): Promise<Node[]> => {
-        const dedupedIds = Array.from(new Set(ids.filter(Boolean)));
-        if (dedupedIds.length === 0) return [];
-
-        const { data: nodesData } = await supabase
-          .from("curriculum_nodes")
-          .select("id, name, node_type, order_index")
-          .in("id", dedupedIds)
-          .order("order_index");
-
-        return cleanCandidates((nodesData || []) as Array<Node & { order_index?: number }>);
+        return Array.from(dedupMap.values()).sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
       };
 
       try {
-        const { data: plan } = await supabase.from("plans").select("id").eq("course_id", courseId).single();
-        if (!plan) {
+        const { data: course } = await supabase
+          .from("courses")
+          .select("curriculum_document_id")
+          .eq("id", courseId)
+          .maybeSingle();
+
+        if (!course?.curriculum_document_id) {
           setNodes([]);
           setAuthorizedSources([]);
           return;
         }
 
-        const nodeIdSources: string[][] = [];
+        const { data: documentNodes } = await supabase
+          .from("curriculum_nodes")
+          .select("id, name, node_type, parent_id, order_index")
+          .eq("curriculum_document_id", course.curriculum_document_id)
+          .order("order_index");
 
-        if (lessonId) {
-          const { data: lesson } = await supabase
-            .from("lessons")
-            .select("plan_lesson_id")
-            .eq("id", lessonId)
-            .maybeSingle();
-
-          if (lesson?.plan_lesson_id) {
-            const { data: links } = await supabase
-              .from("plan_lesson_content_links")
-              .select("plan_content_mapping_id")
-              .eq("plan_lesson_id", lesson.plan_lesson_id);
-
-            const mappingIds = (links || []).map((link) => link.plan_content_mapping_id);
-            if (mappingIds.length > 0) {
-              const { data: lessonMappings } = await supabase
-                .from("plan_content_mappings")
-                .select("curriculum_node_id")
-                .in("id", mappingIds);
-
-              nodeIdSources.push((lessonMappings || []).map((mapping) => mapping.curriculum_node_id));
-            }
-          }
-        }
-
-        const { data: planMappings } = await supabase
-          .from("plan_content_mappings")
-          .select("curriculum_node_id")
-          .eq("plan_id", plan.id);
-
-        if ((planMappings || []).length > 0) {
-          nodeIdSources.push((planMappings || []).map((mapping) => mapping.curriculum_node_id));
-        }
-
-        let resolvedCurriculumNodes: Node[] = [];
-        for (const sourceIds of nodeIdSources) {
-          const resolved = await fetchNodesByIds(sourceIds);
-          if (resolved.length > 0) {
-            resolvedCurriculumNodes = resolved;
-            break;
-          }
-        }
-
-        if (resolvedCurriculumNodes.length === 0) {
-          const { data: courseData, error: courseError } = await supabase
-            .from("courses")
-            .select("curriculum_document_id")
-            .eq("id", courseId)
-            .maybeSingle();
-
-          if (!courseError && courseData?.curriculum_document_id) {
-            const { data: documentNodes } = await supabase
-              .from("curriculum_nodes")
-              .select("id, name, node_type, order_index")
-              .eq("curriculum_document_id", courseData.curriculum_document_id)
-              .order("order_index");
-
-            resolvedCurriculumNodes = cleanCandidates((documentNodes || []) as Array<Node & { order_index?: number }>);
-          }
-        }
+        const resolvedCurriculumNodes = cleanCandidates((documentNodes || []) as Node[]);
 
         setNodes(resolvedCurriculumNodes);
 
@@ -285,13 +266,13 @@ export default function BibliographySelector({
                   disabled={disabled || (!selected.includes(node.id) && totalSelected >= MAX_SOURCES)}
                 />
                 <div className="text-sm">
-                  <span className="font-medium text-muted-foreground">[CURRICULAR]</span> {node.name}
+                  <span className="font-medium text-muted-foreground">[BIBLIOGRAFIA]</span> {node.name}
                 </div>
               </div>
             ))
           ) : (
             <p className="text-sm text-muted-foreground">
-              No hay fuentes curriculares limpias para esta clase. Revisa mapeos de contenidos en la anual.
+              No se encontro bibliografia extraida del diseno curricular. Revisa la importacion del documento o vuelve a sincronizar el programa.
             </p>
           )}
         </div>

@@ -47,6 +47,7 @@ type CurriculumNodeSelection = {
   name: string;
   node_type: string;
   curriculum_document_id: string | null;
+  parent_id: string | null;
 };
 
 type AuthorizedSourceSelection = {
@@ -128,6 +129,27 @@ function isLikelyBibliographySource(name: string): boolean {
   return hasAuthorPrefix && commaCount >= 2 && (hasYear || hasEditionFallback || commaCount >= 3);
 }
 
+function isBibliographyHeading(name: string): boolean {
+  const normalized = normalizeKey(name);
+  return (
+    normalized.includes("bibliografia") ||
+    normalized.includes("bibliografica") ||
+    normalized.includes("fuentes bibliograficas")
+  );
+}
+
+function shouldHideBibliographyNode(name: string): boolean {
+  const normalized = normalizeKey(name);
+  return (
+    normalized.startsWith("isbn") ||
+    normalized.startsWith("cdd") ||
+    normalized.startsWith("indice") ||
+    normalized.startsWith("equipo de especialistas") ||
+    normalized.startsWith("diseno curricular para") ||
+    normalized.startsWith("educacion secundaria")
+  );
+}
+
 function buildReadingSourcesParagraph(sourceLabels: string[]): string {
   const labels = sourceLabels
     .map((label) => (label || "").replace(/\s+/g, " ").trim())
@@ -176,6 +198,54 @@ function resolveCurriculumSelections(
   }
 
   return Array.from(resolved.values());
+}
+
+function extractBibliographyProtocolNodes(nodes: CurriculumNodeSelection[]): CurriculumNodeSelection[] {
+  const childrenByParent = new Map<string, CurriculumNodeSelection[]>();
+  nodes.forEach((node) => {
+    if (!node.parent_id) return;
+    const current = childrenByParent.get(node.parent_id) || [];
+    current.push(node);
+    childrenByParent.set(node.parent_id, current);
+  });
+
+  const bibliographyRootIds = nodes.filter((node) => isBibliographyHeading(node.name)).map((node) => node.id);
+  const bibliographyDescendantIds = new Set<string>();
+  const queue = [...bibliographyRootIds];
+
+  while (queue.length > 0) {
+    const parentId = queue.shift()!;
+    const children = childrenByParent.get(parentId) || [];
+    children.forEach((child) => {
+      bibliographyDescendantIds.add(child.id);
+      queue.push(child.id);
+    });
+  }
+
+  const subtreeBibliography = nodes.filter(
+    (node) =>
+      bibliographyDescendantIds.has(node.id) &&
+      node.node_type === "CONTENIDO" &&
+      !shouldHideBibliographyNode(node.name)
+  );
+
+  const bibliographyCandidates =
+    subtreeBibliography.length > 0
+      ? subtreeBibliography
+      : nodes.filter(
+          (node) =>
+            node.node_type === "CONTENIDO" &&
+            isLikelyBibliographySource(node.name) &&
+            !shouldHideBibliographyNode(node.name)
+        );
+
+  const unique = new Map<string, CurriculumNodeSelection>();
+  bibliographyCandidates.forEach((node) => {
+    const key = normalizeKey(node.name);
+    if (!unique.has(key)) unique.set(key, node);
+  });
+
+  return Array.from(unique.values());
 }
 
 function isAuthorizedSourceAllowedForPlan(planType: string, originType: string): boolean {
@@ -944,7 +1014,7 @@ serve(async (req) => {
       if (requestedBibliographyIds.length > 0) {
         const { data: fetchedNodes, error: fetchedNodesError } = await adminClient
           .from("curriculum_nodes")
-          .select("id, name, node_type, curriculum_document_id")
+          .select("id, name, node_type, curriculum_document_id, parent_id")
           .in("id", requestedBibliographyIds);
 
         if (fetchedNodesError) {
@@ -961,7 +1031,7 @@ serve(async (req) => {
         if (missingEntries.length > 0) {
           let fallbackQuery = adminClient
             .from("curriculum_nodes")
-            .select("id, name, node_type, curriculum_document_id");
+            .select("id, name, node_type, curriculum_document_id, parent_id");
 
           if (course.curriculum_document_id) {
             fallbackQuery = fallbackQuery.eq("curriculum_document_id", course.curriculum_document_id);
@@ -981,6 +1051,22 @@ serve(async (req) => {
         }
 
         nodes = resolveCurriculumSelections(requestedBibliographyIds, directNodes, fallbackNodes);
+        const protocolPool = fallbackNodes.length > 0 ? fallbackNodes : directNodes;
+        const allowedBibliographyIds = new Set(
+          extractBibliographyProtocolNodes(protocolPool).map((node) => node.id)
+        );
+
+        const invalidBibliographySelections = nodes.filter((node) => !allowedBibliographyIds.has(node.id));
+        if (invalidBibliographySelections.length > 0) {
+          await adminClient.from("lessons").update({ is_generating: false }).eq("id", lessonId);
+          return new Response(
+            JSON.stringify({
+              error:
+                "La bibliografia confirmada incluye contenidos curriculares que no pertenecen a la seccion de bibliografia del diseno. Reabre el brief y selecciona solo bibliografia del programa.",
+            }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
 
         if (nodes.length !== requestedBibliographyIds.length) {
           await adminClient.from("lessons").update({ is_generating: false }).eq("id", lessonId);
