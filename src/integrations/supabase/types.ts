@@ -297,6 +297,7 @@ export type Database = {
       }
       lesson_briefs: {
         Row: {
+          authorized_source_ids: string[]
           bibliografia_confirmada: string[]
           created_at: string
           enfoque_deseado: string
@@ -309,6 +310,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          authorized_source_ids?: string[]
           bibliografia_confirmada?: string[]
           created_at?: string
           enfoque_deseado?: string
@@ -321,6 +323,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          authorized_source_ids?: string[]
           bibliografia_confirmada?: string[]
           created_at?: string
           enfoque_deseado?: string
