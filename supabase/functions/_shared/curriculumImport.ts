@@ -559,6 +559,33 @@ async function replaceNodes(
   }
 }
 
+export async function repairCurriculumDocumentNodes(
+  adminClient: SupabaseClientLike,
+  curriculumDocumentId: string
+): Promise<{ node_count: number; bibliography_count: number }> {
+  const { data: document, error } = await adminClient
+    .from("curriculum_documents")
+    .select("id, raw_text")
+    .eq("id", curriculumDocumentId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+  if (!document?.raw_text || document.raw_text.trim().length < 500) {
+    throw new Error("El documento curricular no tiene raw_text suficiente para repararse.");
+  }
+
+  const nodes = extractCurriculumNodes(document.raw_text);
+  await replaceNodes(adminClient, curriculumDocumentId, nodes);
+
+  const bibliographyCount = nodes.filter((node) => node.nodeType === "CONTENIDO" && isLikelyBibliographyEntryStart(node.name, true)).length;
+  return {
+    node_count: nodes.length,
+    bibliography_count: bibliographyCount,
+  };
+}
+
 function resolveSourceProvider(payload: CurriculumImportPayload): string {
   if (payload.source_provider && payload.source_provider.trim().length > 0) {
     return payload.source_provider.trim();

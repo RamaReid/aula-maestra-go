@@ -56,6 +56,7 @@ export default function BibliographySelector({
   const [nodes, setNodes] = useState<Node[]>([]);
   const [authorizedSources, setAuthorizedSources] = useState<AuthorizedSource[]>([]);
   const [loading, setLoading] = useState(true);
+  const [repairAttempted, setRepairAttempted] = useState(false);
   const totalSelected = selected.length + selectedAuthorized.length;
   const canUseAuthorizedSources = planType === "BASICO" || planType === "PREMIUM";
 
@@ -82,7 +83,28 @@ export default function BibliographySelector({
           .eq("curriculum_document_id", course.curriculum_document_id)
           .order("order_index");
 
-        setNodes(extractBibliographyProtocolNodes((documentNodes || []) as Node[]));
+        const bibliographyNodes = extractBibliographyProtocolNodes((documentNodes || []) as Node[]);
+
+        if (bibliographyNodes.length === 0 && !repairAttempted) {
+          setRepairAttempted(true);
+          const { error: repairError } = await supabase.functions.invoke("repair-curriculum-bibliography", {
+            body: { course_id: courseId },
+          });
+
+          if (!repairError) {
+            const { data: repairedNodes } = await supabase
+              .from("curriculum_nodes")
+              .select("id, name, node_type, parent_id, order_index")
+              .eq("curriculum_document_id", course.curriculum_document_id)
+              .order("order_index");
+
+            setNodes(extractBibliographyProtocolNodes((repairedNodes || []) as Node[]));
+          } else {
+            setNodes([]);
+          }
+        } else {
+          setNodes(bibliographyNodes);
+        }
 
         if (canUseAuthorizedSources && lessonId) {
           const { data: targets, error: targetsError } = await supabase
@@ -123,7 +145,7 @@ export default function BibliographySelector({
     };
 
     fetchNodes();
-  }, [canUseAuthorizedSources, courseId, lessonId]);
+  }, [canUseAuthorizedSources, courseId, lessonId, repairAttempted]);
 
   useEffect(() => {
     onSelectionAudit?.({
