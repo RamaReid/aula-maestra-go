@@ -1,63 +1,60 @@
-fecha/hora: 2026-03-07T21:55:00Z
+fecha/hora: 2026-03-07T23:22:00Z
 project_ref: jsejuuyqjtevtoguljiv
 responsable: Lovable AI
 
-=== Precondiciones verificadas ===
+=== E2E Run — FyHyCyT 6to ===
 
-1. Usuario QA: rgarciareid@gmail.com (user_id: 7382fc69-6356-46c7-b956-13936853839c)
-   - Plan: PREMIUM / ACTIVE
-   - Entitlements: copiloto_mode=full, max_courses=9999, max_weekly_sessions=9999
+Usuario QA: rgarciareid@gmail.com (user_id: 7382fc69-6356-46c7-b956-13936853839c)
+Plan: PREMIUM / ACTIVE
 
-2. Curriculum documents disponibles (6):
-   - 2782a1bc-5366-479c-a8dd-9ba16992985f | Filosofia | 6to | UPPER
-   - a0000001-0000-0000-0000-000000000004 | Filosofía | 6to | UPPER
-   - a0000001-0000-0000-0000-000000000005 | Filosofía e Historia de la Ciencia y la Tecnología | 6to | UPPER
-   - a0000001-0000-0000-0000-000000000001 | Historia | 5to | UPPER
-   - a0000001-0000-0000-0000-000000000003 | Matemática | 6to | UPPER
-   - a0000001-0000-0000-0000-000000000002 | Matemática | 5to | UPPER
+--- IDs generados ---
 
-3. Curriculum nodes: 561
+school_id: (E.E.S. N 1 QA Test, COMUN, La Plata)
+course_id: b4f5f43d-faae-4953-854e-b9660abd0b9a
+  subject: Filosofía e Historia de la Ciencia y la Tecnología
+  year_level: 6
+  cycle: UPPER
+  status: ACTIVE
+  curriculum_document_id: a0000001-0000-0000-0000-000000000005
 
-4. Tablas operativas confirmadas:
-   - courses, plans, plan_lessons, plan_objectives, plan_content_mappings
-   - lessons, lesson_briefs, teaching_materials, reading_materials
-   - authorized_sources, authorized_source_targets
-   - subscriptions, user_entitlements, usage_counters
+plan_id: 4e95114a-ed71-4bda-8f76-c9f29f376994
+  status: VALIDATED
+  plan_lessons: 28
+  plan_objectives: generados por bootstrap
+  plan_content_mappings: 28 nodos curriculares
 
-5. Edge functions desplegadas y respondiendo (sin errores de import):
-   - import-curriculum-pdf
-   - process-authorized-source
-   - repair-curriculum-bibliography
-   - bootstrap-course-plan (pre-existente)
-   - generate-materials (pre-existente)
+lessons: 28 (status: PLANNED)
+  lesson_1_id: b1b122c0-4161-414c-9e5a-3ffd97913ea8
+    theme: La ciencia en el imaginario popular
 
-=== Ruta E2E paso a paso ===
+--- Pasos completados ---
 
-Paso 1: Crear curso
-  - POST desde frontend: CourseNew.tsx
-  - Requiere: school_id, subject, year_level, academic_year, curriculum_document_id
-  - Resultado esperado: course_id (UUID)
+| Paso | Resultado | Evidencia |
+|---|---|---|
+| 1. Crear curso (wizard 7 pasos) | ✅ Completado | course_id arriba |
+| 2. Bootstrap plan (edge function) | ✅ Completado | plan con fundamentacion 3178 chars |
+| 3. Validar plan (RPC validate_plan) | ✅ Completado | plan_status = VALIDATED, 28 lessons creadas |
+| 4. Brief (Paso 1 Relevamiento) | ⏳ Pendiente | Sin bibliografia curricular extraida del doc MANUAL |
+| 5. Confirmar brief | ⏳ Pendiente | Depende de paso 4 |
+| 6. Generar materiales | ⏳ Pendiente | Depende de paso 5 |
 
-Paso 2: Bootstrap plan
-  - Invocar edge function bootstrap-course-plan con course_id
-  - Resultado esperado: plan creado con plan_lessons, plan_objectives, plan_content_mappings
+--- Bugs encontrados y corregidos ---
 
-Paso 3: Validar plan
-  - RPC validate_plan(plan_id)
-  - Resultado esperado: plan.status = 'VALIDATED', lessons creadas
+BUG-1: resolve-curriculum-document filtraba por source_provider='ABC_PBA_WEB'
+  Excluia documentos MANUAL y ABC_PBA_UPLOAD.
+  Fix: Removido filtro .eq("source_provider", "ABC_PBA_WEB").
+  Archivo: supabase/functions/resolve-curriculum-document/index.ts
+  Deploy: exitoso.
 
-Paso 4: Crear brief
-  - INSERT en lesson_briefs con lesson_id
-  - Campos: enfoque_deseado, nivel_profundidad, bibliografia_confirmada, tipo_dinamica_sugerida
+--- Bloqueante para pasos 4-6 ---
 
-Paso 5: Confirmar brief
-  - UPDATE lesson_briefs SET status = 'READY_FOR_PRODUCTION'
+El curriculum_document importado via PDF (MANUAL) no tiene bibliografia
+extraida en curriculum_nodes como nodos tipo CONTENIDO con texto seleccionable
+para el BibliographySelector. El brief requiere 2-5 fuentes curriculares
+confirmadas para habilitar "Confirmar relevamiento".
 
-Paso 6: Generar materiales
-  - Invocar edge function generate-materials con lesson_id
-  - Resultado esperado: teaching_material_id + reading_material_id
-
-=== Estado actual ===
-No hay cursos creados aun (courses count = 0).
-El flujo E2E requiere interaccion del usuario QA en el frontend.
-Todas las precondiciones estan satisfechas para ejecutarlo.
+Proximos pasos:
+- Insertar nodos de bibliografia de prueba o usar autocompletar brief
+- Completar brief, confirmar, generar materiales
+- Capturar AI_USAGE_LOG de generate-materials
+- Revertir instrumentacion temporal
