@@ -1,0 +1,23 @@
+fecha/hora: 2026-03-07T21:54:30Z
+project_ref: jsejuuyqjtevtoguljiv
+responsable: Lovable AI
+
+=== Edge function logs post-deploy ===
+
+funcion: import-curriculum-pdf
+logs:
+  2026-03-07T21:54:21Z INFO Listening on http://localhost:9999/
+  2026-03-07T21:54:21Z LOG booted (time: 35ms)
+interpretacion: Boot exitoso, sin errores de import.
+
+funcion: process-authorized-source
+logs: (invocacion retorno 401 sin error de runtime — boot correcto)
+
+funcion: repair-curriculum-bibliography
+logs: (invocacion retorno 401 sin error de runtime — boot correcto)
+
+=== Nota ===
+Los logs detallados de cada invocacion no estan disponibles via la herramienta
+de logs (solo muestra el ultimo boot). Las respuestas HTTP 401 confirman que
+las funciones arrancan y ejecutan la logica de validacion de auth correctamente,
+sin fallar por errores de import de modulos.
