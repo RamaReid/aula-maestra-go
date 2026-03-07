@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { LogOut, Plus, ChevronDown, BookOpen, Upload, Trash2, Archive } from "lucide-react";
+import { LogOut, Plus, ChevronDown, BookOpen, Upload, Trash2, Archive, MoreVertical } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { PlanType, useEntitlements } from "@/hooks/useEntitlements";
 import { StatusBadge, planTone, planLabel } from "@/components/ui/StatusBadge";
