@@ -272,13 +272,13 @@ export default function BriefForm({ lessonId, courseId, brief, onUpdate, planTyp
           .insert(sourcePayload)
           .select("id")
           .single();
-        if (sourceError || !createdSource?.id) {
+        if (sourceError || !(createdSource as any)?.id) {
           failedCount += 1;
           continue;
         }
 
         const { error: targetError } = await supabase.from("authorized_source_targets" as any).insert({
-          source_id: createdSource.id,
+          source_id: (createdSource as any).id,
           target_type: "LESSON",
           lesson_id: lessonId,
         });
@@ -290,7 +290,7 @@ export default function BriefForm({ lessonId, courseId, brief, onUpdate, planTyp
         const { data: processResult, error: processError } = await supabase.functions.invoke(
           "process-authorized-source",
           {
-            body: { source_id: createdSource.id },
+            body: { source_id: (createdSource as any).id },
           }
         );
 
@@ -300,7 +300,7 @@ export default function BriefForm({ lessonId, courseId, brief, onUpdate, planTyp
         }
 
         processedCount += 1;
-        createdSourceIds.push(createdSource.id as string);
+        createdSourceIds.push((createdSource as any).id as string);
       }
 
       if (createdSourceIds.length > 0) {
@@ -409,7 +409,7 @@ export default function BriefForm({ lessonId, courseId, brief, onUpdate, planTyp
         .select("id, source_url")
         .in("id", authorizedSources);
 
-      if (((existing || []) as Array<{ id: string; source_url: string | null }>).some((row) => row.source_url === candidate.url)) {
+      if (((existing || []) as unknown as Array<{ id: string; source_url: string | null }>).some((row) => row.source_url === candidate.url)) {
         toast({ title: "Esta fuente ya fue agregada en la clase", variant: "destructive" });
         return;
       }
@@ -444,13 +444,13 @@ export default function BriefForm({ lessonId, courseId, brief, onUpdate, planTyp
         .select("id")
         .single();
 
-      if (sourceError || !createdSource?.id) {
+      if (sourceError || !(createdSource as any)?.id) {
         toast({ title: "No se pudo guardar la fuente aprobada", variant: "destructive" });
         return;
       }
 
       const { error: targetError } = await supabase.from("authorized_source_targets" as any).insert({
-        source_id: createdSource.id,
+        source_id: (createdSource as any).id,
         target_type: "LESSON",
         lesson_id: lessonId,
       });
@@ -476,7 +476,7 @@ export default function BriefForm({ lessonId, courseId, brief, onUpdate, planTyp
         });
       }
 
-      setAuthorizedSources((prev) => Array.from(new Set([...prev, createdSource.id as string])));
+      setAuthorizedSources((prev) => Array.from(new Set([...prev, (createdSource as any).id as string])));
       toast({ title: "Fuente premium aprobada y agregada" });
       onUpdate();
     } catch {

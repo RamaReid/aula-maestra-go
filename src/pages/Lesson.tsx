@@ -168,11 +168,12 @@ export default function Lesson() {
       setBibliographyNodes([]);
     }
 
-    if (briefRes.data?.authorized_source_ids?.length > 0) {
+    const briefData = briefRes.data as any;
+    if (briefData?.authorized_source_ids?.length > 0) {
       const { data: sources } = await supabase
         .from("authorized_sources" as any)
         .select("id, title, media_type, origin_type, status")
-        .in("id", briefRes.data.authorized_source_ids)
+        .in("id", briefData.authorized_source_ids)
         .order("created_at", { ascending: false });
       setAuthorizedSourceNodes((sources || []) as any[]);
     } else {
