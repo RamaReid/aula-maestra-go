@@ -1,25 +1,24 @@
 
 
-# Redeploy de Edge Functions
+# Fix build errors + verify ABC curriculum access
 
-El codigo fuente ya contiene todas las funcionalidades descritas. Solo falta forzar el redeploy de ambas edge functions para que el entorno de ejecucion refleje la version actual del repositorio.
+## Two build fixes
 
-## Paso 1: Redeploy `bootstrap-course-plan`
-Forzar deploy de la edge function. Incluye:
-- Filtrado de ruido institucional/portada (`isCurriculumNoiseNode`, `isCurriculumNoiseText`)
-- Separacion de nodos curriculares vs bibliograficos (`buildNodePools`)
-- Fix de tipado `adminClient: any`
+### 1. `supabase/functions/process-authorized-source/index.ts` line 4
+Change `npm:mammoth@1.8.0` to `https://esm.sh/mammoth@1.8.0` (esm.sh works in Deno edge functions without deno.json config).
 
-## Paso 2: Redeploy `generate-materials`
-Forzar deploy de la edge function. Incluye:
-- Validacion de bibliografia real (`isLikelyBibliographySource`)
-- Parrafo final de trazabilidad (`buildReadingSourcesParagraph`)
-- Tags `data-ref` obligatorios en validacion
-- Validacion de "Fuentes de base del texto" en `validateReadingMaterial`
+### 2. `src/pages/Billing.tsx` line 165
+Add double-cast: `as unknown as ManualPaymentRequestRow[]` to fix the TypeScript overlap error.
 
-## Paso 3: Verificacion post-deploy
-- Confirmar logs de ambas funciones sin errores
-- Probar generacion de materiales en una leccion con brief confirmado
+## Verify ABC curriculum access
 
-No hay cambios de codigo necesarios. Solo redeploy.
+After fixing the build, invoke the `resolve-curriculum-document` edge function to test connectivity to the official ABC index URLs:
+- `https://abc.gob.ar/secretarias/areas/subsecretaria-de-educacion/educacion-secundaria/educacion-secundaria/disenos-curriculares`
+- `https://servicios.abc.gov.ar/lainstitucion/organismos/consejogeneral/disenioscurriculares/secundaria/`
+
+I will fetch both URLs to verify they are reachable and returning curriculum content.
+
+## Files to modify
+- `supabase/functions/process-authorized-source/index.ts` (line 4)
+- `src/pages/Billing.tsx` (line 165)
 
