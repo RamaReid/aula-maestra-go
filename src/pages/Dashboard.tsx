@@ -260,24 +260,7 @@ export default function Dashboard() {
               </h1>
               <p className="text-sm text-muted-foreground">{profile?.email}</p>
             </div>
-            {isQaUser ? (
-              <div className="w-[180px]">
-                <Select value={planType} onValueChange={(value) => handlePlanSwitch(value as PlanType)} disabled={switchingPlan}>
-                  <SelectTrigger className="h-8">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="FREE">FREE</SelectItem>
-                    <SelectItem value="BASICO">BASICO</SelectItem>
-                    <SelectItem value="PREMIUM">PREMIUM</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            ) : (
-              <Badge variant={planBadgeVariant[planType] || "outline"} className="text-xs">
-                {planReadableLabel[planType] || planType}
-              </Badge>
-            )}
+            <PlanSwitcher planType={planType} isQaUser={isQaUser} switchingPlan={switchingPlan} onPlanSwitch={handlePlanSwitch} />
           </div>
           <div className="flex items-center gap-2">
             <Button asChild variant="outline" size="sm">
