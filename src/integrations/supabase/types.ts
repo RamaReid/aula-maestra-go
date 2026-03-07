@@ -127,6 +127,59 @@ export type Database = {
           },
         ]
       }
+      billing_events: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          event_type: string
+          id: string
+          payload: Json
+          processed_at: string | null
+          provider: Database["public"]["Enums"]["billing_provider"]
+          provider_event_id: string | null
+          provider_subscription_id: string | null
+          status: Database["public"]["Enums"]["billing_event_status"]
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          event_type: string
+          id?: string
+          payload?: Json
+          processed_at?: string | null
+          provider: Database["public"]["Enums"]["billing_provider"]
+          provider_event_id?: string | null
+          provider_subscription_id?: string | null
+          status?: Database["public"]["Enums"]["billing_event_status"]
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          event_type?: string
+          id?: string
+          payload?: Json
+          processed_at?: string | null
+          provider?: Database["public"]["Enums"]["billing_provider"]
+          provider_event_id?: string | null
+          provider_subscription_id?: string | null
+          status?: Database["public"]["Enums"]["billing_event_status"]
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_events_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       courses: {
         Row: {
           academic_year: number
@@ -430,6 +483,75 @@ export type Database = {
             columns: ["plan_lesson_id"]
             isOneToOne: false
             referencedRelation: "plan_lessons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      manual_payment_requests: {
+        Row: {
+          billing_name: string | null
+          created_at: string
+          expires_at: string | null
+          id: string
+          notes: string | null
+          proof_storage_path: string | null
+          requested_plan: Database["public"]["Enums"]["plan_type"]
+          requested_provider: Database["public"]["Enums"]["billing_provider"]
+          review_notes: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: Database["public"]["Enums"]["manual_payment_status"]
+          tax_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          billing_name?: string | null
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          notes?: string | null
+          proof_storage_path?: string | null
+          requested_plan: Database["public"]["Enums"]["plan_type"]
+          requested_provider?: Database["public"]["Enums"]["billing_provider"]
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: Database["public"]["Enums"]["manual_payment_status"]
+          tax_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          billing_name?: string | null
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          notes?: string | null
+          proof_storage_path?: string | null
+          requested_plan?: Database["public"]["Enums"]["plan_type"]
+          requested_provider?: Database["public"]["Enums"]["billing_provider"]
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: Database["public"]["Enums"]["manual_payment_status"]
+          tax_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "manual_payment_requests_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "manual_payment_requests_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -834,30 +956,66 @@ export type Database = {
       }
       subscriptions: {
         Row: {
+          billing_email: string | null
+          cancel_at_period_end: boolean
           created_at: string
+          current_period_end: string | null
+          current_period_start: string | null
           end_date: string | null
           id: string
+          last_invoice_url: string | null
+          last_payment_at: string | null
+          last_payment_status: string | null
+          metadata: Json
           plan_type: Database["public"]["Enums"]["plan_type"]
+          provider: Database["public"]["Enums"]["billing_provider"]
+          provider_customer_id: string | null
+          provider_plan_id: string | null
+          provider_subscription_id: string | null
           start_date: string
           status: Database["public"]["Enums"]["subscription_status"]
           updated_at: string
           user_id: string
         }
         Insert: {
+          billing_email?: string | null
+          cancel_at_period_end?: boolean
           created_at?: string
+          current_period_end?: string | null
+          current_period_start?: string | null
           end_date?: string | null
           id?: string
+          last_invoice_url?: string | null
+          last_payment_at?: string | null
+          last_payment_status?: string | null
+          metadata?: Json
           plan_type?: Database["public"]["Enums"]["plan_type"]
+          provider?: Database["public"]["Enums"]["billing_provider"]
+          provider_customer_id?: string | null
+          provider_plan_id?: string | null
+          provider_subscription_id?: string | null
           start_date?: string
           status?: Database["public"]["Enums"]["subscription_status"]
           updated_at?: string
           user_id: string
         }
         Update: {
+          billing_email?: string | null
+          cancel_at_period_end?: boolean
           created_at?: string
+          current_period_end?: string | null
+          current_period_start?: string | null
           end_date?: string | null
           id?: string
+          last_invoice_url?: string | null
+          last_payment_at?: string | null
+          last_payment_status?: string | null
+          metadata?: Json
           plan_type?: Database["public"]["Enums"]["plan_type"]
+          provider?: Database["public"]["Enums"]["billing_provider"]
+          provider_customer_id?: string | null
+          provider_plan_id?: string | null
+          provider_subscription_id?: string | null
           start_date?: string
           status?: Database["public"]["Enums"]["subscription_status"]
           updated_at?: string
@@ -1016,6 +1174,53 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_upsert_billing_subscription: {
+        Args: {
+          p_billing_email?: string
+          p_cancel_at_period_end?: boolean
+          p_current_period_end?: string
+          p_current_period_start?: string
+          p_last_invoice_url?: string
+          p_last_payment_at?: string
+          p_last_payment_status?: string
+          p_metadata?: Json
+          p_plan: Database["public"]["Enums"]["plan_type"]
+          p_provider?: Database["public"]["Enums"]["billing_provider"]
+          p_provider_customer_id?: string
+          p_provider_plan_id?: string
+          p_provider_subscription_id?: string
+          p_status: Database["public"]["Enums"]["subscription_status"]
+          p_user_id: string
+        }
+        Returns: {
+          billing_email: string | null
+          cancel_at_period_end: boolean
+          created_at: string
+          current_period_end: string | null
+          current_period_start: string | null
+          end_date: string | null
+          id: string
+          last_invoice_url: string | null
+          last_payment_at: string | null
+          last_payment_status: string | null
+          metadata: Json
+          plan_type: Database["public"]["Enums"]["plan_type"]
+          provider: Database["public"]["Enums"]["billing_provider"]
+          provider_customer_id: string | null
+          provider_plan_id: string | null
+          provider_subscription_id: string | null
+          start_date: string
+          status: Database["public"]["Enums"]["subscription_status"]
+          updated_at: string
+          user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "subscriptions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       demo_contract_check: { Args: { p_plan_id: string }; Returns: Json }
       has_role: {
         Args: {
@@ -1079,6 +1284,8 @@ export type Database = {
     }
     Enums: {
       app_role: "docente" | "admin"
+      billing_event_status: "RECEIVED" | "PROCESSED" | "IGNORED" | "FAILED"
+      billing_provider: "MANUAL" | "MERCADO_PAGO" | "STRIPE"
       brief_status: "IN_PROGRESS" | "READY_FOR_PRODUCTION" | "PRODUCED"
       copiloto_mode: "none" | "limited" | "full"
       course_status: "ACTIVE" | "ARCHIVED"
@@ -1087,6 +1294,11 @@ export type Database = {
       curriculum_status: "VERIFIED" | "DEPRECATED"
       depth_level: "BAJO" | "MEDIO" | "ALTO"
       lesson_status: "PLANNED" | "TAUGHT" | "RESCHEDULED" | "LOCKED"
+      manual_payment_status:
+        | "PENDING_REVIEW"
+        | "APPROVED"
+        | "REJECTED"
+        | "EXPIRED"
       material_status: "GENERATED" | "VALIDATED" | "INVALIDATED" | "EDITED"
       plan_status: "INCOMPLETE" | "VALIDATED" | "EDITED"
       plan_type: "FREE" | "BASICO" | "PREMIUM"
@@ -1220,6 +1432,8 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["docente", "admin"],
+      billing_event_status: ["RECEIVED", "PROCESSED", "IGNORED", "FAILED"],
+      billing_provider: ["MANUAL", "MERCADO_PAGO", "STRIPE"],
       brief_status: ["IN_PROGRESS", "READY_FOR_PRODUCTION", "PRODUCED"],
       copiloto_mode: ["none", "limited", "full"],
       course_status: ["ACTIVE", "ARCHIVED"],
@@ -1228,6 +1442,12 @@ export const Constants = {
       curriculum_status: ["VERIFIED", "DEPRECATED"],
       depth_level: ["BAJO", "MEDIO", "ALTO"],
       lesson_status: ["PLANNED", "TAUGHT", "RESCHEDULED", "LOCKED"],
+      manual_payment_status: [
+        "PENDING_REVIEW",
+        "APPROVED",
+        "REJECTED",
+        "EXPIRED",
+      ],
       material_status: ["GENERATED", "VALIDATED", "INVALIDATED", "EDITED"],
       plan_status: ["INCOMPLETE", "VALIDATED", "EDITED"],
       plan_type: ["FREE", "BASICO", "PREMIUM"],
