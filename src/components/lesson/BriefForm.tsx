@@ -272,13 +272,13 @@ export default function BriefForm({ lessonId, courseId, brief, onUpdate, planTyp
           .insert(sourcePayload)
           .select("id")
           .single();
-        if (sourceError || !createdSource?.id) {
+        if (sourceError || !(createdSource as any)?.id) {
           failedCount += 1;
           continue;
         }
 
         const { error: targetError } = await supabase.from("authorized_source_targets" as any).insert({
-          source_id: createdSource.id,
+          source_id: (createdSource as any).id,
           target_type: "LESSON",
           lesson_id: lessonId,
         });
