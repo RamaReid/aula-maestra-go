@@ -162,7 +162,7 @@ export default function Billing() {
     ]);
 
     setSubscription((subscriptionRes.data as SubscriptionRow | null) || null);
-    setRequests((requestsRes.data as ManualPaymentRequestRow[] | null) || []);
+    setRequests((requestsRes.data as unknown as ManualPaymentRequestRow[] | null) || []);
     setLoading(false);
   }, [user]);
 
