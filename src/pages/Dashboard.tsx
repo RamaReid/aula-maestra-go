@@ -43,16 +43,6 @@ type CourseQueryRow = Pick<Tables<"courses">, "id" | "subject" | "year_level" | 
   plans: { status: string } | null;
 };
 
-const planBadgeVariant: Record<string, "default" | "secondary" | "outline"> = {
-  FREE: "outline",
-  BASICO: "secondary",
-  PREMIUM: "default",
-};
-const planReadableLabel: Record<string, string> = {
-  FREE: "Gratis",
-  BASICO: "Básico",
-  PREMIUM: "Premium",
-};
 const QA_EMAILS = new Set(["rgarciareid@gmail.com", "bigscholl@test.docencia.ai"]);
 
 export default function Dashboard() {
