@@ -14,6 +14,7 @@ import PlanObjectivesEditor from "./PlanObjectivesEditor";
 import PlanLessonsEditor from "./PlanLessonsEditor";
 import { InlineValidationSummary } from "@/components/ui/InlineValidationSummary";
 import type { Tables } from "@/integrations/supabase/types";
+import { formatErrorMessage } from "@/lib/errors";
 
 interface PlanData {
   fundamentacion: string;
@@ -49,10 +50,6 @@ interface Props {
 }
 
 type PlanStatus = Tables<"plans">["status"];
-
-function getErrorMessage(error: unknown, fallback = "Error desconocido"): string {
-  return error instanceof Error ? error.message : fallback;
-}
 
 function buildRepairGuidance(errors: string[]) {
   const steps: string[] = [];
@@ -303,7 +300,7 @@ export default function PlanEditor({
     } catch (err: unknown) {
       toast({
         title: "No se pudo reconstruir el borrador",
-        description: getErrorMessage(err),
+        description: formatErrorMessage(err),
         variant: "destructive",
       });
     } finally {
@@ -340,7 +337,7 @@ export default function PlanEditor({
       });
       onValidated();
     } catch (err: unknown) {
-      toast({ title: "Error", description: getErrorMessage(err), variant: "destructive" });
+      toast({ title: "Error", description: formatErrorMessage(err), variant: "destructive" });
     } finally {
       setValidating(false);
     }

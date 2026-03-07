@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { formatErrorMessage } from "@/lib/errors";
 
 export default function Register() {
   const { user, loading, signup } = useAuth();
@@ -23,7 +24,7 @@ export default function Register() {
     const { error } = await lovable.auth.signInWithOAuth("google", {
       redirect_uri: window.location.origin,
     });
-    if (error) setError(error instanceof Error ? error.message : String(error));
+    if (error) setError(formatErrorMessage(error));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

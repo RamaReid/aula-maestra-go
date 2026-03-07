@@ -18,6 +18,7 @@ import { StepHeader } from "@/components/ui/StepHeader";
 import { SkeletonList } from "@/components/ui/SkeletonList";
 import { ThinkingBook } from "@/components/ui/ThinkingBook";
 import type { Tables } from "@/integrations/supabase/types";
+import { formatErrorMessage, formatFunctionErrorMessage } from "@/lib/errors";
 
 type LessonRow = Tables<"lessons">;
 type PlanLessonRow = Tables<"plan_lessons">;
@@ -34,24 +35,12 @@ type AuthorizedSourceRow = {
   origin_type: string | null;
   status: string | null;
 };
-type FunctionInvokeErrorLike = {
-  message?: string;
-  context?: Response;
-};
 type GenerateMaterialsResponse = {
   error?: string;
   reading_pdf_base64?: string;
 };
 
 const AUTHORIZED_SOURCES_TABLE = "authorized_sources" as never;
-
-function isFunctionInvokeErrorLike(error: unknown): error is FunctionInvokeErrorLike {
-  return typeof error === "object" && error !== null;
-}
-
-function getErrorMessage(error: unknown, fallback = "Error desconocido"): string {
-  return error instanceof Error ? error.message : fallback;
-}
 
 function extractCanonSummary(activitiesSummary?: string | null, fallbackTheme?: string | null) {
   const summary = (activitiesSummary || "").trim();
@@ -101,25 +90,6 @@ function isNoiseNode(name: string): boolean {
     normalized.includes("directoraprovincial") ||
     normalized.includes("autoridades")
   );
-}
-
-async function parseFunctionErrorMessage(error: unknown): Promise<string> {
-  if (!error) return "Error desconocido";
-  if (isFunctionInvokeErrorLike(error) && typeof error.message === "string" && !error.context) {
-    return error.message;
-  }
-
-  try {
-    const context = isFunctionInvokeErrorLike(error) ? error.context : undefined;
-    if (context) {
-      const payload = await context.json();
-      if (payload?.error) return payload.error;
-    }
-  } catch {
-    // Ignore context parsing errors.
-  }
-
-  return isFunctionInvokeErrorLike(error) && typeof error.message === "string" ? error.message : "Error desconocido";
 }
 
 export default function Lesson() {
@@ -231,7 +201,7 @@ export default function Lesson() {
       if (error) {
         toast({
           title: "Error al generar",
-          description: await parseFunctionErrorMessage(error),
+          description: await formatFunctionErrorMessage(error),
           variant: "destructive",
         });
         return;
@@ -247,7 +217,7 @@ export default function Lesson() {
       toast({ title: "Materiales generados correctamente" });
       fetchData();
     } catch (err: unknown) {
-      toast({ title: "Error", description: getErrorMessage(err), variant: "destructive" });
+      toast({ title: "Error", description: formatErrorMessage(err), variant: "destructive" });
       fetchData();
     }
   };
@@ -260,7 +230,7 @@ export default function Lesson() {
       if (error) {
         toast({
           title: "Error al regenerar",
-          description: await parseFunctionErrorMessage(error),
+          description: await formatFunctionErrorMessage(error),
           variant: "destructive",
         });
         return;
@@ -273,7 +243,7 @@ export default function Lesson() {
       toast({ title: "Material didáctico regenerado" });
       fetchData();
     } catch (err: unknown) {
-      toast({ title: "Error", description: getErrorMessage(err), variant: "destructive" });
+      toast({ title: "Error", description: formatErrorMessage(err), variant: "destructive" });
       fetchData();
     }
   };
@@ -286,7 +256,7 @@ export default function Lesson() {
       if (error) {
         toast({
           title: "Error al regenerar",
-          description: await parseFunctionErrorMessage(error),
+          description: await formatFunctionErrorMessage(error),
           variant: "destructive",
         });
         return;
@@ -302,7 +272,7 @@ export default function Lesson() {
       toast({ title: "Material de lectura regenerado" });
       fetchData();
     } catch (err: unknown) {
-      toast({ title: "Error", description: getErrorMessage(err), variant: "destructive" });
+      toast({ title: "Error", description: formatErrorMessage(err), variant: "destructive" });
       fetchData();
     }
   };

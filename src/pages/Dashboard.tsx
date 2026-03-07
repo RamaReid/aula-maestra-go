@@ -27,6 +27,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import type { Tables } from "@/integrations/supabase/types";
+import { formatErrorMessage } from "@/lib/errors";
 
 interface CourseWithDetails {
   id: string;
@@ -119,7 +120,7 @@ export default function Dashboard() {
     } catch (error) {
       toast({
         title: "No se pudo archivar el curso",
-        description: error instanceof Error ? error.message : "Error desconocido",
+        description: formatErrorMessage(error),
         variant: "destructive",
       });
     } finally {
@@ -145,7 +146,7 @@ export default function Dashboard() {
     } catch (error) {
       toast({
         title: "No se pudo eliminar el curso",
-        description: error instanceof Error ? error.message : "Error desconocido",
+        description: formatErrorMessage(error),
         variant: "destructive",
       });
     } finally {
@@ -177,7 +178,7 @@ export default function Dashboard() {
     } catch (error) {
       toast({
         title: "No se pudo cambiar el plan de prueba",
-        description: error instanceof Error ? error.message : "Error desconocido",
+        description: formatErrorMessage(error),
         variant: "destructive",
       });
     } finally {

@@ -9,6 +9,7 @@ import { toast } from "@/hooks/use-toast";
 import BibliographySelector from "./BibliographySelector";
 import type { PlanType } from "@/hooks/useEntitlements";
 import type { Json, Tables, TablesInsert } from "@/integrations/supabase/types";
+import { formatErrorMessage, formatFunctionErrorMessage, logError } from "@/lib/errors";
 
 interface BriefFormProps {
   lessonId: string;
@@ -95,25 +96,12 @@ type PremiumQueryRequestUpdate = {
   approved_at: string;
 };
 
-type FunctionInvokeErrorLike = {
-  message?: string;
-  context?: Response;
-};
-
 const AUTHORIZED_SOURCES_TABLE = "authorized_sources" as never;
 const AUTHORIZED_SOURCE_TARGETS_TABLE = "authorized_source_targets" as never;
 const PREMIUM_QUERY_REQUESTS_TABLE = "premium_query_requests" as never;
 
-function isFunctionInvokeErrorLike(error: unknown): error is FunctionInvokeErrorLike {
-  return typeof error === "object" && error !== null;
-}
-
-function getErrorMessage(error: unknown, fallback = "Error desconocido"): string {
-  return error instanceof Error ? error.message : fallback;
-}
-
 function isMissingAuthorizedSourceIdsColumn(error: unknown): boolean {
-  const message = getErrorMessage(error, "").toLowerCase();
+  const message = formatErrorMessage(error, "").toLowerCase();
   return message.includes("authorized_source_ids") && (
     message.includes("column") ||
     message.includes("schema cache") ||
@@ -156,25 +144,6 @@ function isLikelyVideoCandidate(candidate: PremiumCandidate, resourceType: strin
     domain.includes("vimeo.com") ||
     domain.includes("dailymotion.com")
   );
-}
-
-async function parseFunctionErrorMessage(error: unknown): Promise<string> {
-  if (!error) return "Error desconocido";
-  if (isFunctionInvokeErrorLike(error) && typeof error.message === "string" && !error.context) {
-    return error.message;
-  }
-
-  try {
-    const context = isFunctionInvokeErrorLike(error) ? error.context : undefined;
-    if (context) {
-      const payload = await context.json();
-      if (payload?.error) return payload.error;
-    }
-  } catch {
-    // Ignore context parsing errors.
-  }
-
-  return isFunctionInvokeErrorLike(error) && typeof error.message === "string" ? error.message : "Error desconocido";
 }
 
 function normalizeSentence(value: string | null | undefined): string {
@@ -391,7 +360,8 @@ export default function BriefForm({
       toast({ title: "Relevamiento guardado" });
       onUpdate();
     } catch (error) {
-      toast({ title: "Error al guardar", description: getErrorMessage(error), variant: "destructive" });
+      logError("Brief save failed", error, { lessonId });
+      toast({ title: "Error al guardar", description: formatErrorMessage(error), variant: "destructive" });
     }
     setSaving(false);
   };
@@ -412,7 +382,8 @@ export default function BriefForm({
       toast({ title: "Relevamiento confirmado" });
       onUpdate();
     } catch (error) {
-      toast({ title: "Error al confirmar", description: getErrorMessage(error), variant: "destructive" });
+      logError("Brief confirmation failed", error, { lessonId });
+      toast({ title: "Error al confirmar", description: formatErrorMessage(error), variant: "destructive" });
     }
     setSaving(false);
   };
@@ -571,7 +542,7 @@ export default function BriefForm({
       if (error) {
         toast({
           title: "No se pudo resolver la consulta",
-          description: await parseFunctionErrorMessage(error),
+          description: await formatFunctionErrorMessage(error),
           variant: "destructive",
         });
         return;
@@ -604,7 +575,8 @@ export default function BriefForm({
         description: `${candidates.length} candidato(s) listos para aprobacion docente.`,
       });
     } catch (err: unknown) {
-      toast({ title: "Error al buscar", description: getErrorMessage(err), variant: "destructive" });
+      logError("Premium query search failed", err, { lessonId });
+      toast({ title: "Error al buscar", description: formatErrorMessage(err), variant: "destructive" });
     } finally {
       setResolvingPremium(false);
     }

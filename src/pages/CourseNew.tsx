@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { formatErrorMessage } from "@/lib/errors";
 
 type SchoolType = "COMUN" | "TECNICA";
 type Cycle = "BASIC" | "UPPER";
@@ -615,7 +616,7 @@ export default function CourseNew() {
       );
       navigate(courseDetailUrl(course!.id));
     } catch (err: unknown) {
-      toast({ title: "Error", description: err instanceof Error ? err.message : "Error desconocido", variant: "destructive" });
+      toast({ title: "Error", description: formatErrorMessage(err), variant: "destructive" });
     } finally {
       setCreating(false);
     }

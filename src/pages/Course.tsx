@@ -28,6 +28,7 @@ import { useEntitlements } from "@/hooks/useEntitlements";
 import { Checkbox } from "@/components/ui/checkbox";
 import { getMaxSelectableLessons, isConsecutiveSequence, isValidFreeSelection } from "@/lib/courseSelectionRules";
 import type { Tables } from "@/integrations/supabase/types";
+import { formatErrorMessage, formatFunctionErrorMessage } from "@/lib/errors";
 
 interface LessonWithPlanLesson {
   id: string;
@@ -76,19 +77,6 @@ type CourseRecordWithoutCurriculum = Omit<CourseRecord, "curriculum_document_id"
 
 type BriefStatusRow = Pick<Tables<"lesson_briefs">, "lesson_id" | "status">;
 
-type FunctionInvokeErrorLike = {
-  message?: string;
-  context?: Response;
-};
-
-function isFunctionInvokeErrorLike(error: unknown): error is FunctionInvokeErrorLike {
-  return typeof error === "object" && error !== null;
-}
-
-function getErrorMessage(error: unknown, fallback = "Error desconocido"): string {
-  return error instanceof Error ? error.message : fallback;
-}
-
 export default function Course() {
   const { courseId } = useParams<{ courseId: string }>();
   const [searchParams] = useSearchParams();
@@ -134,25 +122,6 @@ export default function Course() {
     );
   const selectionLimitReached = selectedLessonIds.length >= maxSelectableLessons;
   const hasExactFreeSelection = isValidFreeSelection(selectedLessons.length);
-
-  async function parseFunctionErrorMessage(error: unknown): Promise<string> {
-    if (!error) return "Error desconocido";
-    if (isFunctionInvokeErrorLike(error) && typeof error.message === "string" && !error.context) {
-      return error.message;
-    }
-
-    try {
-      const context = isFunctionInvokeErrorLike(error) ? error.context : undefined;
-      if (context) {
-        const payload = await context.json();
-        if (payload?.error) return payload.error;
-      }
-    } catch {
-      // Ignore context parsing errors.
-    }
-
-    return isFunctionInvokeErrorLike(error) && typeof error.message === "string" ? error.message : "Error desconocido";
-  }
 
   const fetchData = useCallback(async () => {
     if (!courseId) return;
@@ -301,7 +270,7 @@ export default function Course() {
 
         await fetchData();
       } catch (error: unknown) {
-        setFreePreparationError(getErrorMessage(error, "No se pudo preparar la secuencia del curso."));
+        setFreePreparationError(formatErrorMessage(error, "No se pudo preparar la secuencia del curso."));
       } finally {
         setPreparingFreeView(false);
       }
@@ -388,7 +357,7 @@ export default function Course() {
       if (error) {
         toast({
           title: "Error al preparar",
-          description: await parseFunctionErrorMessage(error),
+          description: await formatFunctionErrorMessage(error),
           variant: "destructive",
         });
         return;
@@ -415,7 +384,7 @@ export default function Course() {
     } catch (error: unknown) {
       toast({
         title: "Error al preparar",
-        description: getErrorMessage(error),
+        description: formatErrorMessage(error),
         variant: "destructive",
       });
     } finally {

@@ -14,6 +14,7 @@ import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useToast } from "@/components/ui/use-toast";
+import { formatErrorMessage, formatFunctionErrorMessage } from "@/lib/errors";
 
 interface SubscriptionRow {
   plan_type: PlanType;
@@ -227,7 +228,7 @@ export default function Billing() {
     } catch (error) {
       toast({
         title: "No se pudo iniciar el checkout",
-        description: error instanceof Error ? error.message : "Error desconocido",
+        description: await formatFunctionErrorMessage(error),
         variant: "destructive",
       });
       setCheckingOutPlan(null);
@@ -254,7 +255,7 @@ export default function Billing() {
     } catch (error) {
       toast({
         title: "No se pudo sincronizar billing",
-        description: error instanceof Error ? error.message : "Error desconocido",
+        description: formatErrorMessage(error),
         variant: "destructive",
       });
     } finally {
@@ -282,7 +283,7 @@ export default function Billing() {
     } catch (error) {
       toast({
         title: "No se pudo cancelar la suscripcion",
-        description: error instanceof Error ? error.message : "Error desconocido",
+        description: await formatFunctionErrorMessage(error),
         variant: "destructive",
       });
     } finally {
@@ -322,7 +323,7 @@ export default function Billing() {
     } catch (error) {
       toast({
         title: "No se pudo registrar la solicitud",
-        description: error instanceof Error ? error.message : "Error desconocido",
+        description: await formatFunctionErrorMessage(error),
         variant: "destructive",
       });
     } finally {

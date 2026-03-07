@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
+import { formatErrorMessage } from "@/lib/errors";
 
 type SchoolType = "COMUN" | "TECNICA";
 type CurriculumCycle = "BASIC" | "UPPER";
@@ -207,7 +208,7 @@ export default function CurriculumImport() {
     } catch (error) {
       toast({
         title: "No se pudo importar el programa",
-        description: error instanceof Error ? error.message : "Error desconocido",
+        description: formatErrorMessage(error),
         variant: "destructive",
       });
     } finally {
