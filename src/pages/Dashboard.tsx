@@ -8,8 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { LogOut, Plus, ChevronDown, BookOpen, Upload, Trash2, Archive, MoreVertical, CreditCard } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { PlanType, useEntitlements } from "@/hooks/useEntitlements";
+import { PlanSwitcher } from "@/components/PlanSwitcher";
 import { StatusBadge, planTone, planLabel } from "@/components/ui/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { SkeletonList } from "@/components/ui/SkeletonList";
@@ -24,7 +24,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/components/ui/use-toast";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import type { Tables } from "@/integrations/supabase/types";
 import { formatErrorMessage } from "@/lib/errors";
@@ -44,16 +43,6 @@ type CourseQueryRow = Pick<Tables<"courses">, "id" | "subject" | "year_level" | 
   plans: { status: string } | null;
 };
 
-const planBadgeVariant: Record<string, "default" | "secondary" | "outline"> = {
-  FREE: "outline",
-  BASICO: "secondary",
-  PREMIUM: "default",
-};
-const planReadableLabel: Record<string, string> = {
-  FREE: "Gratis",
-  BASICO: "Básico",
-  PREMIUM: "Premium",
-};
 const QA_EMAILS = new Set(["rgarciareid@gmail.com", "bigscholl@test.docencia.ai"]);
 
 export default function Dashboard() {
@@ -199,24 +188,7 @@ export default function Dashboard() {
             </div>
 
             <div className="flex justify-center">
-              {isQaUser ? (
-                <div className="w-full max-w-[180px]">
-                  <Select value={planType} onValueChange={(value) => handlePlanSwitch(value as PlanType)} disabled={switchingPlan}>
-                    <SelectTrigger className="h-8">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="FREE">FREE</SelectItem>
-                      <SelectItem value="BASICO">BASICO</SelectItem>
-                      <SelectItem value="PREMIUM">PREMIUM</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              ) : (
-              <Badge variant={planBadgeVariant[planType] || "outline"} className="text-xs">
-                  {planReadableLabel[planType] || planType}
-                </Badge>
-              )}
+              <PlanSwitcher planType={planType} isQaUser={isQaUser} switchingPlan={switchingPlan} onPlanSwitch={handlePlanSwitch} />
             </div>
 
             <div className="flex justify-end">
@@ -288,24 +260,7 @@ export default function Dashboard() {
               </h1>
               <p className="text-sm text-muted-foreground">{profile?.email}</p>
             </div>
-            {isQaUser ? (
-              <div className="w-[180px]">
-                <Select value={planType} onValueChange={(value) => handlePlanSwitch(value as PlanType)} disabled={switchingPlan}>
-                  <SelectTrigger className="h-8">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="FREE">FREE</SelectItem>
-                    <SelectItem value="BASICO">BASICO</SelectItem>
-                    <SelectItem value="PREMIUM">PREMIUM</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            ) : (
-              <Badge variant={planBadgeVariant[planType] || "outline"} className="text-xs">
-                {planReadableLabel[planType] || planType}
-              </Badge>
-            )}
+            <PlanSwitcher planType={planType} isQaUser={isQaUser} switchingPlan={switchingPlan} onPlanSwitch={handlePlanSwitch} />
           </div>
           <div className="flex items-center gap-2">
             <Button asChild variant="outline" size="sm">
