@@ -552,10 +552,8 @@ function resolveSourceProvider(payload: CurriculumImportPayload): string {
     return payload.source_provider.trim();
   }
 
-  if (payload.file_base64) return "ABC_PBA_UPLOAD";
-  if (payload.official_url && isAllowedOfficialUrl(payload.official_url)) return "ABC_PBA_UPLOAD";
-  if (payload.official_url) return "MANUAL_URL";
-  return "ABC_PBA_UPLOAD";
+  if (payload.official_url && isAllowedOfficialUrl(payload.official_url)) return "ABC_PBA_WEB";
+  return "ABC_PBA_WEB";
 }
 
 async function upsertDocument(
@@ -679,8 +677,7 @@ export async function ingestCurriculumDocument(
   let fileName: string;
 
   if (payload.file_base64) {
-    bytes = decodeBase64ToBytes(payload.file_base64);
-    fileName = payload.file_name || "programa_oficial.pdf";
+    throw new Error("La carga manual de PDF fue deshabilitada. Usa solo URLs oficiales de abc.gob.ar.");
   } else if (payload.official_url) {
     const downloaded = await downloadPdfBytesFromUrl(payload.official_url, {
       allowExternalUrl: payload.allow_external_url === true,

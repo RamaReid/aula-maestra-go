@@ -1,9 +1,9 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { RefreshCw, Lock } from "lucide-react";
+import { Lock, RefreshCw, Sparkles, Target, Wand2 } from "lucide-react";
 import type { CopilotoMode } from "@/hooks/useEntitlements";
 import { ThinkingBook } from "@/components/ui/ThinkingBook";
 
@@ -13,77 +13,364 @@ interface CurriculumNode {
   node_type: string;
 }
 
+interface AuthorizedSourceSummary {
+  id: string;
+  title: string;
+  media_type: string;
+  origin_type: string;
+  status: string;
+}
+
+interface PremiumRecommendation {
+  id: string;
+  title: string;
+  detail: string;
+  actionLabel?: string;
+  action?: "focus_brief" | "apply_recommended_depth" | "regenerate_teaching" | "regenerate_reading";
+}
+
 interface CopilotPanelProps {
   bibliographyNodes: CurriculumNode[];
   referencedNodeIds: string[];
-  depthLevel: string;
+  mappedCurriculumNodes: CurriculumNode[];
+  authorizedSources: AuthorizedSourceSummary[];
+  depthLevel: "BAJO" | "MEDIO" | "ALTO";
+  planTheme?: string | null;
+  learningOutcome?: string | null;
+  canonOperation?: string | null;
+  canonEvidence?: string | null;
+  briefFocus?: string | null;
+  briefDynamic?: string | null;
+  briefObservations?: string | null;
+  briefStatus?: string | null;
+  teachingStatus?: string | null;
+  readingStatus?: string | null;
   onDepthChange: (level: "BAJO" | "MEDIO" | "ALTO") => void;
   onRegenerateTeaching: () => void;
   onRegenerateReading: () => void;
+  onFocusBrief?: () => void;
   isGenerating: boolean;
   isLocked: boolean;
   copilotoMode?: CopilotoMode;
 }
 
+function normalize(value: string | null | undefined): string {
+  return (value || "").trim();
+}
+
+function getRecommendedDepth(params: {
+  bibliographyCount: number;
+  referencedCount: number;
+  processedAuthorizedCount: number;
+  hasFocus: boolean;
+  hasDynamic: boolean;
+  hasObservations: boolean;
+}): "BAJO" | "MEDIO" | "ALTO" {
+  const { bibliographyCount, referencedCount, processedAuthorizedCount, hasFocus, hasDynamic, hasObservations } = params;
+
+  if (bibliographyCount >= 2 && referencedCount >= 1 && processedAuthorizedCount >= 1 && hasFocus && hasDynamic && hasObservations) {
+    return "ALTO";
+  }
+
+  if (hasFocus && (hasDynamic || bibliographyCount >= 1)) {
+    return "MEDIO";
+  }
+
+  return "BAJO";
+}
+
+function buildPremiumRecommendations(params: {
+  briefFocus: string;
+  briefDynamic: string;
+  briefObservations: string;
+  bibliographyCount: number;
+  referencedCount: number;
+  mappedCurriculumCount: number;
+  processedAuthorizedCount: number;
+  currentDepth: "BAJO" | "MEDIO" | "ALTO";
+  recommendedDepth: "BAJO" | "MEDIO" | "ALTO";
+  readingStatus: string | null | undefined;
+  teachingStatus: string | null | undefined;
+}): PremiumRecommendation[] {
+  const {
+    briefFocus,
+    briefDynamic,
+    briefObservations,
+    bibliographyCount,
+    referencedCount,
+    mappedCurriculumCount,
+    processedAuthorizedCount,
+    currentDepth,
+    recommendedDepth,
+    readingStatus,
+    teachingStatus,
+  } = params;
+
+  const recommendations: PremiumRecommendation[] = [];
+
+  if (!briefFocus) {
+    recommendations.push({
+      id: "focus",
+      title: "Defini el foco docente",
+      detail: "El brief necesita un enfoque explicito para que la generacion no derive en una clase generica.",
+      actionLabel: "Ir al brief",
+      action: "focus_brief",
+    });
+  }
+
+  if (!briefDynamic) {
+    recommendations.push({
+      id: "dynamic",
+      title: "Completa la dinamica de trabajo",
+      detail: "Agregar una dinamica sugerida ayuda a que el material didactico quede mas utilizable en aula.",
+      actionLabel: "Ir al brief",
+      action: "focus_brief",
+    });
+  }
+
+  if (!briefObservations) {
+    recommendations.push({
+      id: "observations",
+      title: "Agrega observaciones de contexto",
+      detail: "Con una nota docente breve, el copiloto puede sostener mejor adaptaciones y decisiones de tono.",
+      actionLabel: "Ir al brief",
+      action: "focus_brief",
+    });
+  }
+
+  if (mappedCurriculumCount < 2) {
+    recommendations.push({
+      id: "curriculum",
+      title: "Refuerza el anclaje curricular",
+      detail: "La clase parece apoyarse en pocos nodos del programa. Conviene revisar el brief y la planificacion antes de regenerar.",
+      actionLabel: "Ir al brief",
+      action: "focus_brief",
+    });
+  }
+
+  if (bibliographyCount === 0) {
+    recommendations.push({
+      id: "bibliography",
+      title: "Confirma bibliografia antes de producir",
+      detail: "Todavia no hay fuentes confirmadas para esta leccion. El copiloto premium mejora cuando parte de un set bibliografico cerrado.",
+      actionLabel: "Ir al brief",
+      action: "focus_brief",
+    });
+  } else if (referencedCount === 0 && readingStatus) {
+    recommendations.push({
+      id: "reading-coverage",
+      title: "La lectura no esta citando las fuentes confirmadas",
+      detail: "Conviene regenerar el material de lectura para mejorar la trazabilidad bibliografica.",
+      actionLabel: "Regenerar lectura",
+      action: "regenerate_reading",
+    });
+  }
+
+  if (processedAuthorizedCount > 0 && teachingStatus !== "VALIDATED") {
+    recommendations.push({
+      id: "teacher-sources",
+      title: "Ya hay fuentes del docente procesadas",
+      detail: "Aprovecha ese material y regenera el didactico para incorporarlo de forma mas explicita.",
+      actionLabel: "Regenerar didactico",
+      action: "regenerate_teaching",
+    });
+  }
+
+  if (currentDepth !== recommendedDepth) {
+    recommendations.push({
+      id: "depth",
+      title: `Profundidad sugerida: ${recommendedDepth}`,
+      detail: "El contexto de la clase indica que un nivel de profundidad distinto puede mejorar la coherencia del resultado.",
+      actionLabel: "Aplicar sugerencia",
+      action: "apply_recommended_depth",
+    });
+  }
+
+  if (recommendations.length === 0) {
+    recommendations.push({
+      id: "healthy-state",
+      title: "Clase bien preparada para premium",
+      detail: "El brief, la bibliografia y el anclaje curricular ya dan una base solida para regenerar con ajustes finos.",
+    });
+  }
+
+  return recommendations.slice(0, 5);
+}
+
 export default function CopilotPanel({
   bibliographyNodes,
   referencedNodeIds,
+  mappedCurriculumNodes,
+  authorizedSources,
   depthLevel,
+  planTheme,
+  learningOutcome,
+  canonOperation,
+  canonEvidence,
+  briefFocus,
+  briefDynamic,
+  briefObservations,
+  briefStatus,
+  teachingStatus,
+  readingStatus,
   onDepthChange,
   onRegenerateTeaching,
   onRegenerateReading,
+  onFocusBrief,
   isGenerating,
   isLocked,
   copilotoMode = "full",
 }: CopilotPanelProps) {
   const isDisabled = copilotoMode === "none";
+  const isPremium = copilotoMode === "full";
+  const referencedCount = bibliographyNodes.filter((node) => referencedNodeIds.includes(node.id)).length;
+  const processedAuthorizedSources = authorizedSources.filter((source) => source.status === "PROCESSED" || source.status === "APPROVED");
+  const recommendedDepth = getRecommendedDepth({
+    bibliographyCount: bibliographyNodes.length,
+    referencedCount,
+    processedAuthorizedCount: processedAuthorizedSources.length,
+    hasFocus: !!normalize(briefFocus),
+    hasDynamic: !!normalize(briefDynamic),
+    hasObservations: !!normalize(briefObservations),
+  });
+
+  const premiumRecommendations = buildPremiumRecommendations({
+    briefFocus: normalize(briefFocus),
+    briefDynamic: normalize(briefDynamic),
+    briefObservations: normalize(briefObservations),
+    bibliographyCount: bibliographyNodes.length,
+    referencedCount,
+    mappedCurriculumCount: mappedCurriculumNodes.length,
+    processedAuthorizedCount: processedAuthorizedSources.length,
+    currentDepth: depthLevel,
+    recommendedDepth,
+    readingStatus,
+    teachingStatus,
+  });
+
+  const handleRecommendationAction = (action?: PremiumRecommendation["action"]) => {
+    if (!action || isGenerating || isLocked || isDisabled) return;
+
+    if (action === "focus_brief") {
+      onFocusBrief?.();
+      return;
+    }
+    if (action === "apply_recommended_depth") {
+      onDepthChange(recommendedDepth);
+      return;
+    }
+    if (action === "regenerate_teaching") {
+      onRegenerateTeaching();
+      return;
+    }
+    if (action === "regenerate_reading") {
+      onRegenerateReading();
+    }
+  };
 
   return (
     <div className="space-y-6">
-      <div>
-        <h3 className="text-sm font-semibold mb-3">Copiloto</h3>
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-sm font-semibold">Copiloto</h3>
+        <Badge variant={isPremium ? "default" : "outline"}>{isPremium ? "Premium" : copilotoMode === "limited" ? "Basico" : "Bloqueado"}</Badge>
       </div>
 
       {isDisabled && (
         <Alert>
           <Lock className="h-4 w-4" />
           <AlertDescription className="text-xs">
-            Actualizá tu plan para usar el Copiloto.
+            Actualiza tu plan para usar el Copiloto.
           </AlertDescription>
         </Alert>
       )}
 
       {isGenerating && (
         <div className="rounded-md border p-3">
-          <ThinkingBook
-            compact
-            title="Copiloto en elaboracion"
-            detail="Esperando resultados de generacion."
-          />
+          <ThinkingBook compact title="Copiloto en elaboracion" detail="Esperando resultados de generacion." />
+        </div>
+      )}
+
+      {!isDisabled && (
+        <Alert>
+          {isPremium ? <Sparkles className="h-4 w-4" /> : <Target className="h-4 w-4" />}
+          <AlertTitle>{isPremium ? "Diagnostico contextual activo" : "Modo operativo limitado"}</AlertTitle>
+          <AlertDescription className="text-xs">
+            {isPremium
+              ? "El copiloto premium analiza brief, trazabilidad, fuentes y estado de materiales para sugerir ajustes concretos."
+              : "En Basico el copiloto controla profundidad, bibliografia visible y regeneracion de materiales."}
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {isPremium && !isDisabled && (
+        <div className="space-y-3 rounded-lg border bg-muted/30 p-3">
+          <div className="flex items-center gap-2">
+            <Wand2 className="h-4 w-4 text-primary" />
+            <Label className="text-xs">Lectura de contexto</Label>
+          </div>
+          <div className="grid gap-2 text-xs text-muted-foreground">
+            <div className="rounded-md bg-background p-3">
+              <span className="font-medium text-foreground">Tema:</span> {normalize(planTheme) || "Sin tema detectado"}
+            </div>
+            <div className="rounded-md bg-background p-3">
+              <span className="font-medium text-foreground">Resultado esperado:</span> {normalize(learningOutcome) || "Sin resultado esperado detectado"}
+            </div>
+            <div className="rounded-md bg-background p-3">
+              <span className="font-medium text-foreground">Operacion:</span> {normalize(canonOperation) || "Sin operacion sintetizada"}
+            </div>
+            <div className="rounded-md bg-background p-3">
+              <span className="font-medium text-foreground">Evidencia:</span> {normalize(canonEvidence) || "Sin evidencia minima sintetizada"}
+            </div>
+          </div>
         </div>
       )}
 
       <div className="space-y-2">
-        <Label className="text-xs">Bibliografía usada</Label>
+        <Label className="text-xs">Bibliografia usada</Label>
         <div className="space-y-1">
-          {bibliographyNodes.map((node) => (
-            <div key={node.id} className="flex items-center gap-2 text-xs">
-              <Badge
-                variant={referencedNodeIds.includes(node.id) ? "default" : "outline"}
-                className="text-[10px] px-1"
-              >
-                {node.node_type}
-              </Badge>
-              <span className={referencedNodeIds.includes(node.id) ? "text-foreground" : "text-muted-foreground"}>
-                {node.name}
-              </span>
-              {referencedNodeIds.includes(node.id) && (
-                <span className="text-[10px] text-primary">✓ citado</span>
-              )}
-            </div>
-          ))}
+          {bibliographyNodes.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Todavia no hay bibliografia confirmada para esta clase.</p>
+          ) : (
+            bibliographyNodes.map((node) => (
+              <div key={node.id} className="flex items-center gap-2 text-xs">
+                <Badge
+                  variant={referencedNodeIds.includes(node.id) ? "default" : "outline"}
+                  className="px-1 text-[10px]"
+                >
+                  {node.node_type}
+                </Badge>
+                <span className={referencedNodeIds.includes(node.id) ? "text-foreground" : "text-muted-foreground"}>
+                  {node.name}
+                </span>
+                {referencedNodeIds.includes(node.id) && <span className="text-[10px] text-primary">citado</span>}
+              </div>
+            ))
+          )}
         </div>
       </div>
+
+      {!isDisabled && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="rounded-md border p-3">
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Cobertura bibliografica</p>
+            <p className="mt-1 text-sm font-medium text-foreground">
+              {referencedCount} de {bibliographyNodes.length || 0} fuentes citadas
+            </p>
+          </div>
+          <div className="rounded-md border p-3">
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Fuentes del docente</p>
+            <p className="mt-1 text-sm font-medium text-foreground">{processedAuthorizedSources.length} procesadas</p>
+          </div>
+          <div className="rounded-md border p-3">
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Nodos curriculares</p>
+            <p className="mt-1 text-sm font-medium text-foreground">{mappedCurriculumNodes.length} vinculados</p>
+          </div>
+          <div className="rounded-md border p-3">
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Estado del brief</p>
+            <p className="mt-1 text-sm font-medium text-foreground">{briefStatus || "Sin brief"}</p>
+          </div>
+        </div>
+      )}
 
       <div className="space-y-2">
         <Label className="text-xs">Nivel de profundidad</Label>
@@ -97,7 +384,45 @@ export default function CopilotPanel({
             <SelectItem value="ALTO">Alto</SelectItem>
           </SelectContent>
         </Select>
+        {isPremium && !isDisabled && (
+          <div className="flex items-center justify-between rounded-md border bg-muted/30 px-3 py-2 text-xs">
+            <span className="text-muted-foreground">Sugerencia premium</span>
+            <div className="flex items-center gap-2">
+              <Badge variant={recommendedDepth === depthLevel ? "default" : "outline"}>{recommendedDepth}</Badge>
+              {recommendedDepth !== depthLevel && (
+                <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => onDepthChange(recommendedDepth)} disabled={isGenerating || isLocked}>
+                  Aplicar
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
+
+      {isPremium && !isDisabled && (
+        <div className="space-y-2">
+          <Label className="text-xs">Recomendaciones premium</Label>
+          <div className="space-y-2">
+            {premiumRecommendations.map((recommendation) => (
+              <div key={recommendation.id} className="rounded-md border p-3">
+                <p className="text-sm font-medium text-foreground">{recommendation.title}</p>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{recommendation.detail}</p>
+                {recommendation.actionLabel && recommendation.action && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-3 h-7 text-xs"
+                    onClick={() => handleRecommendationAction(recommendation.action)}
+                    disabled={isGenerating || isLocked}
+                  >
+                    {recommendation.actionLabel}
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="space-y-2">
         <Label className="text-xs">Regenerar</Label>
@@ -110,7 +435,7 @@ export default function CopilotPanel({
             className="text-xs"
           >
             <RefreshCw className="mr-1 h-3 w-3" />
-            Material didáctico
+            Material didactico
           </Button>
           <Button
             variant="outline"

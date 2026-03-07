@@ -323,7 +323,7 @@ export default function Dashboard() {
               <Button asChild variant="outline" size="sm">
                 <Link to="/curriculum/import">
                   <Upload className="mr-2 h-4 w-4" />
-                  Importar programa
+                  Sincronizar ABC
                 </Link>
               </Button>
               <Button size="sm" onClick={handleNewCourse}>

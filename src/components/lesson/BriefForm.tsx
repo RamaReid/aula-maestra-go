@@ -15,6 +15,13 @@ interface BriefFormProps {
   brief: any | null;
   onUpdate: () => void;
   planType: PlanType;
+  planTheme?: string | null;
+  learningOutcome?: string | null;
+  canonOperation?: string | null;
+  canonEvidence?: string | null;
+  mappedCurriculumNodes?: Array<{ id?: string; name?: string | null; node_type?: string | null }>;
+  bibliographyNodes?: Array<{ id?: string; name?: string | null }>;
+  authorizedSourceNodes?: Array<{ id?: string; title?: string | null; media_type?: string | null }>;
 }
 
 const MAX_SOURCES = 5;
@@ -32,6 +39,14 @@ type PremiumCandidate = {
   source_type: string;
   confidence: number;
   fetched_at: string;
+};
+
+type BriefAutocompleteDraft = {
+  enfoque: string;
+  dinamica: string;
+  profundidad: "BAJO" | "MEDIO" | "ALTO";
+  observaciones: string;
+  summary: string;
 };
 
 function getFileExtension(fileName: string): string {
@@ -88,7 +103,100 @@ async function parseFunctionErrorMessage(error: any): Promise<string> {
   return typeof error.message === "string" ? error.message : "Error desconocido";
 }
 
-export default function BriefForm({ lessonId, courseId, brief, onUpdate, planType }: BriefFormProps) {
+function normalizeSentence(value: string | null | undefined): string {
+  const normalized = (value || "").replace(/\s+/g, " ").trim();
+  if (!normalized) return "";
+  return normalized.endsWith(".") ? normalized : `${normalized}.`;
+}
+
+function toSentenceFragment(value: string | null | undefined): string {
+  const normalized = (value || "").replace(/\s+/g, " ").trim();
+  if (!normalized) return "";
+  return normalized.charAt(0).toLowerCase() + normalized.slice(1);
+}
+
+function summarizeItems(items: Array<string | null | undefined>, limit = 2): string {
+  const cleaned = items.map((item) => (item || "").trim()).filter(Boolean);
+  if (cleaned.length === 0) return "";
+  if (cleaned.length <= limit) return cleaned.join(", ");
+  return `${cleaned.slice(0, limit).join(", ")} y ${cleaned.length - limit} mas`;
+}
+
+function buildBriefAutocompleteDraft(input: {
+  planTheme?: string | null;
+  learningOutcome?: string | null;
+  canonOperation?: string | null;
+  canonEvidence?: string | null;
+  mappedCurriculumNodes?: Array<{ name?: string | null; node_type?: string | null }>;
+  bibliographyNodes?: Array<{ name?: string | null }>;
+  authorizedSourceNodes?: Array<{ title?: string | null; media_type?: string | null }>;
+}): BriefAutocompleteDraft {
+  const mappedCount = input.mappedCurriculumNodes?.length || 0;
+  const bibliographyCount = input.bibliographyNodes?.length || 0;
+  const authorizedCount = input.authorizedSourceNodes?.length || 0;
+  const totalSources = bibliographyCount + authorizedCount;
+  const hasOutcome = Boolean((input.learningOutcome || "").trim());
+  const hasEvidence = Boolean((input.canonEvidence || "").trim());
+
+  let profundidad: "BAJO" | "MEDIO" | "ALTO" = "BAJO";
+  if ((totalSources >= 3 && mappedCount >= 1) || (hasOutcome && hasEvidence)) {
+    profundidad = "ALTO";
+  } else if (totalSources >= 1 || mappedCount >= 1 || Boolean((input.canonOperation || "").trim())) {
+    profundidad = "MEDIO";
+  }
+
+  const themeLabel = (input.planTheme || "la clase").trim();
+  const outcomeFragment = toSentenceFragment(input.learningOutcome);
+  const operationFragment = toSentenceFragment(input.canonOperation);
+  const evidenceSentence = normalizeSentence(input.canonEvidence);
+  const curriculumSummary = summarizeItems(input.mappedCurriculumNodes?.map((node) => node.name) || []);
+  const bibliographySummary = summarizeItems(input.bibliographyNodes?.map((node) => node.name) || []);
+  const authorizedSummary = summarizeItems(input.authorizedSourceNodes?.map((node) => node.title) || []);
+
+  const enfoqueParts = [
+    `Trabajar ${themeLabel}${outcomeFragment ? ` para que el grupo pueda ${outcomeFragment}` : ""}.`,
+    operationFragment ? `Poner el foco en ${operationFragment}.` : "",
+    curriculumSummary ? `Anclar la clase en ${curriculumSummary}.` : "",
+  ].filter(Boolean);
+
+  const dinamica =
+    authorizedCount > 0
+      ? "Apertura breve con activacion de saberes previos, analisis guiado de una fuente del docente en pequenos grupos y cierre con produccion breve de evidencia."
+      : bibliographyCount > 0
+      ? "Apertura con pregunta disparadora, lectura guiada de las fuentes seleccionadas, intercambio por parejas y cierre con sistematizacion comun."
+      : "Apertura con recuperacion de ideas previas, desarrollo dialogado con consignas acotadas y cierre con verificacion rapida de comprension.";
+
+  const observationParts = [
+    hasOutcome ? `Asegurar que la consigna principal quede alineada con el resultado esperado: ${normalizeSentence(input.learningOutcome)}` : "",
+    evidenceSentence ? `La evidencia esperada debe quedar visible durante el cierre: ${evidenceSentence}` : "",
+    bibliographySummary ? `Priorizar bibliografia confirmada: ${bibliographySummary}.` : "",
+    authorizedSummary ? `Integrar como respaldo del docente: ${authorizedSummary}.` : "",
+    mappedCount > 0 ? `Mantener trazabilidad con ${mappedCount} nodo(s) curriculares asociados.` : "",
+  ].filter(Boolean);
+
+  return {
+    enfoque: enfoqueParts.join(" "),
+    dinamica,
+    profundidad,
+    observaciones: observationParts.join(" "),
+    summary: `Profundidad ${profundidad.toLowerCase()} sugerida con ${mappedCount} nodo(s) curriculares y ${totalSources} fuente(s) ya disponibles.`,
+  };
+}
+
+export default function BriefForm({
+  lessonId,
+  courseId,
+  brief,
+  onUpdate,
+  planType,
+  planTheme,
+  learningOutcome,
+  canonOperation,
+  canonEvidence,
+  mappedCurriculumNodes = [],
+  bibliographyNodes = [],
+  authorizedSourceNodes = [],
+}: BriefFormProps) {
   const [enfoque, setEnfoque] = useState(brief?.enfoque_deseado ?? "");
   const [dinamica, setDinamica] = useState(brief?.tipo_dinamica_sugerida ?? "");
   const [profundidad, setProfundidad] = useState<"BAJO" | "MEDIO" | "ALTO">(brief?.nivel_profundidad ?? "MEDIO");
@@ -142,6 +250,27 @@ export default function BriefForm({ lessonId, courseId, brief, onUpdate, planTyp
   const isConfirmed = brief?.status === "READY_FOR_PRODUCTION" || brief?.status === "PRODUCED";
   const canUploadTeacherSources = planType === "BASICO" || planType === "PREMIUM";
   const canUsePremiumQuery = planType === "PREMIUM";
+  const premiumAutocompleteDraft = useMemo(
+    () =>
+      buildBriefAutocompleteDraft({
+        planTheme,
+        learningOutcome,
+        canonOperation,
+        canonEvidence,
+        mappedCurriculumNodes,
+        bibliographyNodes,
+        authorizedSourceNodes,
+      }),
+    [
+      authorizedSourceNodes,
+      bibliographyNodes,
+      canonEvidence,
+      canonOperation,
+      learningOutcome,
+      mappedCurriculumNodes,
+      planTheme,
+    ]
+  );
 
   const buildPayload = (status?: "IN_PROGRESS" | "READY_FOR_PRODUCTION" | "PRODUCED") => ({
     lesson_id: lessonId,
@@ -486,8 +615,36 @@ export default function BriefForm({ lessonId, courseId, brief, onUpdate, planTyp
     }
   };
 
+  const handleApplyPremiumAutocomplete = () => {
+    if (!canUsePremiumQuery) {
+      toast({ title: "Esta funcion es solo para plan PREMIUM", variant: "destructive" });
+      return;
+    }
+
+    setEnfoque(premiumAutocompleteDraft.enfoque);
+    setDinamica(premiumAutocompleteDraft.dinamica);
+    setProfundidad(premiumAutocompleteDraft.profundidad);
+    setObservaciones(premiumAutocompleteDraft.observaciones);
+    toast({
+      title: "Brief autocompletado",
+      description: premiumAutocompleteDraft.summary,
+    });
+  };
+
   return (
     <div className="space-y-4">
+      {canUsePremiumQuery && !isConfirmed && (
+        <div className="space-y-3 rounded-md border border-primary/20 bg-primary/5 p-3">
+          <div className="space-y-1">
+            <Label>Copiloto premium para el brief</Label>
+            <p className="text-sm text-muted-foreground">{premiumAutocompleteDraft.summary}</p>
+          </div>
+          <Button type="button" variant="outline" onClick={handleApplyPremiumAutocomplete} disabled={saving || uploading}>
+            Autocompletar brief con contexto de la clase
+          </Button>
+        </div>
+      )}
+
       <div className="space-y-2">
         <Label>Enfoque deseado</Label>
         <Textarea

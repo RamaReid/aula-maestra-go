@@ -1,6 +1,6 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ArrowLeft, CreditCard, Landmark, Loader2 } from "lucide-react";
+import { ArrowLeft, CreditCard, Landmark, Loader2, RefreshCw, ShieldX } from "lucide-react";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { PlanType, useEntitlements } from "@/hooks/useEntitlements";
@@ -18,8 +18,13 @@ import { useToast } from "@/components/ui/use-toast";
 interface SubscriptionRow {
   plan_type: PlanType;
   status: "ACTIVE" | "CANCELED" | "EXPIRED";
+  provider: string | null;
+  provider_subscription_id: string | null;
   start_date: string | null;
   end_date: string | null;
+  current_period_end: string | null;
+  cancel_at_period_end: boolean;
+  last_payment_status: string | null;
   updated_at: string;
 }
 
@@ -128,11 +133,13 @@ function manualRequestLabel(status: string): string {
 export default function Billing() {
   const { user, profile } = useAuth();
   const { toast } = useToast();
-  const { planType, entitlements } = useEntitlements();
+  const { planType, entitlements, refetch } = useEntitlements();
   const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [checkingOutPlan, setCheckingOutPlan] = useState<"BASICO" | "PREMIUM" | null>(null);
+  const [canceling, setCanceling] = useState(false);
+  const [reconciling, setReconciling] = useState(false);
   const [subscription, setSubscription] = useState<SubscriptionRow | null>(null);
   const [requests, setRequests] = useState<ManualPaymentRequestRow[]>([]);
   const [requestedPlan, setRequestedPlan] = useState<"BASICO" | "PREMIUM">("BASICO");
@@ -152,12 +159,15 @@ export default function Billing() {
     const [subscriptionRes, requestsRes] = await Promise.all([
       supabase
         .from("subscriptions")
-        .select("plan_type, status, start_date, end_date, updated_at")
+        .select(
+          "plan_type, status, provider, provider_subscription_id, start_date, end_date, current_period_end, cancel_at_period_end, last_payment_status, updated_at"
+        )
         .eq("user_id", user.id)
         .maybeSingle(),
       supabase
         .from("manual_payment_requests" as any)
         .select("id, requested_plan, status, billing_name, tax_id, notes, review_notes, created_at")
+        .eq("user_id", user.id)
         .order("created_at", { ascending: false }),
     ]);
 
@@ -186,6 +196,8 @@ export default function Billing() {
   }, [searchParams, toast]);
 
   const currentPlanCopy = useMemo(() => planCardCopy[planType], [planType]);
+  const hasMercadoPagoSubscription =
+    subscription?.provider === "MERCADO_PAGO" && Boolean(subscription.provider_subscription_id);
 
   const handleCheckout = async (nextPlan: "BASICO" | "PREMIUM") => {
     setCheckingOutPlan(nextPlan);
@@ -207,6 +219,62 @@ export default function Billing() {
         variant: "destructive",
       });
       setCheckingOutPlan(null);
+    }
+  };
+
+  const handleReconcile = async () => {
+    setReconciling(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("reconcile-billing", {
+        body: {},
+      });
+
+      if (error) throw error;
+
+      await Promise.all([fetchBillingData(), refetch()]);
+      toast({
+        title: "Billing sincronizado",
+        description:
+          typeof data?.raw_status === "string"
+            ? `Mercado Pago devolvio estado ${data.raw_status}.`
+            : "Se actualizo el estado local de la suscripcion.",
+      });
+    } catch (error) {
+      toast({
+        title: "No se pudo sincronizar billing",
+        description: error instanceof Error ? error.message : "Error desconocido",
+        variant: "destructive",
+      });
+    } finally {
+      setReconciling(false);
+    }
+  };
+
+  const handleCancelSubscription = async () => {
+    setCanceling(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("cancel-subscription", {
+        body: {},
+      });
+
+      if (error) throw error;
+
+      await Promise.all([fetchBillingData(), refetch()]);
+      toast({
+        title: "Suscripcion cancelada",
+        description:
+          typeof data?.raw_status === "string"
+            ? `Mercado Pago devolvio estado ${data.raw_status}.`
+            : "La suscripcion quedo cancelada.",
+      });
+    } catch (error) {
+      toast({
+        title: "No se pudo cancelar la suscripcion",
+        description: error instanceof Error ? error.message : "Error desconocido",
+        variant: "destructive",
+      });
+    } finally {
+      setCanceling(false);
     }
   };
 
@@ -284,8 +352,8 @@ export default function Billing() {
                   <div className="flex flex-wrap items-center gap-3">
                     <StatusBadge tone="neutral" label={planType} />
                     <StatusBadge
-                      tone={subscriptionTone(subscription?.status || "ACTIVE")}
-                      label={subscriptionLabel(subscription?.status || "ACTIVE")}
+                      tone={subscription ? subscriptionTone(subscription.status) : "neutral"}
+                      label={subscription ? subscriptionLabel(subscription.status) : "Sin suscripcion automatica"}
                     />
                   </div>
 
@@ -300,11 +368,21 @@ export default function Billing() {
                     </div>
                     <div className="rounded-lg border p-4">
                       <p className="text-sm font-medium text-foreground">Fin o corte actual</p>
-                      <p className="mt-1 text-sm text-muted-foreground">{formatDate(subscription?.end_date)}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {formatDate(subscription?.current_period_end || subscription?.end_date)}
+                      </p>
                     </div>
                     <div className="rounded-lg border p-4">
                       <p className="text-sm font-medium text-foreground">Ultima actualizacion</p>
                       <p className="mt-1 text-sm text-muted-foreground">{formatDate(subscription?.updated_at)}</p>
+                    </div>
+                    <div className="rounded-lg border p-4">
+                      <p className="text-sm font-medium text-foreground">Proveedor</p>
+                      <p className="mt-1 text-sm text-muted-foreground">{subscription?.provider || "Sin proveedor automatico"}</p>
+                    </div>
+                    <div className="rounded-lg border p-4">
+                      <p className="text-sm font-medium text-foreground">Estado reportado por cobro</p>
+                      <p className="mt-1 text-sm text-muted-foreground">{subscription?.last_payment_status || "Sin dato"}</p>
                     </div>
                   </div>
 
@@ -340,9 +418,7 @@ export default function Billing() {
           <Card>
             <CardHeader>
               <CardTitle>Planes disponibles</CardTitle>
-              <CardDescription>
-                Esta pantalla deja preparado el upgrade comercial. El checkout automatico va a conectarse en la siguiente fase.
-              </CardDescription>
+              <CardDescription>Upgrade automatico por Mercado Pago para BASICO y PREMIUM.</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4 sm:grid-cols-3">
               {(["FREE", "BASICO", "PREMIUM"] as PlanType[]).map((plan) => {
@@ -381,6 +457,65 @@ export default function Billing() {
         </div>
 
         <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <RefreshCw className="h-4 w-4" />
+                Gestion de suscripcion
+              </CardTitle>
+              <CardDescription>
+                Sincroniza el estado real desde Mercado Pago o cancela la suscripcion automatica activa.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="rounded-lg border bg-muted/30 p-4 text-sm text-muted-foreground">
+                {hasMercadoPagoSubscription
+                  ? "La cancelacion es inmediata sobre la suscripcion automatica actual. Si luego quieres volver a activar un plan, debes iniciar un nuevo checkout."
+                  : "Todavia no hay una suscripcion automatica activa asociada a esta cuenta. Puedes seguir usando solicitud manual o iniciar un checkout."}
+              </div>
+
+              <div className="grid gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleReconcile}
+                  disabled={reconciling || canceling}
+                >
+                  {reconciling ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Sincronizando billing
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                      Sincronizar ahora
+                    </>
+                  )}
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleCancelSubscription}
+                  disabled={!hasMercadoPagoSubscription || subscription?.status !== "ACTIVE" || reconciling || canceling}
+                >
+                  {canceling ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Cancelando suscripcion
+                    </>
+                  ) : (
+                    <>
+                      <ShieldX className="mr-2 h-4 w-4" />
+                      Cancelar suscripcion automatica
+                    </>
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">

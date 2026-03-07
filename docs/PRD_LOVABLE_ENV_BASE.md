@@ -68,7 +68,6 @@ Y debe soportar:
 Permitir acceso desde functions a:
 
 - `abc.gob.ar`
-- `servicios.abc.gov.ar`
 - `ai.gateway.lovable.dev`
 
 Debe existir verificacion de reachability por entorno.

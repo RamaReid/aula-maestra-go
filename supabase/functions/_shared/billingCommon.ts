@@ -8,6 +8,24 @@ export const corsHeaders = {
 
 export type PaidPlanType = "BASICO" | "PREMIUM";
 export type InternalSubscriptionStatus = "ACTIVE" | "CANCELED" | "EXPIRED";
+export type MercadoPagoPreapproval = {
+  id: string;
+  payer_id?: string | number | null;
+  payer_email?: string | null;
+  external_reference?: string | null;
+  status?: string | null;
+  reason?: string | null;
+  date_created?: string | null;
+  last_modified?: string | null;
+  next_payment_date?: string | null;
+  preapproval_plan_id?: string | null;
+  auto_recurring?: {
+    transaction_amount?: number | null;
+    currency_id?: string | null;
+    frequency?: number | null;
+    frequency_type?: string | null;
+  } | null;
+};
 
 interface MercadoPagoPlanConfig {
   planType: PaidPlanType;
@@ -104,6 +122,13 @@ export function buildExternalReference(userId: string, planType: PaidPlanType): 
 export function parsePlanType(value: unknown): PaidPlanType | null {
   if (value === "BASICO" || value === "PREMIUM") return value;
   return null;
+}
+
+export function deriveUserAndPlanFromExternalReference(externalReference: string | null | undefined) {
+  if (!externalReference) return { userId: null, planType: null };
+  const [userId, rawPlanType] = externalReference.split(":", 3);
+  const planType = parsePlanType(rawPlanType);
+  return { userId: userId || null, planType };
 }
 
 export function parseSignatureHeader(headerValue: string | null): { ts: string | null; v1: string | null } {
@@ -261,4 +286,61 @@ export async function getAuthenticatedUser(req: Request) {
   }
 
   return { user: data.user, authHeader };
+}
+
+export async function syncMercadoPagoSubscription(
+  adminClient: any,
+  accessToken: string,
+  providerSubscriptionId: string
+): Promise<{
+  preapproval: MercadoPagoPreapproval;
+  userId: string;
+  planType: PaidPlanType;
+  normalizedStatus: InternalSubscriptionStatus;
+}> {
+  const preapproval = await fetchMercadoPagoJson<MercadoPagoPreapproval>(accessToken, `/preapproval/${providerSubscriptionId}`, {
+    method: "GET",
+  });
+
+  const { userId, planType } = deriveUserAndPlanFromExternalReference(preapproval.external_reference);
+  const normalizedStatus = normalizeMercadoPagoSubscriptionStatus(preapproval.status);
+
+  if (!userId || !planType) {
+    throw new Error("No se pudo resolver user_id o plan_type desde external_reference");
+  }
+
+  if (!normalizedStatus) {
+    throw new Error(`Estado no sincronizable: ${preapproval.status || "unknown"}`);
+  }
+
+  const { error: upsertError } = await adminClient.rpc("admin_upsert_billing_subscription", {
+    p_user_id: userId,
+    p_plan: planType,
+    p_status: normalizedStatus,
+    p_provider: "MERCADO_PAGO",
+    p_provider_customer_id: preapproval.payer_id ? String(preapproval.payer_id) : null,
+    p_provider_subscription_id: preapproval.id,
+    p_provider_plan_id: preapproval.preapproval_plan_id || null,
+    p_billing_email: preapproval.payer_email || null,
+    p_current_period_start: preapproval.last_modified || preapproval.date_created || null,
+    p_current_period_end: preapproval.next_payment_date || null,
+    p_cancel_at_period_end: false,
+    p_last_payment_status: preapproval.status || null,
+    p_last_payment_at: preapproval.last_modified || null,
+    p_last_invoice_url: null,
+    p_metadata: {
+      external_reference: preapproval.external_reference || null,
+      raw_status: preapproval.status || null,
+      reason: preapproval.reason || null,
+      auto_recurring: preapproval.auto_recurring || null,
+    },
+  });
+  if (upsertError) throw upsertError;
+
+  return {
+    preapproval,
+    userId,
+    planType,
+    normalizedStatus,
+  };
 }

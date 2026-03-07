@@ -69,14 +69,21 @@ serve(async (req) => {
     });
   }
 
-  if ((!body.file_base64 && !body.official_url) || !body.subject || !body.cycle || !body.year_level) {
+  if (!body.official_url || !body.subject || !body.cycle || !body.year_level) {
     return new Response(
-      JSON.stringify({ error: "Debe enviar file_base64 u official_url, ademas de subject, cycle y year_level" }),
+      JSON.stringify({ error: "Debe enviar official_url de abc.gob.ar, ademas de subject, cycle y year_level" }),
       {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       }
     );
+  }
+
+  if (body.file_base64) {
+    return new Response(JSON.stringify({ error: "La carga manual de PDF fue deshabilitada. Usa solo URLs oficiales de abc.gob.ar." }), {
+      status: 400,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 
   try {
@@ -92,7 +99,7 @@ serve(async (req) => {
       speciality: body.speciality ?? null,
       official_title: body.official_title ?? null,
       official_url: body.official_url ?? null,
-      allow_external_url: true,
+      allow_external_url: false,
       source_provider: body.source_provider ?? null,
     });
 

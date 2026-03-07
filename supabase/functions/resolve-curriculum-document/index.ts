@@ -10,9 +10,7 @@ import {
 
 const PRIMARY_OFFICIAL_INDEX_URL =
   "https://abc.gob.ar/secretarias/areas/subsecretaria-de-educacion/educacion-secundaria/educacion-secundaria/disenos-curriculares";
-const SECONDARY_OFFICIAL_INDEX_URL =
-  "https://servicios.abc.gov.ar/lainstitucion/organismos/consejogeneral/disenioscurriculares/secundaria/";
-const OFFICIAL_INDEX_URLS = [PRIMARY_OFFICIAL_INDEX_URL, SECONDARY_OFFICIAL_INDEX_URL];
+const OFFICIAL_INDEX_URLS = [PRIMARY_OFFICIAL_INDEX_URL];
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

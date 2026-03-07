@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Check, ExternalLink, Loader2, Upload } from "lucide-react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { ArrowLeft, ArrowRight, Check, ExternalLink, Loader2 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 
 import { useAuth } from "@/contexts/AuthContext";
@@ -110,7 +110,7 @@ function isAllowedOfficialUrl(url: string | null): boolean {
   if (!url) return false;
   try {
     const host = new URL(url).hostname.toLowerCase();
-    return host === "abc.gob.ar" || host === "servicios.abc.gov.ar";
+    return host === "abc.gob.ar";
   } catch {
     return false;
   }
@@ -222,9 +222,6 @@ export default function CourseNew() {
   const selectedSchool = schools.find((school) => school.id === state.schoolId);
   const selectedCurriculum =
     curriculumCandidates.find((candidate) => candidate.id === selectedCurriculumId) || null;
-  const importProgramUrl = `/curriculum/import?subject=${encodeURIComponent(state.subject || "")}&cycle=${encodeURIComponent(
-    state.cycle || ""
-  )}&year_level=${encodeURIComponent(state.yearLevel?.toString() || "")}`;
   const availableCycles = useMemo(() => {
     if (!state.subject) return [];
     return ["BASIC", "UPPER"] as Cycle[];
@@ -1037,14 +1034,9 @@ export default function CourseNew() {
                   <div className="space-y-2 rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm">
                     <p className="font-medium">No se pudo resolver el programa oficial.</p>
                     {resolutionError && <p className="text-muted-foreground">{resolutionError}</p>}
-                    <div className="flex flex-wrap items-center gap-2 pt-1">
-                      <Button asChild size="sm" variant="outline">
-                        <Link to={importProgramUrl}>
-                          <Upload className="mr-2 h-4 w-4" />
-                          Importar programa
-                        </Link>
-                      </Button>
-                    </div>
+                    <p className="text-muted-foreground">
+                      Esta instancia ya no admite carga manual. La base curricular solo acepta documentos resueltos o sincronizados desde `abc.gob.ar`.
+                    </p>
                     <a
                       href={officialIndexUrl}
                       target="_blank"

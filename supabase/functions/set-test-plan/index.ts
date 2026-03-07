@@ -7,7 +7,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const QA_EMAIL = "rgarciareid@gmail.com";
+const QA_EMAILS = new Set(["rgarciareid@gmail.com", "bigscholl@test.docencia.ai"]);
 const ALLOWED_PLANS = new Set(["FREE", "BASICO", "PREMIUM"]);
 
 serve(async (req) => {
@@ -42,7 +42,7 @@ serve(async (req) => {
     });
   }
 
-  if ((userData.user.email || "").toLowerCase() !== QA_EMAIL) {
+  if (!QA_EMAILS.has((userData.user.email || "").toLowerCase())) {
     return new Response(JSON.stringify({ error: "No autorizado para cambiar planes de prueba" }), {
       status: 403,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

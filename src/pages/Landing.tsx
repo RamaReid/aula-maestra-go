@@ -18,7 +18,6 @@ import {
   Link2,
   RefreshCw,
   Workflow,
-  KeyRound,
 } from "lucide-react";
 import {
   Sheet,
@@ -27,12 +26,6 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-
-const BIG_SCHOLL_TEST_CREDENTIAL = {
-  name: "Big Scholl",
-  email: "bigscholl@test.docencia.ai",
-  password: "BigScholl2026!",
-};
 
 export default function Landing() {
   const { user, loading } = useAuth();
@@ -117,44 +110,6 @@ export default function Landing() {
               Planificá tu año, prepará tus clases, generá materiales y actividades; reuní agenda y
               gestión en un solo lugar.
             </p>
-            <Card className="max-w-lg border-brand-accent/30 bg-brand-accent/5">
-              <CardContent className="flex flex-col gap-4 p-5">
-                <div className="flex items-start gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-accent/15">
-                    <KeyRound className="h-5 w-5 text-brand-accent" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">
-                      Credencial de prueba: {BIG_SCHOLL_TEST_CREDENTIAL.name}
-                    </p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Usuario preparado para recorrer toda la experiencia de la plataforma en modo prueba.
-                    </p>
-                  </div>
-                </div>
-                <div className="grid gap-3 rounded-lg border bg-background/80 p-4 text-sm sm:grid-cols-2">
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Email</p>
-                    <p className="mt-1 font-medium text-foreground">{BIG_SCHOLL_TEST_CREDENTIAL.email}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Clave</p>
-                    <p className="mt-1 font-medium text-foreground">{BIG_SCHOLL_TEST_CREDENTIAL.password}</p>
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-3">
-                  <Button variant="outline" asChild>
-                    <Link
-                      to={`/login?email=${encodeURIComponent(BIG_SCHOLL_TEST_CREDENTIAL.email)}&password=${encodeURIComponent(
-                        BIG_SCHOLL_TEST_CREDENTIAL.password
-                      )}`}
-                    >
-                      Ingresar con Big Scholl
-                    </Link>
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
             <div className="flex flex-wrap gap-3 pt-2">
               <Button size="lg" asChild>
                 <Link to="/register">Crear cuenta gratis</Link>

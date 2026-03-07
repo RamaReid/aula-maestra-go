@@ -495,6 +495,13 @@ export default function Lesson() {
                 brief={brief}
                 onUpdate={fetchData}
                 planType={planType}
+                planTheme={planLesson?.theme}
+                learningOutcome={planLesson?.learning_outcome}
+                canonOperation={canonSummary.operation}
+                canonEvidence={canonSummary.evidence}
+                mappedCurriculumNodes={mappedCurriculumNodes}
+                bibliographyNodes={bibliographyNodes}
+                authorizedSourceNodes={authorizedSourceNodes}
               />
             </section>
 
@@ -542,10 +549,23 @@ export default function Lesson() {
               <CopilotPanel
                 bibliographyNodes={bibliographyNodes}
                 referencedNodeIds={referencedNodeIds}
+                mappedCurriculumNodes={mappedCurriculumNodes}
+                authorizedSources={authorizedSourceNodes}
                 depthLevel={brief.nivel_profundidad}
+                planTheme={planLesson?.theme}
+                learningOutcome={planLesson?.learning_outcome}
+                canonOperation={canonSummary.operation}
+                canonEvidence={canonSummary.evidence}
+                briefFocus={brief?.enfoque_deseado}
+                briefDynamic={brief?.tipo_dinamica_sugerida}
+                briefObservations={brief?.observaciones_docente}
+                briefStatus={brief?.status}
+                teachingStatus={teachingMaterial?.status}
+                readingStatus={readingMaterial?.status}
                 onDepthChange={handleDepthChange}
                 onRegenerateTeaching={handleRegenerateTeaching}
                 onRegenerateReading={handleRegenerateReading}
+                onFocusBrief={scrollToBrief}
                 isGenerating={lesson.is_generating}
                 isLocked={lesson.status === "LOCKED"}
                 copilotoMode={entitlements.copiloto_mode}

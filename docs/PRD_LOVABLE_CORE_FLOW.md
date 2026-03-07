@@ -71,7 +71,6 @@ Sin estas variables, importacion, bootstrap y generacion quedan parciales o fall
 El runtime debe poder acceder a:
 
 - `https://abc.gob.ar`
-- `https://servicios.abc.gov.ar`
 - `https://ai.gateway.lovable.dev`
 
 Si se bloquea salida, la resolucion/importacion remota deja de funcionar.

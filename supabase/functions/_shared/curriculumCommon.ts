@@ -1,4 +1,4 @@
-export const OFFICIAL_ALLOWED_HOSTS = new Set(["abc.gob.ar", "servicios.abc.gov.ar"]);
+export const OFFICIAL_ALLOWED_HOSTS = new Set(["abc.gob.ar"]);
 
 export type SchoolType = "COMUN" | "TECNICA";
 export type CurriculumCycle = "BASIC" | "UPPER";
