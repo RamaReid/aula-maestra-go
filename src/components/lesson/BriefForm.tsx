@@ -300,7 +300,7 @@ export default function BriefForm({ lessonId, courseId, brief, onUpdate, planTyp
         }
 
         processedCount += 1;
-        createdSourceIds.push(createdSource.id as string);
+        createdSourceIds.push((createdSource as any).id as string);
       }
 
       if (createdSourceIds.length > 0) {
