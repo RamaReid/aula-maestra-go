@@ -42,6 +42,11 @@ const planBadgeVariant: Record<string, "default" | "secondary" | "outline"> = {
   BASICO: "secondary",
   PREMIUM: "default",
 };
+const planReadableLabel: Record<string, string> = {
+  FREE: "Gratis",
+  BASICO: "Básico",
+  PREMIUM: "Premium",
+};
 const QA_EMAIL = "rgarciareid@gmail.com";
 
 export default function Dashboard() {
