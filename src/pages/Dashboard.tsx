@@ -288,7 +288,7 @@ export default function Dashboard() {
               </div>
             ) : (
               <Badge variant={planBadgeVariant[planType] || "outline"} className="text-xs">
-                {planType}
+                {planReadableLabel[planType] || planType}
               </Badge>
             )}
           </div>
