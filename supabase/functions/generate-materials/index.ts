@@ -75,6 +75,10 @@ type NeighborPlanLesson = {
   activities_summary: string | null;
 };
 
+type PostgrestErrorLike = {
+  message?: string | null;
+};
+
 // ── Validation helpers ──
 
 function cleanMarkdownArtifacts(text: string): string {
@@ -171,6 +175,11 @@ function sanitizeIdList(value: unknown): string[] {
     unique.add(cleaned);
   }
   return Array.from(unique);
+}
+
+function assertDbWrite(error: PostgrestErrorLike | null, context: string): void {
+  if (!error) return;
+  throw new Error(`${context}: ${error.message || "error desconocido"}`);
 }
 
 function resolveCurriculumSelections(
@@ -1432,7 +1441,7 @@ REGLAS:
           console.error("TeachingMaterial validation failed:", teachingValidationErrors);
         }
 
-        await adminClient.from("teaching_materials").upsert(
+        const { error: teachingUpsertError } = await adminClient.from("teaching_materials").upsert(
           {
             lesson_id: lessonId,
             purpose: teachingArgs.purpose,
@@ -1445,12 +1454,14 @@ REGLAS:
           },
           { onConflict: "lesson_id" }
         );
+        assertDbWrite(teachingUpsertError, "No se pudo guardar teaching_materials");
 
         if (regenerateOnly === "teaching") {
-          await adminClient
+          const { error: invalidateReadingError } = await adminClient
             .from("reading_materials")
             .update({ status: "INVALIDATED" })
             .eq("lesson_id", lessonId);
+          assertDbWrite(invalidateReadingError, "No se pudo invalidar reading_materials");
         }
       }
 
@@ -1574,12 +1585,15 @@ REGLAS OBLIGATORIAS:
               pdfUrl = null;
             } else {
               const storagePath = `${lessonId}/reading-material.pdf`;
-              await adminClient.storage
+              const { error: storageUploadError } = await adminClient.storage
                 .from("reading-materials-pdf")
                 .upload(storagePath, finalPdfBytes, {
                   contentType: "application/pdf",
                   upsert: true,
                 });
+              if (storageUploadError) {
+                throw new Error(`No se pudo subir reading-material.pdf: ${storageUploadError.message}`);
+              }
 
               const { data: publicUrlData } = adminClient.storage
                 .from("reading-materials-pdf")
@@ -1600,7 +1614,7 @@ REGLAS OBLIGATORIAS:
         wordCount = countWords(stripHtml(readingHtml));
         readingStatus = readingValid ? "VALIDATED" : "INVALIDATED";
 
-        await adminClient.from("reading_materials").upsert(
+        const { error: readingUpsertError } = await adminClient.from("reading_materials").upsert(
           {
             lesson_id: lessonId,
             word_count: wordCount,
@@ -1611,16 +1625,22 @@ REGLAS OBLIGATORIAS:
           },
           { onConflict: "lesson_id" }
         );
+        assertDbWrite(readingUpsertError, "No se pudo guardar reading_materials");
       }
 
       // ── 6. Finalize this lesson ──
-      await adminClient.from("lessons").update({ is_generating: false }).eq("id", lessonId);
+      const { error: lessonUnlockError } = await adminClient
+        .from("lessons")
+        .update({ is_generating: false })
+        .eq("id", lessonId);
+      assertDbWrite(lessonUnlockError, "No se pudo liberar lessons.is_generating");
 
       if (regenerateOnly !== "reading") {
-        await adminClient
+        const { error: briefProducedError } = await adminClient
           .from("lesson_briefs")
           .update({ status: "PRODUCED" })
           .eq("lesson_id", lessonId);
+        assertDbWrite(briefProducedError, "No se pudo actualizar lesson_briefs a PRODUCED");
       }
 
       allResults.push({
@@ -1641,10 +1661,11 @@ REGLAS OBLIGATORIAS:
       (r) => r.reading_status === "VALIDATED" && regenerateOnly !== "teaching"
     );
     if (entitlements && usageCounter && anyValidated) {
-      await adminClient
+      const { error: usageCounterUpdateError } = await adminClient
         .from("usage_counters")
         .update({ sessions_used_this_week: (usageCounter.sessions_used_this_week || 0) + 1 })
         .eq("user_id", userId);
+      assertDbWrite(usageCounterUpdateError, "No se pudo actualizar usage_counters");
     }
 
     // Return results — backward compatible for single lesson

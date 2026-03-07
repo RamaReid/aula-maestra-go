@@ -38,6 +38,8 @@ type AuthorizedSourceRow = {
 type GenerateMaterialsResponse = {
   error?: string;
   reading_pdf_base64?: string;
+  reading_status?: "VALIDATED" | "INVALIDATED" | "skipped";
+  reading_validation_issues?: string[];
 };
 
 const AUTHORIZED_SOURCES_TABLE = "authorized_sources" as any;
@@ -294,7 +296,16 @@ export default function Lesson() {
       if (responseData?.reading_pdf_base64) {
         setPdfBase64(responseData.reading_pdf_base64);
       }
-      toast({ title: "Materiales generados correctamente" });
+      if (responseData?.reading_status === "INVALIDATED") {
+        const details = (responseData.reading_validation_issues || []).join(" | ");
+        toast({
+          title: "Material didactico generado; lectura pendiente",
+          description: details || "La lectura no paso validacion. Revisa y regenera lectura.",
+          variant: "destructive",
+        });
+      } else {
+        toast({ title: "Materiales generados correctamente" });
+      }
       fetchData();
     } catch (err: unknown) {
       toast({ title: "Error", description: formatErrorMessage(err), variant: "destructive" });
@@ -349,7 +360,16 @@ export default function Lesson() {
       if (responseData?.reading_pdf_base64) {
         setPdfBase64(responseData.reading_pdf_base64);
       }
-      toast({ title: "Material de lectura regenerado" });
+      if (responseData?.reading_status === "INVALIDATED") {
+        const details = (responseData.reading_validation_issues || []).join(" | ");
+        toast({
+          title: "Lectura no validada",
+          description: details || "La lectura no paso validacion en este intento.",
+          variant: "destructive",
+        });
+      } else {
+        toast({ title: "Material de lectura regenerado" });
+      }
       fetchData();
     } catch (err: unknown) {
       toast({ title: "Error", description: formatErrorMessage(err), variant: "destructive" });
