@@ -647,6 +647,84 @@ export type Database = {
           },
         ]
       }
+      premium_query_requests: {
+        Row: {
+          approved_at: string | null
+          context_payload: Json
+          corrected_query: string | null
+          course_id: string
+          created_at: string
+          created_by: string
+          id: string
+          lesson_id: string | null
+          normalized_query: string
+          raw_query: string
+          rejection_reason: string | null
+          requested_resource_type: string | null
+          resolved_candidates: Json
+          selected_candidate: Json | null
+          status: string
+          target_entity: string | null
+          target_topic: string | null
+          updated_at: string
+        }
+        Insert: {
+          approved_at?: string | null
+          context_payload?: Json
+          corrected_query?: string | null
+          course_id: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          lesson_id?: string | null
+          normalized_query?: string
+          raw_query: string
+          rejection_reason?: string | null
+          requested_resource_type?: string | null
+          resolved_candidates?: Json
+          selected_candidate?: Json | null
+          status?: string
+          target_entity?: string | null
+          target_topic?: string | null
+          updated_at?: string
+        }
+        Update: {
+          approved_at?: string | null
+          context_payload?: Json
+          corrected_query?: string | null
+          course_id?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          lesson_id?: string | null
+          normalized_query?: string
+          raw_query?: string
+          rejection_reason?: string | null
+          requested_resource_type?: string | null
+          resolved_candidates?: Json
+          selected_candidate?: Json | null
+          status?: string
+          target_entity?: string | null
+          target_topic?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "premium_query_requests_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "premium_query_requests_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "lessons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -976,6 +1054,10 @@ export type Database = {
       }
       is_plan_owner: {
         Args: { _plan_id: string; _user_id: string }
+        Returns: boolean
+      }
+      is_premium_query_owner: {
+        Args: { _request_id: string; _user_id: string }
         Returns: boolean
       }
       recalculate_entitlements: {
