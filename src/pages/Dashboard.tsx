@@ -188,24 +188,7 @@ export default function Dashboard() {
             </div>
 
             <div className="flex justify-center">
-              {isQaUser ? (
-                <div className="w-full max-w-[180px]">
-                  <Select value={planType} onValueChange={(value) => handlePlanSwitch(value as PlanType)} disabled={switchingPlan}>
-                    <SelectTrigger className="h-8">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="FREE">FREE</SelectItem>
-                      <SelectItem value="BASICO">BASICO</SelectItem>
-                      <SelectItem value="PREMIUM">PREMIUM</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              ) : (
-              <Badge variant={planBadgeVariant[planType] || "outline"} className="text-xs">
-                  {planReadableLabel[planType] || planType}
-                </Badge>
-              )}
+              <PlanSwitcher planType={planType} isQaUser={isQaUser} switchingPlan={switchingPlan} onPlanSwitch={handlePlanSwitch} />
             </div>
 
             <div className="flex justify-end">
