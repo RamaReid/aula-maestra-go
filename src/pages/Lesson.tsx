@@ -40,7 +40,7 @@ type GenerateMaterialsResponse = {
   reading_pdf_base64?: string;
 };
 
-const AUTHORIZED_SOURCES_TABLE = "authorized_sources" as never;
+const AUTHORIZED_SOURCES_TABLE = "authorized_sources" as any;
 
 function extractCanonSummary(activitiesSummary?: string | null, fallbackTheme?: string | null) {
   const summary = (activitiesSummary || "").trim();
