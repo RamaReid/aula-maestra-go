@@ -1,13 +1,12 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import type { PlanType } from "@/hooks/useEntitlements";
+import { supabase } from "@/integrations/supabase/client";
+import { extractBibliographyProtocolNodes, type BibliographyProtocolNode } from "@/lib/bibliographyProtocol";
 
-interface Node {
-  id: string;
-  name: string;
-  node_type: string;
+interface Node extends BibliographyProtocolNode {
   parent_id: string | null;
   order_index?: number;
 }
@@ -20,12 +19,9 @@ interface AuthorizedSource {
   status: string;
 }
 
-type AuthorizedSourceTarget = {
-  source_id: string;
-};
-
 const AUTHORIZED_SOURCE_TARGETS_TABLE = "authorized_source_targets" as never;
 const AUTHORIZED_SOURCES_TABLE = "authorized_sources" as never;
+const MAX_SOURCES = 5;
 
 interface BibliographySelectorProps {
   courseId: string;
@@ -34,57 +30,9 @@ interface BibliographySelectorProps {
   onChange: (ids: string[]) => void;
   selectedAuthorized?: string[];
   onAuthorizedChange?: (ids: string[]) => void;
+  onSelectionAudit?: (audit: { invalidCurricularIds: string[]; invalidAuthorizedIds: string[] }) => void;
   disabled?: boolean;
   planType?: PlanType;
-}
-
-const MAX_SOURCES = 5;
-
-function normalizeName(value: string): string {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function shouldHideNode(name: string): boolean {
-  const normalized = normalizeName(name);
-  return (
-    normalized.startsWith("isbn ") ||
-    normalized.startsWith("cdd ") ||
-    normalized === "equipo de especialistas" ||
-    normalized.startsWith("diseno curricular para") ||
-    normalized.startsWith("educacion secundaria") ||
-    /^lic\.\s+/.test(normalized)
-  );
-}
-
-function isBibliographyHeading(name: string): boolean {
-  const normalized = normalizeName(name);
-  return (
-    normalized.includes("bibliografia") ||
-    normalized.includes("bibliografica") ||
-    normalized.includes("fuentes bibliograficas")
-  );
-}
-
-function isLikelyBibliographyEntry(name: string): boolean {
-  if (shouldHideNode(name)) return false;
-
-  const normalized = normalizeName(name);
-  const commaCount = (name.match(/,/g) || []).length;
-  const hasYear = /\b(1[89]\d{2}|20\d{2})\b/.test(name);
-  const hasEditionFallback = /\bvarias\s+ediciones\b/i.test(name);
-  const hasAuthorPrefix = /^[A-ZÁÉÍÓÚÑ][^,]{1,90},/.test(name.trim());
-
-  if (normalized.includes("dgcye | diseno curricular")) return false;
-  if (!hasAuthorPrefix) return false;
-  if (commaCount < 3) return false;
-  if (!hasYear && !hasEditionFallback && commaCount < 4) return false;
-
-  return true;
 }
 
 function mapMediaLabel(mediaType: string): string {
@@ -101,6 +49,7 @@ export default function BibliographySelector({
   onChange,
   selectedAuthorized = [],
   onAuthorizedChange,
+  onSelectionAudit,
   disabled,
   planType = "FREE",
 }: BibliographySelectorProps) {
@@ -113,54 +62,6 @@ export default function BibliographySelector({
   useEffect(() => {
     const fetchNodes = async () => {
       setLoading(true);
-
-      const cleanCandidates = (rawNodes: Node[]): Node[] => {
-        const childrenByParent = new Map<string, Node[]>();
-        rawNodes.forEach((node) => {
-          if (!node.parent_id) return;
-          const current = childrenByParent.get(node.parent_id) || [];
-          current.push(node);
-          childrenByParent.set(node.parent_id, current);
-        });
-
-        const bibliographyRootIds = rawNodes
-          .filter((node) => isBibliographyHeading(node.name))
-          .map((node) => node.id);
-
-        const bibliographyDescendantIds = new Set<string>();
-        const queue = [...bibliographyRootIds];
-        while (queue.length > 0) {
-          const parentId = queue.shift()!;
-          const children = childrenByParent.get(parentId) || [];
-          children.forEach((child) => {
-            bibliographyDescendantIds.add(child.id);
-            queue.push(child.id);
-          });
-        }
-
-        const subtreeBibliography = rawNodes.filter(
-          (node) =>
-            bibliographyDescendantIds.has(node.id) &&
-            node.node_type === "CONTENIDO" &&
-            !shouldHideNode(node.name)
-        );
-        const bibliographyOnly =
-          subtreeBibliography.length > 0
-            ? subtreeBibliography
-            : rawNodes.filter(
-                (node) =>
-                  node.node_type === "CONTENIDO" &&
-                  isLikelyBibliographyEntry(node.name) &&
-                  !shouldHideNode(node.name)
-              );
-
-        const dedupMap = new Map<string, Node>();
-        bibliographyOnly.forEach((node) => {
-          const key = normalizeName(node.name);
-          if (!dedupMap.has(key)) dedupMap.set(key, node);
-        });
-        return Array.from(dedupMap.values()).sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
-      };
 
       try {
         const { data: course } = await supabase
@@ -181,9 +82,7 @@ export default function BibliographySelector({
           .eq("curriculum_document_id", course.curriculum_document_id)
           .order("order_index");
 
-        const resolvedCurriculumNodes = cleanCandidates((documentNodes || []) as Node[]);
-
-        setNodes(resolvedCurriculumNodes);
+        setNodes(extractBibliographyProtocolNodes((documentNodes || []) as Node[]));
 
         if (canUseAuthorizedSources && lessonId) {
           const { data: targets, error: targetsError } = await supabase
@@ -195,8 +94,9 @@ export default function BibliographySelector({
             setAuthorizedSources([]);
           } else {
             const sourceIds = Array.from(
-              new Set(((targets || []) as unknown as Array<{ source_id: string }>).map((target) => target.source_id))
+              new Set(((targets || []) as Array<{ source_id: string }>).map((target) => target.source_id))
             );
+
             if (sourceIds.length === 0) {
               setAuthorizedSources([]);
             } else {
@@ -207,10 +107,11 @@ export default function BibliographySelector({
                 .in("id", sourceIds)
                 .order("created_at", { ascending: false });
 
-              const processed = ((sourcesData || []) as unknown as AuthorizedSource[]).filter(
-                (source) => source.status === "PROCESSED" || source.status === "APPROVED"
+              setAuthorizedSources(
+                ((sourcesData || []) as AuthorizedSource[]).filter(
+                  (source) => source.status === "PROCESSED" || source.status === "APPROVED"
+                )
               );
-              setAuthorizedSources(processed);
             }
           }
         } else {
@@ -222,7 +123,14 @@ export default function BibliographySelector({
     };
 
     fetchNodes();
-  }, [courseId, lessonId, canUseAuthorizedSources]);
+  }, [canUseAuthorizedSources, courseId, lessonId]);
+
+  useEffect(() => {
+    onSelectionAudit?.({
+      invalidCurricularIds: selected.filter((id) => !nodes.some((node) => node.id === id)),
+      invalidAuthorizedIds: selectedAuthorized.filter((id) => !authorizedSources.some((source) => source.id === id)),
+    });
+  }, [authorizedSources, nodes, onSelectionAudit, selected, selectedAuthorized]);
 
   const toggleCurriculum = (nodeId: string) => {
     if (disabled) return;
@@ -299,9 +207,7 @@ export default function BibliographySelector({
                 </div>
               ))
             ) : (
-              <p className="text-sm text-muted-foreground">
-                Todavia no hay fuentes del docente procesadas para esta clase.
-              </p>
+              <p className="text-sm text-muted-foreground">Todavia no hay fuentes del docente procesadas para esta clase.</p>
             )}
           </div>
         </div>

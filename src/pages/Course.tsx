@@ -422,7 +422,7 @@ export default function Course() {
             </div>
             {course && (
               <p className="text-sm text-muted-foreground">
-                {course.school_name} · {course.year_level}° ano · {course.academic_year}
+                {course.school_name} · {course.year_level}° año · {course.academic_year}
               </p>
             )}
           </div>
@@ -473,7 +473,7 @@ export default function Course() {
                     <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
                       <span>Fuente: {curriculum.source_provider}</span>
                       <span>Nodos curriculares: {curriculum.node_count ?? 0}</span>
-                      <span>Curso: {course?.subject} {course?.year_level} ano</span>
+                      <span>Curso: {course?.subject} {course?.year_level} año</span>
                     </div>
                     {curriculum.source_provider === "ABC_PBA_WEB" && (
                       <p className="text-xs text-muted-foreground">

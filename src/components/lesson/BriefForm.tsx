@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -257,6 +258,8 @@ export default function BriefForm({
   const [premiumCorrectedQuery, setPremiumCorrectedQuery] = useState<string | null>(null);
   const [resolvingPremium, setResolvingPremium] = useState(false);
   const [approvingCandidateUrl, setApprovingCandidateUrl] = useState<string | null>(null);
+  const [invalidCurricularSelections, setInvalidCurricularSelections] = useState<string[]>([]);
+  const [invalidAuthorizedSelections, setInvalidAuthorizedSelections] = useState<string[]>([]);
 
   const initialState = useMemo(
     () => ({
@@ -271,6 +274,7 @@ export default function BriefForm({
   );
 
   const totalSelectedSources = bibliografia.length + authorizedSources.length;
+  const hasInvalidSelections = invalidCurricularSelections.length > 0 || invalidAuthorizedSelections.length > 0;
 
   const isDirty =
     enfoque !== initialState.enfoque ||
@@ -291,8 +295,19 @@ export default function BriefForm({
   }, [isDirty]);
 
   const isConfirmed = brief?.status === "READY_FOR_PRODUCTION" || brief?.status === "PRODUCED";
+  const isEditable = !isConfirmed || hasInvalidSelections;
   const canUploadTeacherSources = planType === "BASICO" || planType === "PREMIUM";
   const canUsePremiumQuery = planType === "PREMIUM";
+
+  useEffect(() => {
+    if (invalidCurricularSelections.length === 0) return;
+    setBibliografia((current) => current.filter((id) => !invalidCurricularSelections.includes(id)));
+  }, [invalidCurricularSelections]);
+
+  useEffect(() => {
+    if (invalidAuthorizedSelections.length === 0) return;
+    setAuthorizedSources((current) => current.filter((id) => !invalidAuthorizedSelections.includes(id)));
+  }, [invalidAuthorizedSelections]);
   const premiumAutocompleteDraft = useMemo(
     () =>
       buildBriefAutocompleteDraft({
@@ -362,8 +377,9 @@ export default function BriefForm({
   const handleSave = async () => {
     setSaving(true);
     try {
-      await persistBrief();
-      toast({ title: "Relevamiento guardado" });
+      const saveStatus = isConfirmed && hasInvalidSelections ? "IN_PROGRESS" : undefined;
+      await persistBrief(saveStatus);
+      toast({ title: saveStatus ? "Relevamiento reabierto" : "Relevamiento guardado" });
       onUpdate();
     } catch (error) {
       logError("Brief save failed", error, { lessonId });
@@ -703,7 +719,7 @@ export default function BriefForm({
 
   return (
     <div className="space-y-4">
-      {canUsePremiumQuery && !isConfirmed && (
+      {canUsePremiumQuery && isEditable && (
         <div className="space-y-3 rounded-md border border-primary/20 bg-primary/5 p-3">
           <div className="space-y-1">
             <Label>Copiloto premium para el brief</Label>
@@ -721,7 +737,7 @@ export default function BriefForm({
           value={enfoque}
           onChange={(e) => setEnfoque(e.target.value)}
           placeholder="Que enfoque quieres darle a esta clase?"
-          disabled={isConfirmed}
+          disabled={!isEditable}
         />
       </div>
 
@@ -731,7 +747,7 @@ export default function BriefForm({
           value={dinamica}
           onChange={(e) => setDinamica(e.target.value)}
           placeholder="Ej: debate, trabajo en grupos, exposicion..."
-          disabled={isConfirmed}
+          disabled={!isEditable}
         />
       </div>
 
@@ -740,7 +756,7 @@ export default function BriefForm({
         <Select
           value={profundidad}
           onValueChange={(v) => setProfundidad(v as "BAJO" | "MEDIO" | "ALTO")}
-          disabled={isConfirmed}
+          disabled={!isEditable}
         >
           <SelectTrigger>
             <SelectValue />
@@ -759,11 +775,11 @@ export default function BriefForm({
           value={observaciones}
           onChange={(e) => setObservaciones(e.target.value)}
           placeholder="Observaciones adicionales para el motor IA..."
-          disabled={isConfirmed}
+          disabled={!isEditable}
         />
       </div>
 
-      {canUploadTeacherSources && !isConfirmed && (
+      {canUploadTeacherSources && isEditable && (
         <div className="space-y-2 rounded-md border p-3">
           <Label>Fuentes del docente (archivo)</Label>
           <input
@@ -782,7 +798,7 @@ export default function BriefForm({
         </div>
       )}
 
-      {canUsePremiumQuery && !isConfirmed && (
+      {canUsePremiumQuery && isEditable && (
         <div className="space-y-3 rounded-md border p-3">
           <Label>Busqueda premium (consulta concreta)</Label>
           <Input
@@ -860,6 +876,15 @@ export default function BriefForm({
         </div>
       )}
 
+      {hasInvalidSelections && (
+        <Alert variant="destructive">
+          <AlertTitle>Fuentes invalidadas</AlertTitle>
+          <AlertDescription>
+            Algunas fuentes confirmadas ya no cumplen el protocolo bibliografico actual. Revise la seleccion y confirme otra vez el relevamiento.
+          </AlertDescription>
+        </Alert>
+      )}
+
       <BibliographySelector
         courseId={courseId}
         lessonId={lessonId}
@@ -867,11 +892,15 @@ export default function BriefForm({
         onChange={setBibliografia}
         selectedAuthorized={authorizedSources}
         onAuthorizedChange={setAuthorizedSources}
-        disabled={isConfirmed}
+        onSelectionAudit={({ invalidCurricularIds, invalidAuthorizedIds }) => {
+          setInvalidCurricularSelections(invalidCurricularIds);
+          setInvalidAuthorizedSelections(invalidAuthorizedIds);
+        }}
+        disabled={!isEditable}
         planType={planType}
       />
 
-      {!isConfirmed && (
+      {isEditable && (
         <div className="flex gap-2">
           <Button variant="outline" onClick={handleSave} disabled={saving || uploading}>
             Guardar

@@ -24,7 +24,7 @@ type LessonRow = Tables<"lessons">;
 type PlanLessonRow = Tables<"plan_lessons">;
 type TeachingMaterialRow = Tables<"teaching_materials">;
 type ReadingMaterialRow = Tables<"reading_materials">;
-type CurriculumNodeRow = Pick<Tables<"curriculum_nodes">, "id" | "name" | "node_type">;
+type CurriculumNodeRow = Pick<Tables<"curriculum_nodes">, "id" | "name" | "node_type" | "parent_id" | "order_index">;
 type LessonBriefRow = Tables<"lesson_briefs"> & {
   authorized_source_ids?: string[] | null;
 };
@@ -70,6 +70,63 @@ function isLikelyBibliographyEntry(name: string): boolean {
   const hasEditionFallback = /\bvarias\s+ediciones\b/i.test(trimmed);
 
   return hasAuthorPrefix && commaCount >= 2 && (hasYear || hasEditionFallback || commaCount >= 3);
+}
+
+function isBibliographyHeading(name: string): boolean {
+  const normalized = name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return (
+    normalized.includes("bibliografia") ||
+    normalized.includes("bibliografica") ||
+    normalized.includes("fuentes bibliograficas")
+  );
+}
+
+function extractProtocolBibliographyNodes(nodes: CurriculumNodeRow[]): CurriculumNodeRow[] {
+  const childrenByParent = new Map<string, CurriculumNodeRow[]>();
+  nodes.forEach((node) => {
+    if (!node.parent_id) return;
+    const current = childrenByParent.get(node.parent_id) || [];
+    current.push(node);
+    childrenByParent.set(node.parent_id, current);
+  });
+
+  const bibliographyRootIds = nodes.filter((node) => isBibliographyHeading(node.name)).map((node) => node.id);
+  const bibliographyDescendantIds = new Set<string>();
+  const queue = [...bibliographyRootIds];
+
+  while (queue.length > 0) {
+    const parentId = queue.shift()!;
+    const children = childrenByParent.get(parentId) || [];
+    children.forEach((child) => {
+      bibliographyDescendantIds.add(child.id);
+      queue.push(child.id);
+    });
+  }
+
+  const protocolNodes = nodes.filter(
+    (node) =>
+      node.node_type === "CONTENIDO" &&
+      ((bibliographyDescendantIds.has(node.id) && !isNoiseNode(node.name)) || isLikelyBibliographyEntry(node.name))
+  );
+
+  const unique = new Map<string, CurriculumNodeRow>();
+  protocolNodes.forEach((node) => {
+    const key = node.name
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!unique.has(key)) unique.set(key, node);
+  });
+
+  return Array.from(unique.values()).sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
 }
 
 function isNoiseNode(name: string): boolean {
@@ -150,7 +207,7 @@ export default function Lesson() {
         if (nodeIds.length > 0) {
           const { data: mappedNodes } = await supabase
             .from("curriculum_nodes")
-            .select("id, name, node_type")
+            .select("id, name, node_type, parent_id, order_index")
             .in("id", nodeIds)
             .order("order_index");
           setMappedCurriculumNodes(((mappedNodes || []) as CurriculumNodeRow[]).filter((node) => !isNoiseNode(node.name)));
@@ -165,11 +222,26 @@ export default function Lesson() {
     }
 
     if (briefRes.data?.bibliografia_confirmada?.length > 0) {
-      const { data: nodes } = await supabase
-        .from("curriculum_nodes")
-        .select("id, name, node_type")
-        .in("id", briefRes.data.bibliografia_confirmada);
-      setBibliographyNodes((nodes || []) as CurriculumNodeRow[]);
+      const { data: courseCurriculum } = await supabase
+        .from("courses")
+        .select("curriculum_document_id")
+        .eq("id", lessonData.course_id)
+        .maybeSingle();
+
+      if (courseCurriculum?.curriculum_document_id) {
+        const { data: documentNodes } = await supabase
+          .from("curriculum_nodes")
+          .select("id, name, node_type, parent_id, order_index")
+          .eq("curriculum_document_id", courseCurriculum.curriculum_document_id)
+          .order("order_index");
+
+        const protocolNodes = extractProtocolBibliographyNodes((documentNodes || []) as CurriculumNodeRow[]);
+        setBibliographyNodes(
+          protocolNodes.filter((node) => briefRes.data!.bibliografia_confirmada.includes(node.id))
+        );
+      } else {
+        setBibliographyNodes([]);
+      }
     } else {
       setBibliographyNodes([]);
     }
