@@ -27,6 +27,14 @@ type QueryCandidate = {
   fetched_at: string;
 };
 
+type WikipediaSearchRow = {
+  title?: string;
+  pageid?: number;
+  snippet?: string;
+};
+
+const PREMIUM_QUERY_REQUESTS_TABLE = "premium_query_requests" as never;
+
 function normalizeText(value: string): string {
   return value
     .normalize("NFD")
@@ -275,7 +283,7 @@ async function searchWikipediaCandidates(query: string, maxResults: number): Pro
   const rows = data?.query?.search;
   if (!Array.isArray(rows)) return [];
 
-  return rows.slice(0, maxResults).map((row: any, index: number) => ({
+  return (rows as WikipediaSearchRow[]).slice(0, maxResults).map((row, index: number) => ({
     title: typeof row?.title === "string" ? row.title : "Resultado",
     url: typeof row?.pageid === "number" ? `https://es.wikipedia.org/?curid=${row.pageid}` : "https://es.wikipedia.org",
     domain: "wikipedia.org",
@@ -386,7 +394,7 @@ serve(async (req) => {
   const parsed = extractEntityAndTopic(rawQuery);
 
   const { data: createdRequest, error: createRequestError } = await userClient
-    .from("premium_query_requests" as any)
+    .from(PREMIUM_QUERY_REQUESTS_TABLE)
     .insert({
       course_id: courseId,
       lesson_id: lessonId,

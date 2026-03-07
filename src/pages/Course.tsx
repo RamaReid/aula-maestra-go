@@ -27,6 +27,7 @@ import { StatusBadge, briefLabel, briefTone, lessonStatusLabel, lessonStatusTone
 import { useEntitlements } from "@/hooks/useEntitlements";
 import { Checkbox } from "@/components/ui/checkbox";
 import { getMaxSelectableLessons, isConsecutiveSequence, isValidFreeSelection } from "@/lib/courseSelectionRules";
+import type { Tables } from "@/integrations/supabase/types";
 
 interface LessonWithPlanLesson {
   id: string;
@@ -60,6 +61,32 @@ interface CurriculumInfo {
 interface PlanInfo {
   id: string;
   status: string;
+}
+
+type CourseRecord = Pick<
+  Tables<"courses">,
+  "id" | "subject" | "year_level" | "academic_year" | "status" | "curriculum_document_id"
+> & {
+  schools: Pick<Tables<"schools">, "official_name"> | null;
+};
+
+type CourseRecordWithoutCurriculum = Omit<CourseRecord, "curriculum_document_id"> & {
+  curriculum_document_id?: null;
+};
+
+type BriefStatusRow = Pick<Tables<"lesson_briefs">, "lesson_id" | "status">;
+
+type FunctionInvokeErrorLike = {
+  message?: string;
+  context?: Response;
+};
+
+function isFunctionInvokeErrorLike(error: unknown): error is FunctionInvokeErrorLike {
+  return typeof error === "object" && error !== null;
+}
+
+function getErrorMessage(error: unknown, fallback = "Error desconocido"): string {
+  return error instanceof Error ? error.message : fallback;
 }
 
 export default function Course() {
@@ -108,12 +135,14 @@ export default function Course() {
   const selectionLimitReached = selectedLessonIds.length >= maxSelectableLessons;
   const hasExactFreeSelection = isValidFreeSelection(selectedLessons.length);
 
-  async function parseFunctionErrorMessage(error: any): Promise<string> {
+  async function parseFunctionErrorMessage(error: unknown): Promise<string> {
     if (!error) return "Error desconocido";
-    if (typeof error.message === "string" && !error.context) return error.message;
+    if (isFunctionInvokeErrorLike(error) && typeof error.message === "string" && !error.context) {
+      return error.message;
+    }
 
     try {
-      const context = error.context as Response | undefined;
+      const context = isFunctionInvokeErrorLike(error) ? error.context : undefined;
       if (context) {
         const payload = await context.json();
         if (payload?.error) return payload.error;
@@ -122,7 +151,7 @@ export default function Course() {
       // Ignore context parsing errors.
     }
 
-    return typeof error.message === "string" ? error.message : "Error desconocido";
+    return isFunctionInvokeErrorLike(error) && typeof error.message === "string" ? error.message : "Error desconocido";
   }
 
   const fetchData = useCallback(async () => {
@@ -130,7 +159,7 @@ export default function Course() {
 
     setLoading(true);
 
-    let courseData: any = null;
+    let courseData: CourseRecord | CourseRecordWithoutCurriculum | null = null;
     const { data: courseWithCurriculum, error: courseWithCurriculumError } = await supabase
       .from("courses")
       .select("id, subject, year_level, academic_year, status, curriculum_document_id, schools(official_name)")
@@ -138,7 +167,7 @@ export default function Course() {
       .single();
 
     if (!courseWithCurriculumError && courseWithCurriculum) {
-      courseData = courseWithCurriculum;
+      courseData = courseWithCurriculum as unknown as CourseRecord;
     } else if (
       courseWithCurriculumError &&
       courseWithCurriculumError.message.includes("curriculum_document_id")
@@ -148,7 +177,7 @@ export default function Course() {
         .select("id, subject, year_level, academic_year, status, schools(official_name)")
         .eq("id", courseId)
         .single();
-      courseData = courseWithoutCurriculum;
+      courseData = courseWithoutCurriculum as unknown as CourseRecordWithoutCurriculum;
     }
 
     if (courseData) {
@@ -159,7 +188,7 @@ export default function Course() {
         subject: courseData.subject,
         year_level: courseData.year_level,
         academic_year: courseData.academic_year,
-        school_name: (courseData as any).schools?.official_name ?? "Sin escuela",
+        school_name: courseData.schools?.official_name ?? "Sin escuela",
         status: courseData.status,
         curriculum_document_id: resolvedCurriculumId,
         curriculum_link_mode: resolvedCurriculumId
@@ -219,7 +248,9 @@ export default function Course() {
           .in("lesson_id", lessonIds);
 
         const planLessonMap = new Map((planLessons || []).map((planLesson) => [planLesson.id, planLesson]));
-        const briefMap = new Map((briefs || []).map((brief: any) => [brief.lesson_id, brief.status]));
+        const briefMap = new Map(
+          ((briefs || []) as BriefStatusRow[]).map((brief) => [brief.lesson_id, brief.status])
+        );
 
         setLessons(
           lessonsData.map((lesson) => ({
@@ -269,8 +300,8 @@ export default function Course() {
         }
 
         await fetchData();
-      } catch (error: any) {
-        setFreePreparationError(error.message || "No se pudo preparar la secuencia del curso.");
+      } catch (error: unknown) {
+        setFreePreparationError(getErrorMessage(error, "No se pudo preparar la secuencia del curso."));
       } finally {
         setPreparingFreeView(false);
       }
@@ -381,10 +412,10 @@ export default function Course() {
       });
       setSelectedLessonIds([]);
       await fetchData();
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Error al preparar",
-        description: error.message || "Error desconocido",
+        description: getErrorMessage(error),
         variant: "destructive",
       });
     } finally {

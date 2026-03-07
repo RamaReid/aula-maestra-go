@@ -17,6 +17,41 @@ import { StatusBadge, briefLabel, briefTone, materialLabel, materialTone, lesson
 import { StepHeader } from "@/components/ui/StepHeader";
 import { SkeletonList } from "@/components/ui/SkeletonList";
 import { ThinkingBook } from "@/components/ui/ThinkingBook";
+import type { Tables } from "@/integrations/supabase/types";
+
+type LessonRow = Tables<"lessons">;
+type PlanLessonRow = Tables<"plan_lessons">;
+type TeachingMaterialRow = Tables<"teaching_materials">;
+type ReadingMaterialRow = Tables<"reading_materials">;
+type CurriculumNodeRow = Pick<Tables<"curriculum_nodes">, "id" | "name" | "node_type">;
+type LessonBriefRow = Tables<"lesson_briefs"> & {
+  authorized_source_ids?: string[] | null;
+};
+type AuthorizedSourceRow = {
+  id: string;
+  title: string | null;
+  media_type: string | null;
+  origin_type: string | null;
+  status: string | null;
+};
+type FunctionInvokeErrorLike = {
+  message?: string;
+  context?: Response;
+};
+type GenerateMaterialsResponse = {
+  error?: string;
+  reading_pdf_base64?: string;
+};
+
+const AUTHORIZED_SOURCES_TABLE = "authorized_sources" as never;
+
+function isFunctionInvokeErrorLike(error: unknown): error is FunctionInvokeErrorLike {
+  return typeof error === "object" && error !== null;
+}
+
+function getErrorMessage(error: unknown, fallback = "Error desconocido"): string {
+  return error instanceof Error ? error.message : fallback;
+}
 
 function extractCanonSummary(activitiesSummary?: string | null, fallbackTheme?: string | null) {
   const summary = (activitiesSummary || "").trim();
@@ -68,12 +103,14 @@ function isNoiseNode(name: string): boolean {
   );
 }
 
-async function parseFunctionErrorMessage(error: any): Promise<string> {
+async function parseFunctionErrorMessage(error: unknown): Promise<string> {
   if (!error) return "Error desconocido";
-  if (typeof error.message === "string" && !error.context) return error.message;
+  if (isFunctionInvokeErrorLike(error) && typeof error.message === "string" && !error.context) {
+    return error.message;
+  }
 
   try {
-    const context = error.context as Response | undefined;
+    const context = isFunctionInvokeErrorLike(error) ? error.context : undefined;
     if (context) {
       const payload = await context.json();
       if (payload?.error) return payload.error;
@@ -82,20 +119,20 @@ async function parseFunctionErrorMessage(error: any): Promise<string> {
     // Ignore context parsing errors.
   }
 
-  return typeof error.message === "string" ? error.message : "Error desconocido";
+  return isFunctionInvokeErrorLike(error) && typeof error.message === "string" ? error.message : "Error desconocido";
 }
 
 export default function Lesson() {
   const { lessonId } = useParams<{ lessonId: string }>();
   const { entitlements, planType } = useEntitlements();
-  const [lesson, setLesson] = useState<any>(null);
-  const [planLesson, setPlanLesson] = useState<any>(null);
-  const [brief, setBrief] = useState<any>(null);
-  const [teachingMaterial, setTeachingMaterial] = useState<any>(null);
-  const [readingMaterial, setReadingMaterial] = useState<any>(null);
-  const [bibliographyNodes, setBibliographyNodes] = useState<any[]>([]);
-  const [authorizedSourceNodes, setAuthorizedSourceNodes] = useState<any[]>([]);
-  const [mappedCurriculumNodes, setMappedCurriculumNodes] = useState<any[]>([]);
+  const [lesson, setLesson] = useState<LessonRow | null>(null);
+  const [planLesson, setPlanLesson] = useState<PlanLessonRow | null>(null);
+  const [brief, setBrief] = useState<LessonBriefRow | null>(null);
+  const [teachingMaterial, setTeachingMaterial] = useState<TeachingMaterialRow | null>(null);
+  const [readingMaterial, setReadingMaterial] = useState<ReadingMaterialRow | null>(null);
+  const [bibliographyNodes, setBibliographyNodes] = useState<CurriculumNodeRow[]>([]);
+  const [authorizedSourceNodes, setAuthorizedSourceNodes] = useState<AuthorizedSourceRow[]>([]);
+  const [mappedCurriculumNodes, setMappedCurriculumNodes] = useState<CurriculumNodeRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [pdfBase64, setPdfBase64] = useState<string | null>(null);
 
@@ -112,7 +149,7 @@ export default function Lesson() {
       setLoading(false);
       return;
     }
-    setLesson(lessonData);
+    setLesson(lessonData as LessonRow);
 
     const [planLessonRes, briefRes, teachingRes, readingRes] = await Promise.all([
       supabase.from("plan_lessons").select("*").eq("id", lessonData.plan_lesson_id).single(),
@@ -121,10 +158,10 @@ export default function Lesson() {
       supabase.from("reading_materials").select("*").eq("lesson_id", lessonId).maybeSingle(),
     ]);
 
-    setPlanLesson(planLessonRes.data);
-    setBrief(briefRes.data);
-    setTeachingMaterial(teachingRes.data);
-    setReadingMaterial(readingRes.data);
+    setPlanLesson(planLessonRes.data as PlanLessonRow | null);
+    setBrief((briefRes.data as LessonBriefRow | null) ?? null);
+    setTeachingMaterial(teachingRes.data as TeachingMaterialRow | null);
+    setReadingMaterial(readingRes.data as ReadingMaterialRow | null);
 
     if (lessonData.plan_lesson_id) {
       const { data: lessonLinks } = await supabase
@@ -146,7 +183,7 @@ export default function Lesson() {
             .select("id, name, node_type")
             .in("id", nodeIds)
             .order("order_index");
-          setMappedCurriculumNodes((mappedNodes || []).filter((node) => !isNoiseNode(node.name)));
+          setMappedCurriculumNodes(((mappedNodes || []) as CurriculumNodeRow[]).filter((node) => !isNoiseNode(node.name)));
         } else {
           setMappedCurriculumNodes([]);
         }
@@ -162,20 +199,20 @@ export default function Lesson() {
         .from("curriculum_nodes")
         .select("id, name, node_type")
         .in("id", briefRes.data.bibliografia_confirmada);
-      const filteredSources = (nodes || []).filter((node) => isLikelyBibliographyEntry(node.name));
+      const filteredSources = ((nodes || []) as CurriculumNodeRow[]).filter((node) => isLikelyBibliographyEntry(node.name));
       setBibliographyNodes(filteredSources);
     } else {
       setBibliographyNodes([]);
     }
 
-    const briefData = briefRes.data as any;
+    const briefData = briefRes.data as LessonBriefRow | null;
     if (briefData?.authorized_source_ids?.length > 0) {
       const { data: sources } = await supabase
-        .from("authorized_sources" as any)
+        .from(AUTHORIZED_SOURCES_TABLE)
         .select("id, title, media_type, origin_type, status")
         .in("id", briefData.authorized_source_ids)
         .order("created_at", { ascending: false });
-      setAuthorizedSourceNodes((sources || []) as any[]);
+      setAuthorizedSourceNodes((sources || []) as unknown as AuthorizedSourceRow[]);
     } else {
       setAuthorizedSourceNodes([]);
     }
@@ -200,17 +237,18 @@ export default function Lesson() {
         });
         return;
       }
-      if (data?.error) {
-        toast({ title: "Error", description: data.error, variant: "destructive" });
+      const responseData = data as GenerateMaterialsResponse | null;
+      if (responseData?.error) {
+        toast({ title: "Error", description: responseData.error, variant: "destructive" });
         return;
       }
-      if (data?.reading_pdf_base64) {
-        setPdfBase64(data.reading_pdf_base64);
+      if (responseData?.reading_pdf_base64) {
+        setPdfBase64(responseData.reading_pdf_base64);
       }
       toast({ title: "Materiales generados correctamente" });
       fetchData();
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } catch (err: unknown) {
+      toast({ title: "Error", description: getErrorMessage(err), variant: "destructive" });
       fetchData();
     }
   };
@@ -228,14 +266,15 @@ export default function Lesson() {
         });
         return;
       }
-      if (data?.error) {
-        toast({ title: "Error", description: data.error, variant: "destructive" });
+      const responseData = data as GenerateMaterialsResponse | null;
+      if (responseData?.error) {
+        toast({ title: "Error", description: responseData.error, variant: "destructive" });
         return;
       }
       toast({ title: "Material didáctico regenerado" });
       fetchData();
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } catch (err: unknown) {
+      toast({ title: "Error", description: getErrorMessage(err), variant: "destructive" });
       fetchData();
     }
   };
@@ -253,17 +292,18 @@ export default function Lesson() {
         });
         return;
       }
-      if (data?.error) {
-        toast({ title: "Error", description: data.error, variant: "destructive" });
+      const responseData = data as GenerateMaterialsResponse | null;
+      if (responseData?.error) {
+        toast({ title: "Error", description: responseData.error, variant: "destructive" });
         return;
       }
-      if (data?.reading_pdf_base64) {
-        setPdfBase64(data.reading_pdf_base64);
+      if (responseData?.reading_pdf_base64) {
+        setPdfBase64(responseData.reading_pdf_base64);
       }
       toast({ title: "Material de lectura regenerado" });
       fetchData();
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } catch (err: unknown) {
+      toast({ title: "Error", description: getErrorMessage(err), variant: "destructive" });
       fetchData();
     }
   };

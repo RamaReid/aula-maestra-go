@@ -13,6 +13,7 @@ import { toast } from "@/hooks/use-toast";
 import PlanObjectivesEditor from "./PlanObjectivesEditor";
 import PlanLessonsEditor from "./PlanLessonsEditor";
 import { InlineValidationSummary } from "@/components/ui/InlineValidationSummary";
+import type { Tables } from "@/integrations/supabase/types";
 
 interface PlanData {
   fundamentacion: string;
@@ -45,6 +46,12 @@ interface Props {
   planStatus: string;
   onValidated: () => void;
   courseArchived?: boolean;
+}
+
+type PlanStatus = Tables<"plans">["status"];
+
+function getErrorMessage(error: unknown, fallback = "Error desconocido"): string {
+  return error instanceof Error ? error.message : fallback;
 }
 
 function buildRepairGuidance(errors: string[]) {
@@ -203,7 +210,7 @@ export default function PlanEditor({
     if (currentStatus !== "VALIDATED") return;
 
     transitioningRef.current = true;
-    await supabase.from("plans").update({ status: "EDITED" as any }).eq("id", planId);
+    await supabase.from("plans").update({ status: "EDITED" as PlanStatus }).eq("id", planId);
     setCurrentStatus("EDITED");
     setHasEditedAfterValidation(true);
     transitioningRef.current = false;
@@ -293,10 +300,10 @@ export default function PlanEditor({
           : "Se regenero la base anual del plan a partir del programa oficial del curso.",
       });
       onValidated();
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({
         title: "No se pudo reconstruir el borrador",
-        description: err.message,
+        description: getErrorMessage(err),
         variant: "destructive",
       });
     } finally {
@@ -332,8 +339,8 @@ export default function PlanEditor({
           : "Se crearon las lecciones del curso.",
       });
       onValidated();
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } catch (err: unknown) {
+      toast({ title: "Error", description: getErrorMessage(err), variant: "destructive" });
     } finally {
       setValidating(false);
     }

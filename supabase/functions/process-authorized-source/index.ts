@@ -19,6 +19,8 @@ type ExtractResult = {
   extractor: string;
 };
 
+const AUTHORIZED_SOURCES_TABLE = "authorized_sources" as never;
+
 const MAX_OCR_IMAGE_BYTES = 4 * 1024 * 1024;
 
 function normalizeSpaces(value: string): string {
@@ -28,7 +30,7 @@ function normalizeSpaces(value: string): string {
 function cleanExtractedText(value: string): string {
   return value
     .replace(/\r/g, "")
-    .replace(/\u0000/g, "")
+    .replaceAll("\u0000", "")
     .replace(/[ \t]+\n/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .replace(/([A-Za-zÁÉÍÓÚáéíóúÑñ])-\n(?=[a-záéíóúñ])/g, "$1")
@@ -73,7 +75,7 @@ async function extractPdfText(bytes: Uint8Array): Promise<string> {
     disableWorker: true,
     useSystemFonts: true,
     isEvalSupported: false,
-  } as any);
+  } as Parameters<typeof getDocument>[0]);
   const pdf = await loadingTask.promise;
   const pages: string[] = [];
 
@@ -277,7 +279,7 @@ serve(async (req) => {
   }
 
   const { data: source, error: sourceError } = await userClient
-    .from("authorized_sources" as any)
+    .from(AUTHORIZED_SOURCES_TABLE)
     .select("id, course_id, title, storage_path, media_type, mime_type, status")
     .eq("id", sourceId)
     .single();

@@ -8,6 +8,72 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+type ChatMessage = {
+  role: string;
+  content: string;
+};
+
+type ToolDefinition = Record<string, unknown>;
+type ToolChoice = Record<string, unknown>;
+
+type AIResponse = {
+  choices: Array<{
+    message: {
+      content?: string | null;
+      tool_calls?: Array<{
+        function?: {
+          arguments?: string;
+        };
+      }>;
+    };
+  }>;
+};
+
+type LessonMetaRow = {
+  id: string;
+  course_id: string;
+  lesson_number: number;
+  plan_lesson_id: string;
+};
+
+type PlanLessonSequenceRow = {
+  id: string;
+  lesson_number: number;
+  term: number | null;
+};
+
+type CurriculumNodeSelection = {
+  id: string;
+  name: string;
+  node_type: string;
+  curriculum_document_id: string | null;
+};
+
+type AuthorizedSourceSelection = {
+  id: string;
+  title: string | null;
+  origin_type: string;
+  media_type: string;
+  status: string;
+  summary_text: string | null;
+  extracted_text: string | null;
+};
+
+type TeachingMaterialArgs = {
+  purpose: string;
+  activities: Array<{ type: string }>;
+  expected_product: string;
+  achievement_criteria: string[];
+  differentiation: Array<{ type: string }>;
+  closure: string;
+};
+
+type NeighborPlanLesson = {
+  lesson_number: number;
+  theme: string | null;
+  activities_summary: string | null;
+};
+
 // ── Validation helpers ──
 
 function cleanMarkdownArtifacts(text: string): string {
@@ -344,11 +410,16 @@ async function applyWatermark(pdfDoc: PDFDocument): Promise<void> {
 async function callAI(
   apiKey: string,
   model: string,
-  messages: Array<{ role: string; content: string }>,
-  tools?: any[],
-  toolChoice?: any
-): Promise<any> {
-  const body: any = { model, messages };
+  messages: ChatMessage[],
+  tools?: ToolDefinition[],
+  toolChoice?: ToolChoice
+): Promise<AIResponse> {
+  const body: {
+    model: string;
+    messages: ChatMessage[];
+    tools?: ToolDefinition[];
+    tool_choice?: ToolChoice;
+  } = { model, messages };
   if (tools) body.tools = tools;
   if (toolChoice) body.tool_choice = toolChoice;
 
@@ -437,12 +508,6 @@ serve(async (req) => {
     }
     regenerateOnly = body.regenerate_only;
     if (lessonIds.length === 0) throw new Error("Al menos un lesson_id requerido");
-    // Legacy fixed 3-lesson cap disabled. Session limits are enforced below by plan entitlements.
-    if (false && lessonIds.length > 3) {
-      return new Response(JSON.stringify({ error: "Máximo 3 lecciones por sesión" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
   } catch (e) {
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Body inválido" }), {
       status: 400,
@@ -529,7 +594,9 @@ serve(async (req) => {
     }
 
     if (mode === "full_session" && planType !== "FREE" && lessonIds.length > 1) {
-      const selectedPlanLessonIds = sanitizeIdList(selectedLessonsMeta.map((lesson: any) => lesson.plan_lesson_id));
+      const selectedPlanLessonIds = sanitizeIdList(
+        (selectedLessonsMeta as LessonMetaRow[]).map((lesson) => lesson.plan_lesson_id)
+      );
       const { data: selectedPlanLessons, error: selectedPlanLessonsError } = await userClient
         .from("plan_lessons")
         .select("id, lesson_number, term")
@@ -541,11 +608,13 @@ serve(async (req) => {
         });
       }
 
-      const planLessonById = new Map((selectedPlanLessons || []).map((row: any) => [row.id, row]));
+      const planLessonById = new Map(
+        ((selectedPlanLessons || []) as PlanLessonSequenceRow[]).map((row) => [row.id, row])
+      );
       const sequenceLessonNumbers: number[] = [];
       const sequenceTerms: number[] = [];
 
-      for (const lessonMeta of selectedLessonsMeta as any[]) {
+      for (const lessonMeta of selectedLessonsMeta as LessonMetaRow[]) {
         const row = planLessonById.get(lessonMeta.plan_lesson_id);
         if (!row) {
           return new Response(JSON.stringify({ error: "Hay clases sin plan de referencia para validar secuencia" }), {
@@ -581,7 +650,7 @@ serve(async (req) => {
     }
 
     // G-2: Validate all lessons belong to the same course and same user
-    const allResults: any[] = [];
+    const allResults: Array<{ lessonId: string; teachingStatus: string; readingStatus: string }> = [];
     let sharedCourseId: string | null = null;
 
     for (const lessonId of lessonIds) {
@@ -637,13 +706,17 @@ serve(async (req) => {
         | {
             status: string;
             subject: string;
+            orientation?: string | null;
+            speciality?: string | null;
+            school_id?: string | null;
+            schools?: { school_type?: string | null } | null;
             curriculum_document_id?: string | null;
           }
         | null = null;
 
       const { data: courseWithCurriculum, error: courseWithCurriculumError } = await userClient
         .from("courses")
-        .select("status, subject, curriculum_document_id")
+        .select("status, subject, orientation, speciality, school_id, curriculum_document_id, schools(school_type)")
         .eq("id", lesson.course_id)
         .single();
 
@@ -652,7 +725,7 @@ serve(async (req) => {
       } else if (isMissingCurriculumColumnError(courseWithCurriculumError)) {
         const { data: legacyCourse, error: legacyCourseError } = await userClient
           .from("courses")
-          .select("status, subject")
+          .select("status, subject, orientation, speciality, school_id, schools(school_type)")
           .eq("id", lesson.course_id)
           .single();
 
@@ -733,10 +806,10 @@ serve(async (req) => {
             .order("lesson_number");
 
           previousPlanLesson =
-            (neighbors || []).find((candidate: any) => candidate.lesson_number === planLesson.lesson_number - 1) ||
+            ((neighbors || []) as NeighborPlanLesson[]).find((candidate) => candidate.lesson_number === planLesson.lesson_number - 1) ||
             null;
           nextPlanLesson =
-            (neighbors || []).find((candidate: any) => candidate.lesson_number === planLesson.lesson_number + 1) ||
+            ((neighbors || []) as NeighborPlanLesson[]).find((candidate) => candidate.lesson_number === planLesson.lesson_number + 1) ||
             null;
         }
       }
@@ -776,7 +849,9 @@ serve(async (req) => {
         });
       }
 
-      const lessonMappingIds = sanitizeIdList((lessonLinks || []).map((link: any) => link.plan_content_mapping_id));
+      const lessonMappingIds = sanitizeIdList(
+        ((lessonLinks || []) as Array<{ plan_content_mapping_id: string }>).map((link) => link.plan_content_mapping_id)
+      );
       if (lessonMappingIds.length > 0) {
         const { data: lessonMappings, error: lessonMappingsError } = await adminClient
           .from("plan_content_mappings")
@@ -838,13 +913,13 @@ serve(async (req) => {
         }
       }
 
-      let nodes: any[] = [];
+      let nodes: CurriculumNodeSelection[] = [];
       if (requestedBibliographyIds.length > 0) {
         const { data: fetchedNodes } = await adminClient
           .from("curriculum_nodes")
           .select("id, name, node_type, curriculum_document_id")
           .in("id", requestedBibliographyIds);
-        nodes = fetchedNodes || [];
+        nodes = (fetchedNodes || []) as CurriculumNodeSelection[];
 
         if (nodes.length !== requestedBibliographyIds.length) {
           await adminClient.from("lessons").update({ is_generating: false }).eq("id", lessonId);
@@ -858,9 +933,7 @@ serve(async (req) => {
         }
 
         if (course.curriculum_document_id) {
-          const outsideCourseDocument = nodes.filter(
-            (node: any) => node.curriculum_document_id !== course.curriculum_document_id
-          );
+          const outsideCourseDocument = nodes.filter((node) => node.curriculum_document_id !== course.curriculum_document_id);
           if (outsideCourseDocument.length > 0) {
             await adminClient.from("lessons").update({ is_generating: false }).eq("id", lessonId);
             return new Response(
@@ -873,22 +946,9 @@ serve(async (req) => {
           }
         }
 
-        if (planMappedNodeIds.size > 0) {
-          const outsidePlanScope = requestedBibliographyIds.filter((id) => !planMappedNodeIds.has(id));
-          if (outsidePlanScope.length > 0) {
-            await adminClient.from("lessons").update({ is_generating: false }).eq("id", lessonId);
-            return new Response(
-              JSON.stringify({
-                error:
-                  "La bibliografia confirmada incluye fuentes fuera del alcance curricular de esta clase o plan. Reabre el brief y selecciona fuentes del curso.",
-              }),
-              { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-            );
-          }
-        }
       }
 
-      const bibliographyNodes = nodes.filter((node: any) => isLikelyBibliographySource(node.name || ""));
+      const bibliographyNodes = nodes.filter((node) => isLikelyBibliographySource(node.name || ""));
       if (requestedBibliographyIds.length > 0 && bibliographyNodes.length === 0) {
         await adminClient.from("lessons").update({ is_generating: false }).eq("id", lessonId);
         return new Response(
@@ -909,7 +969,7 @@ serve(async (req) => {
         );
       }
 
-      let authorizedSources: any[] = [];
+      let authorizedSources: AuthorizedSourceSelection[] = [];
       if (authorizedSourcesRequested) {
         const { data: fetchedAuthorizedSources, error: authorizedSourcesError } = await adminClient
           .from("authorized_sources")
@@ -924,7 +984,7 @@ serve(async (req) => {
           });
         }
 
-        authorizedSources = fetchedAuthorizedSources || [];
+        authorizedSources = (fetchedAuthorizedSources || []) as AuthorizedSourceSelection[];
         if (authorizedSources.length !== requestedAuthorizedSourceIds.length) {
           await adminClient.from("lessons").update({ is_generating: false }).eq("id", lessonId);
           return new Response(
@@ -1009,15 +1069,15 @@ serve(async (req) => {
       }
 
       const curriculumContext = bibliographyNodes
-        .map((n: any) => `[${n.node_type}] ${n.name}`)
+        .map((n) => `[${n.node_type}] ${n.name}`)
         .join("\n");
 
-      const bibliographyIds = bibliographyNodes.map((n: any) => n.id);
+      const bibliographyIds = bibliographyNodes.map((n) => n.id);
       const bibliographyContext = bibliographyNodes
-        .map((n: any) => `- ${n.name} [${n.node_type}] (ID: ${n.id})`)
+        .map((n) => `- ${n.name} [${n.node_type}] (ID: ${n.id})`)
         .join("\n");
       const authorizedSourcesContext = authorizedSources
-        .map((source: any) => {
+        .map((source) => {
           const summary = (source.summary_text || source.extracted_text || "").replace(/\s+/g, " ").trim();
           const clipped = summary.length > 260 ? `${summary.slice(0, 257)}...` : summary;
           const suffix = clipped ? ` | Resumen: ${clipped}` : "";
@@ -1025,8 +1085,8 @@ serve(async (req) => {
         })
         .join("\n");
       const allSourceLabels = [
-        ...bibliographyNodes.map((node: any) => node.name || ""),
-        ...authorizedSources.map((source: any) => source.title || ""),
+        ...bibliographyNodes.map((node) => node.name || ""),
+        ...authorizedSources.map((source) => source.title || ""),
       ];
       const disciplineCanon = isFyHctSubject(course.subject)
         ? [
@@ -1052,6 +1112,9 @@ Generá un material didáctico completo para una clase real dentro de una planif
 
 CONTEXTO:
 - Materia: ${course.subject}
+- Tipo de escuela: ${course.schools?.school_type || "No especificado"}
+- Orientacion: ${course.orientation || "No especificada"}
+- Especialidad: ${course.speciality || "No especificada"}
 - Clase anual: ${planLesson.lesson_number}
 - Tema: ${planLesson.theme}
 - Justificación: ${planLesson.justification}
@@ -1091,6 +1154,7 @@ REGLAS:
 - No inventes otra clase distinta del plan anual.
 - No generes actividades sueltas: cada bloque debe empujar al producto esperado.
 - No escribas una clase genérica "sobre el tema". Es esta clase, con esta operacion y esta evidencia.
+- Si hay orientacion o especialidad, adapta ejemplos, vocabulario, casos y productos a ese contexto institucional.
 - Si la materia es de Sociales, no uses cierres formulaicos como "En conclusión", "Por lo tanto" o "En definitiva".`;
 
         const teachingTools = [
@@ -1162,8 +1226,8 @@ REGLAS:
         );
 
         const teachingArgs = JSON.parse(
-          teachingResult.choices[0].message.tool_calls[0].function.arguments
-        );
+          teachingResult.choices[0].message.tool_calls?.[0]?.function?.arguments || "{}"
+        ) as TeachingMaterialArgs;
 
         // M-1: Post-AI structural validation
         const teachingValidationErrors: string[] = [];
@@ -1174,7 +1238,7 @@ REGLAS:
           teachingValidationErrors.push("activities vacío");
         }
         const activityTypes = Array.isArray(teachingArgs.activities)
-          ? teachingArgs.activities.map((activity: any) => activity.type)
+          ? teachingArgs.activities.map((activity) => activity.type)
           : [];
         if (!activityTypes.includes("inicio")) {
           teachingValidationErrors.push("falta actividad de inicio");
@@ -1198,7 +1262,7 @@ REGLAS:
           teachingValidationErrors.push("differentiation vacío");
         }
         const differentiationTypes = Array.isArray(teachingArgs.differentiation)
-          ? teachingArgs.differentiation.map((item: any) => item.type)
+          ? teachingArgs.differentiation.map((item) => item.type)
           : [];
         if (!differentiationTypes.includes("apoyo")) {
           teachingValidationErrors.push("falta apoyo");
@@ -1249,6 +1313,9 @@ Escribí un texto de lectura para alumnos que apoye exactamente la clase indicad
 
 CONTEXTO:
 - Materia: ${course.subject}
+- Tipo de escuela: ${course.schools?.school_type || "No especificado"}
+- Orientacion: ${course.orientation || "No especificada"}
+- Especialidad: ${course.speciality || "No especificada"}
 - Clase anual: ${planLesson.lesson_number}
 - Tema: ${planLesson.theme}
 - Operacion canonica: ${lessonOperation}
@@ -1261,7 +1328,7 @@ ${formatSequenceNeighbor("Entrada esperada", previousPlanLesson)}
 ${formatSequenceNeighbor("Salida a preparar", nextPlanLesson)}
 
 CONTENIDOS CURRICULARES A REFERENCIAR:
-${bibliographyNodes.length > 0 ? bibliographyNodes.map((n: any) => `- ${n.name} (ID: ${n.id})`).join("\n") : "- Sin nodos curriculares seleccionados"}
+${bibliographyNodes.length > 0 ? bibliographyNodes.map((n) => `- ${n.name} (ID: ${n.id})`).join("\n") : "- Sin nodos curriculares seleccionados"}
 
 FUENTES CONFIRMADAS:
 ${bibliographyContext || "- Sin detalle disponible"}
@@ -1282,11 +1349,12 @@ REGLAS OBLIGATORIAS:
 8. Devolver el texto como HTML válido con tags <p> para cada párrafo.
 9. Los tags <span data-ref="..."></span> deben estar DENTRO de los párrafos, como elementos inline invisibles.
 10. El texto no debe ser una explicación genérica del tema. Debe preparar o sostener la operacion de esta clase y ayudar a producir la evidencia minima.
-11. Si la materia es FyHyCyT, prioriza casos, validacion, metodos, evidencias, decisiones y relaciones ciencia-tecnologia-sociedad. No la conviertas en filosofia abstracta sin situacion.
-12. Si la materia es Filosofía, prioriza problema, conceptos, posiciones, argumentos y objeciones. No la conviertas en metodologia científica.
-13. Mantené trazabilidad explícita con la bibliografía confirmada, las fuentes del docente autorizadas y los nodos curriculares seleccionados.
-14. No copies fragmentos extensos de obras protegidas. Prioriza paráfrasis; si usas cita textual, que no supere 20 palabras.
-15. El último párrafo debe iniciar con "Fuentes de base del texto:" y nombrar las fuentes usadas.`;
+11. Si hay orientacion o especialidad, adapta ejemplos, situaciones, vocabulario y casos a ese contexto institucional concreto.
+12. Si la materia es FyHyCyT, prioriza casos, validacion, metodos, evidencias, decisiones y relaciones ciencia-tecnologia-sociedad. No la conviertas en filosofia abstracta sin situacion.
+13. Si la materia es Filosofía, prioriza problema, conceptos, posiciones, argumentos y objeciones. No la conviertas en metodologia científica.
+14. Mantené trazabilidad explícita con la bibliografía confirmada, las fuentes del docente autorizadas y los nodos curriculares seleccionados.
+15. No copies fragmentos extensos de obras protegidas. Prioriza paráfrasis; si usas cita textual, que no supere 20 palabras.
+16. El último párrafo debe iniciar con "Fuentes de base del texto:" y nombrar las fuentes usadas.`;
 
         let readingHtml = "";
         let readingValid = false;

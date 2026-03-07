@@ -11,6 +11,8 @@ import {
 
 export type { CurriculumCycle, SchoolType } from "./curriculumCommon.ts";
 
+type SupabaseClientLike = ReturnType<typeof createClient>;
+
 export type CurriculumImportPayload = {
   file_name?: string | null;
   file_base64?: string | null;
@@ -33,6 +35,16 @@ type DraftNode = {
   nodeType: CurriculumNodeType;
   name: string;
   orderIndex: number;
+};
+
+type ExistingCurriculumDocument = {
+  id: string;
+  content_hash: string | null;
+  official_title: string | null;
+  official_url: string | null;
+  school_type: SchoolType | null;
+  orientation: string | null;
+  speciality: string | null;
 };
 
 const SECTION_HEADINGS = [
@@ -86,7 +98,7 @@ function cleanExtractedText(value: string): string {
   return collapseSpacedWords(
     value
       .replace(/\r/g, "")
-      .replace(/\u0000/g, "")
+      .replaceAll("\u0000", "")
       .replace(/[ \t]+\n/g, "\n")
       .replace(/\n{3,}/g, "\n\n")
       .replace(/([A-Za-zÁÉÍÓÚáéíóúÑñ])-\n(?=[a-záéíóúñ])/g, "$1")
@@ -120,7 +132,7 @@ async function extractPdfText(bytes: Uint8Array): Promise<string> {
     disableWorker: true,
     useSystemFonts: true,
     isEvalSupported: false,
-  } as any);
+  } as Parameters<typeof getDocument>[0]);
   const pdf = await loadingTask.promise;
   const pages: string[] = [];
 
@@ -188,7 +200,7 @@ function isLikelyUnitHeading(line: string): boolean {
 function isLikelyContentLine(line: string): boolean {
   if (line.length < 8 || line.length > 180) return false;
   if (/^[•*-]\s+/.test(line)) return true;
-  if (/^\d+[\).]\s+/.test(line)) return true;
+  if (/^\d+[).]\s+/.test(line)) return true;
   return false;
 }
 
@@ -231,7 +243,7 @@ function isRepeatedAuthorMarker(raw: string): boolean {
 function cleanBibliographyCandidate(line: string): string {
   return line
     .replace(/^[\u2022*-]\s+/u, "")
-    .replace(/^\d+[\).]\s+/, "")
+    .replace(/^\d+[).]\s+/, "")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -500,7 +512,7 @@ function extractCurriculumNodes(rawText: string): DraftNode[] {
     if (isLikelyContentLine(line) && (currentBloque || currentUnidad || currentEje)) {
       pushNode(
         "CONTENIDO",
-        line.replace(/^[•*-]\s+/, "").replace(/^\d+[\).]\s+/, ""),
+        line.replace(/^[•*-]\s+/, "").replace(/^\d+[).]\s+/, ""),
         currentBloque?.tempId || currentUnidad?.tempId || currentEje?.tempId || null
       );
     }
@@ -511,7 +523,7 @@ function extractCurriculumNodes(rawText: string): DraftNode[] {
 }
 
 async function replaceNodes(
-  adminClient: any,
+  adminClient: SupabaseClientLike,
   curriculumDocumentId: string,
   nodes: DraftNode[]
 ) {
@@ -552,12 +564,13 @@ function resolveSourceProvider(payload: CurriculumImportPayload): string {
     return payload.source_provider.trim();
   }
 
+  if (payload.file_base64) return "MANUAL_UPLOAD";
   if (payload.official_url && isAllowedOfficialUrl(payload.official_url)) return "ABC_PBA_WEB";
   return "ABC_PBA_WEB";
 }
 
 async function upsertDocument(
-  adminClient: any,
+  adminClient: SupabaseClientLike,
   payload: Required<Omit<CurriculumImportPayload, "file_base64">>,
   rawText: string,
   contentHash: string
@@ -573,19 +586,21 @@ async function upsertDocument(
   if (error) throw new Error(error.message);
 
   const existing =
-    (data || []).find(
-      (document: any) =>
+    ((data || []) as ExistingCurriculumDocument[]).find(
+      (document) =>
         normalizeNullable(document.official_url) === normalizeNullable(payload.official_url) &&
         normalizeNullable(payload.official_url)
     ) ||
-    (data || []).find(
-      (document: any) =>
+    ((data || []) as ExistingCurriculumDocument[]).find(
+      (document) =>
         normalizeNullable(document.official_title) === normalizeNullable(payload.official_title) &&
         normalizeNullable(payload.official_title)
     ) ||
-    (data || []).find((document: any) => normalizeNullable(document.content_hash) === normalizeNullable(contentHash)) ||
-    (data || []).find(
-      (document: any) =>
+    ((data || []) as ExistingCurriculumDocument[]).find(
+      (document) => normalizeNullable(document.content_hash) === normalizeNullable(contentHash)
+    ) ||
+    ((data || []) as ExistingCurriculumDocument[]).find(
+      (document) =>
         document.school_type === (payload.school_type || null) &&
         normalizeNullable(document.orientation) === normalizeNullable(payload.orientation) &&
         normalizeNullable(document.speciality) === normalizeNullable(payload.speciality)
@@ -661,7 +676,7 @@ async function downloadPdfBytesFromUrl(
 }
 
 export async function ingestCurriculumDocument(
-  adminClient: any,
+  adminClient: SupabaseClientLike,
   payload: CurriculumImportPayload
 ): Promise<{
   curriculum_document_id: string;
@@ -677,7 +692,8 @@ export async function ingestCurriculumDocument(
   let fileName: string;
 
   if (payload.file_base64) {
-    throw new Error("La carga manual de PDF fue deshabilitada. Usa solo URLs oficiales de abc.gob.ar.");
+    bytes = decodeBase64ToBytes(payload.file_base64);
+    fileName = payload.file_name || "programa_oficial.pdf";
   } else if (payload.official_url) {
     const downloaded = await downloadPdfBytesFromUrl(payload.official_url, {
       allowExternalUrl: payload.allow_external_url === true,

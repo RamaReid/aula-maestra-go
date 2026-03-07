@@ -39,6 +39,18 @@ interface ManualPaymentRequestRow {
   created_at: string;
 }
 
+type ManualPaymentRequestInsert = {
+  user_id: string;
+  requested_plan: "BASICO" | "PREMIUM";
+  requested_provider: "MANUAL";
+  status: "PENDING_REVIEW";
+  billing_name: string | null;
+  tax_id: string | null;
+  notes: string | null;
+};
+
+const MANUAL_PAYMENT_REQUESTS_TABLE = "manual_payment_requests" as never;
+
 const planCardCopy: Record<
   PlanType,
   {
@@ -165,7 +177,7 @@ export default function Billing() {
         .eq("user_id", user.id)
         .maybeSingle(),
       supabase
-        .from("manual_payment_requests" as any)
+        .from(MANUAL_PAYMENT_REQUESTS_TABLE)
         .select("id, requested_plan, status, billing_name, tax_id, notes, review_notes, created_at")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false }),
@@ -285,7 +297,7 @@ export default function Billing() {
 
     setSubmitting(true);
     try {
-      const { error } = await supabase.from("manual_payment_requests" as any).insert({
+      const payload: ManualPaymentRequestInsert = {
         user_id: user.id,
         requested_plan: requestedPlan,
         requested_provider: "MANUAL",
@@ -293,7 +305,8 @@ export default function Billing() {
         billing_name: billingName.trim() || null,
         tax_id: taxId.trim() || null,
         notes: notes.trim() || null,
-      });
+      };
+      const { error } = await supabase.from(MANUAL_PAYMENT_REQUESTS_TABLE).insert(payload);
 
       if (error) throw error;
 

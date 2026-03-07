@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ArrowLeft, CheckCircle2, ExternalLink, Loader2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, ExternalLink, FileUp, Loader2 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useEntitlements } from "@/hooks/useEntitlements";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -28,10 +29,34 @@ type CurriculumDocument = {
   fetched_at: string | null;
 };
 
+function schoolTypeParam(value: SchoolType | null): string | null {
+  return value === "COMUN" || value === "TECNICA" ? value : null;
+}
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result !== "string") {
+        reject(new Error("No se pudo leer el archivo"));
+        return;
+      }
+
+      const base64 = result.includes(",") ? result.split(",")[1] : result;
+      resolve(base64);
+    };
+    reader.onerror = () => reject(new Error("No se pudo leer el PDF"));
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function CurriculumImport() {
   const { profile } = useAuth();
+  const { planType } = useEntitlements();
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
+  const [file, setFile] = useState<File | null>(null);
   const [subject, setSubject] = useState(searchParams.get("subject") || "");
   const [cycle, setCycle] = useState<CurriculumCycle>((searchParams.get("cycle") as CurriculumCycle) || "UPPER");
   const [yearLevel, setYearLevel] = useState(searchParams.get("year_level") || "6");
@@ -46,6 +71,7 @@ export default function CurriculumImport() {
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
   const officialIndexUrl =
     "https://abc.gob.ar/secretarias/areas/subsecretaria-de-educacion/educacion-secundaria/educacion-secundaria/disenos-curriculares";
+  const canUploadManualPdf = planType === "BASICO" || planType === "PREMIUM";
 
   const selectedDoc = useMemo(
     () => existingDocs.find((doc) => doc.id === selectedDocId) || null,
@@ -64,6 +90,7 @@ export default function CurriculumImport() {
 
     if (selectedDoc.orientation) params.set("orientation", selectedDoc.orientation);
     if (selectedDoc.speciality) params.set("speciality", selectedDoc.speciality);
+    if (schoolTypeParam(selectedDoc.school_type)) params.set("school_type", selectedDoc.school_type!);
 
     return `/course/new?${params.toString()}`;
   }, [selectedDoc]);
@@ -86,6 +113,7 @@ export default function CurriculumImport() {
         .select("id, subject, cycle, year_level, school_type, orientation, speciality, official_title, source_provider, fetched_at")
         .eq("province", "PBA")
         .eq("status", "VERIFIED")
+        .neq("source_provider", "MANUAL_UPLOAD")
         .order("updated_at", { ascending: false })
         .limit(12);
 
@@ -99,12 +127,19 @@ export default function CurriculumImport() {
   const canSubmit = useMemo(() => {
     const trimmedUrl = officialUrl.trim();
     return (
-      trimmedUrl.length > 0 &&
-      trimmedUrl.startsWith("https://abc.gob.ar/") &&
+      (trimmedUrl.length > 0 && trimmedUrl.startsWith("https://abc.gob.ar/") || (!!file && canUploadManualPdf)) &&
       subject.trim().length > 0 &&
       yearLevel.trim().length > 0
     );
-  }, [officialUrl, subject, yearLevel]);
+  }, [canUploadManualPdf, file, officialUrl, subject, yearLevel]);
+
+  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const nextFile = event.target.files?.[0] || null;
+    setFile(nextFile);
+    if (nextFile && !officialTitle.trim()) {
+      setOfficialTitle(nextFile.name.replace(/\.pdf$/i, ""));
+    }
+  };
 
   const refreshDocs = async () => {
     const { data } = await supabase
@@ -112,19 +147,34 @@ export default function CurriculumImport() {
       .select("id, subject, cycle, year_level, school_type, orientation, speciality, official_title, source_provider, fetched_at")
       .eq("province", "PBA")
       .eq("status", "VERIFIED")
+      .neq("source_provider", "MANUAL_UPLOAD")
       .order("updated_at", { ascending: false })
       .limit(12);
 
     setExistingDocs((data || []) as CurriculumDocument[]);
   };
 
+  const fetchDocById = async (documentId: string): Promise<CurriculumDocument | null> => {
+    const { data, error } = await supabase
+      .from("curriculum_documents")
+      .select("id, subject, cycle, year_level, school_type, orientation, speciality, official_title, source_provider, fetched_at")
+      .eq("id", documentId)
+      .maybeSingle();
+
+    if (error || !data) return null;
+    return data as CurriculumDocument;
+  };
+
   const handleImport = async () => {
-    if (!officialUrl.trim()) return;
+    if (!officialUrl.trim() && !file) return;
 
     setImporting(true);
     try {
+      const fileBase64 = file ? await fileToBase64(file) : null;
       const { data, error } = await supabase.functions.invoke("import-curriculum-pdf", {
         body: {
+          file_name: file?.name || null,
+          file_base64: fileBase64,
           province: "PBA",
           subject: subject.trim(),
           cycle,
@@ -141,11 +191,19 @@ export default function CurriculumImport() {
       if (data?.error) throw new Error(data.error);
 
       await refreshDocs();
+      if (typeof data?.curriculum_document_id === "string") {
+        const importedDoc = await fetchDocById(data.curriculum_document_id);
+        if (importedDoc) {
+          setExistingDocs((prev) => [importedDoc, ...prev.filter((doc) => doc.id !== importedDoc.id)]);
+          setSelectedDocId(importedDoc.id);
+        }
+      }
 
       toast({
         title: "Programa importado",
         description: `Se actualizo la base curricular con ${data.node_count || 0} nodos.`,
       });
+      setFile(null);
     } catch (error) {
       toast({
         title: "No se pudo importar el programa",
@@ -179,13 +237,24 @@ export default function CurriculumImport() {
           <CardHeader>
             <CardTitle>Sincronizar programa oficial desde ABC</CardTitle>
             <CardDescription>
-              Esta carga administrativa solo acepta documentos oficiales publicados en `abc.gob.ar`.
+              `FREE` usa solo URLs oficiales de `abc.gob.ar`. `BASICO` y `PREMIUM` tambien pueden cargar un PDF manual.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
-            <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-              La carga manual de PDFs desde la PC fue deshabilitada. Solo se permite una URL oficial de `https://abc.gob.ar/...`.
-            </div>
+            {canUploadManualPdf ? (
+              <div className="space-y-2">
+                <Label htmlFor="pdf-file">PDF manual del diseno curricular</Label>
+                <Input id="pdf-file" type="file" accept="application/pdf" onChange={handleFileChange} />
+                <p className="text-sm text-muted-foreground">
+                  Disponible para planes `BASICO` y `PREMIUM`. Si cargas un PDF, la URL oficial sigue siendo opcional.
+                </p>
+                {file && <p className="text-sm text-muted-foreground">Archivo seleccionado: {file.name}</p>}
+              </div>
+            ) : (
+              <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                Tu plan actual usa solo URLs oficiales de `https://abc.gob.ar/...` para base curricular.
+              </div>
+            )}
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
@@ -260,9 +329,10 @@ export default function CurriculumImport() {
 
             <div className="rounded-lg border bg-muted/30 p-4 text-sm text-muted-foreground">
               <p>{profile?.email || "usuario autenticado"}</p>
+              <p>Plan activo: {planType}.</p>
               <p>Provincia fija de esta etapa: PBA.</p>
               <p>Si el mismo programa aplica a comun y tecnica, usar "Generico / mas de un tipo".</p>
-              <p>La URL debe pertenecer a `abc.gob.ar` y apuntar al documento oficial publicado por ABC.</p>
+              <p>Si usas URL, debe pertenecer a `abc.gob.ar` y apuntar al documento oficial publicado por ABC.</p>
               <p>Si el programa ya aparece en "Base curricular reciente", puede usarlo directo para crear un curso.</p>
             </div>
 
@@ -281,8 +351,8 @@ export default function CurriculumImport() {
                 </>
               ) : (
                 <>
-                  <ExternalLink className="mr-2 h-4 w-4" />
-                  Sincronizar programa
+                  {file ? <FileUp className="mr-2 h-4 w-4" /> : <ExternalLink className="mr-2 h-4 w-4" />}
+                  {file ? "Importar PDF manual" : "Sincronizar programa"}
                 </>
               )}
             </Button>
@@ -298,7 +368,7 @@ export default function CurriculumImport() {
         <Card>
           <CardHeader>
             <CardTitle>Base curricular reciente</CardTitle>
-            <CardDescription>Ultimos programas verificados cargados en PBA.</CardDescription>
+            <CardDescription>Programas oficiales ABC y tu ultima carga manual seleccionada en esta sesion.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {loadingDocs ? (

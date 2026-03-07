@@ -8,11 +8,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "@/hooks/use-toast";
 import BibliographySelector from "./BibliographySelector";
 import type { PlanType } from "@/hooks/useEntitlements";
+import type { Json, Tables, TablesInsert } from "@/integrations/supabase/types";
 
 interface BriefFormProps {
   lessonId: string;
   courseId: string;
-  brief: any | null;
+  brief: LessonBriefRow | null;
   onUpdate: () => void;
   planType: PlanType;
   planTheme?: string | null;
@@ -48,6 +49,68 @@ type BriefAutocompleteDraft = {
   observaciones: string;
   summary: string;
 };
+
+type LessonBriefRow = Tables<"lesson_briefs"> & {
+  authorized_source_ids?: string[] | null;
+};
+
+type LessonBriefPayload = TablesInsert<"lesson_briefs"> & {
+  authorized_source_ids?: string[];
+};
+
+type AuthorizedSourceRow = {
+  id: string;
+  source_url: string | null;
+  title: string | null;
+  media_type: string | null;
+  origin_type: string | null;
+  status: string | null;
+};
+
+type AuthorizedSourceInsert = {
+  course_id: string;
+  origin_type: string;
+  plan_scope: PlanType;
+  media_type: string;
+  title: string;
+  storage_path?: string | null;
+  mime_type?: string | null;
+  status: string;
+  extracted_text?: string | null;
+  summary_text?: string | null;
+  author_label?: string | null;
+  source_url?: string | null;
+  metadata?: Json;
+};
+
+type AuthorizedSourceTargetInsert = {
+  source_id: string;
+  target_type: "LESSON";
+  lesson_id: string;
+};
+
+type PremiumQueryRequestUpdate = {
+  status: "APPROVED";
+  selected_candidate: Json;
+  approved_at: string;
+};
+
+type FunctionInvokeErrorLike = {
+  message?: string;
+  context?: Response;
+};
+
+const AUTHORIZED_SOURCES_TABLE = "authorized_sources" as never;
+const AUTHORIZED_SOURCE_TARGETS_TABLE = "authorized_source_targets" as never;
+const PREMIUM_QUERY_REQUESTS_TABLE = "premium_query_requests" as never;
+
+function isFunctionInvokeErrorLike(error: unknown): error is FunctionInvokeErrorLike {
+  return typeof error === "object" && error !== null;
+}
+
+function getErrorMessage(error: unknown, fallback = "Error desconocido"): string {
+  return error instanceof Error ? error.message : fallback;
+}
 
 function getFileExtension(fileName: string): string {
   const parts = fileName.split(".");
@@ -86,12 +149,14 @@ function isLikelyVideoCandidate(candidate: PremiumCandidate, resourceType: strin
   );
 }
 
-async function parseFunctionErrorMessage(error: any): Promise<string> {
+async function parseFunctionErrorMessage(error: unknown): Promise<string> {
   if (!error) return "Error desconocido";
-  if (typeof error.message === "string" && !error.context) return error.message;
+  if (isFunctionInvokeErrorLike(error) && typeof error.message === "string" && !error.context) {
+    return error.message;
+  }
 
   try {
-    const context = error.context as Response | undefined;
+    const context = isFunctionInvokeErrorLike(error) ? error.context : undefined;
     if (context) {
       const payload = await context.json();
       if (payload?.error) return payload.error;
@@ -100,7 +165,7 @@ async function parseFunctionErrorMessage(error: any): Promise<string> {
     // Ignore context parsing errors.
   }
 
-  return typeof error.message === "string" ? error.message : "Error desconocido";
+  return isFunctionInvokeErrorLike(error) && typeof error.message === "string" ? error.message : "Error desconocido";
 }
 
 function normalizeSentence(value: string | null | undefined): string {
@@ -272,7 +337,7 @@ export default function BriefForm({
     ]
   );
 
-  const buildPayload = (status?: "IN_PROGRESS" | "READY_FOR_PRODUCTION" | "PRODUCED") => ({
+  const buildPayload = (status?: "IN_PROGRESS" | "READY_FOR_PRODUCTION" | "PRODUCED"): LessonBriefPayload => ({
     lesson_id: lessonId,
     enfoque_deseado: enfoque,
     tipo_dinamica_sugerida: dinamica,
@@ -289,9 +354,9 @@ export default function BriefForm({
       const payload = buildPayload();
 
       if (brief) {
-        await supabase.from("lesson_briefs").update(payload as any).eq("id", brief.id);
+        await supabase.from("lesson_briefs").update(payload).eq("id", brief.id);
       } else {
-        await supabase.from("lesson_briefs").insert([payload] as any);
+        await supabase.from("lesson_briefs").insert([payload]);
       }
 
       toast({ title: "Relevamiento guardado" });
@@ -317,9 +382,9 @@ export default function BriefForm({
       const payload = buildPayload("READY_FOR_PRODUCTION");
 
       if (brief) {
-        await supabase.from("lesson_briefs").update(payload as any).eq("id", brief.id);
+        await supabase.from("lesson_briefs").update(payload).eq("id", brief.id);
       } else {
-        await supabase.from("lesson_briefs").insert([payload] as any);
+        await supabase.from("lesson_briefs").insert([payload]);
       }
 
       toast({ title: "Relevamiento confirmado" });
@@ -383,7 +448,7 @@ export default function BriefForm({
           }
         }
 
-        const sourcePayload = {
+        const sourcePayload: AuthorizedSourceInsert = {
           course_id: courseId,
           origin_type: "DOCENTE_ARCHIVO",
           plan_scope: planType,
@@ -397,20 +462,22 @@ export default function BriefForm({
         };
 
         const { data: createdSource, error: sourceError } = await supabase
-          .from("authorized_sources" as any)
+          .from(AUTHORIZED_SOURCES_TABLE)
           .insert(sourcePayload)
           .select("id")
           .single();
-        if (sourceError || !(createdSource as any)?.id) {
+        const createdSourceRow = (createdSource || null) as unknown as Pick<AuthorizedSourceRow, "id"> | null;
+        if (sourceError || !createdSourceRow?.id) {
           failedCount += 1;
           continue;
         }
 
-        const { error: targetError } = await supabase.from("authorized_source_targets" as any).insert({
-          source_id: (createdSource as any).id,
+        const targetPayload: AuthorizedSourceTargetInsert = {
+          source_id: createdSourceRow.id,
           target_type: "LESSON",
           lesson_id: lessonId,
-        });
+        };
+        const { error: targetError } = await supabase.from(AUTHORIZED_SOURCE_TARGETS_TABLE).insert(targetPayload);
         if (targetError) {
           failedCount += 1;
           continue;
@@ -419,7 +486,7 @@ export default function BriefForm({
         const { data: processResult, error: processError } = await supabase.functions.invoke(
           "process-authorized-source",
           {
-            body: { source_id: (createdSource as any).id },
+            body: { source_id: createdSourceRow.id },
           }
         );
 
@@ -429,7 +496,7 @@ export default function BriefForm({
         }
 
         processedCount += 1;
-        createdSourceIds.push((createdSource as any).id as string);
+        createdSourceIds.push(createdSourceRow.id);
       }
 
       if (createdSourceIds.length > 0) {
@@ -514,8 +581,8 @@ export default function BriefForm({
         title: "Consulta premium resuelta",
         description: `${candidates.length} candidato(s) listos para aprobacion docente.`,
       });
-    } catch (err: any) {
-      toast({ title: "Error al buscar", description: err.message, variant: "destructive" });
+    } catch (err: unknown) {
+      toast({ title: "Error al buscar", description: getErrorMessage(err), variant: "destructive" });
     } finally {
       setResolvingPremium(false);
     }
@@ -534,11 +601,11 @@ export default function BriefForm({
 
     if (authorizedSources.some((id) => id)) {
       const { data: existing } = await supabase
-        .from("authorized_sources" as any)
+        .from(AUTHORIZED_SOURCES_TABLE)
         .select("id, source_url")
         .in("id", authorizedSources);
 
-      if (((existing || []) as unknown as Array<{ id: string; source_url: string | null }>).some((row) => row.source_url === candidate.url)) {
+      if (((existing || []) as unknown as Array<Pick<AuthorizedSourceRow, "id" | "source_url">>).some((row) => row.source_url === candidate.url)) {
         toast({ title: "Esta fuente ya fue agregada en la clase", variant: "destructive" });
         return;
       }
@@ -547,7 +614,7 @@ export default function BriefForm({
     setApprovingCandidateUrl(candidate.url);
     try {
       const isVideo = isLikelyVideoCandidate(candidate, premiumResolvedType);
-      const sourcePayload = {
+      const sourcePayload: AuthorizedSourceInsert = {
         course_id: courseId,
         origin_type: isVideo ? "DOCENTE_VIDEO" : "BUSQUEDA_PREMIUM",
         plan_scope: planType,
@@ -568,33 +635,36 @@ export default function BriefForm({
       };
 
       const { data: createdSource, error: sourceError } = await supabase
-        .from("authorized_sources" as any)
+        .from(AUTHORIZED_SOURCES_TABLE)
         .insert(sourcePayload)
         .select("id")
         .single();
 
-      if (sourceError || !(createdSource as any)?.id) {
+      const createdSourceRow = (createdSource || null) as unknown as Pick<AuthorizedSourceRow, "id"> | null;
+      if (sourceError || !createdSourceRow?.id) {
         toast({ title: "No se pudo guardar la fuente aprobada", variant: "destructive" });
         return;
       }
 
-      const { error: targetError } = await supabase.from("authorized_source_targets" as any).insert({
-        source_id: (createdSource as any).id,
+      const targetPayload: AuthorizedSourceTargetInsert = {
+        source_id: createdSourceRow.id,
         target_type: "LESSON",
         lesson_id: lessonId,
-      });
+      };
+      const { error: targetError } = await supabase.from(AUTHORIZED_SOURCE_TARGETS_TABLE).insert(targetPayload);
       if (targetError) {
         toast({ title: "No se pudo asociar la fuente a la clase", variant: "destructive" });
         return;
       }
 
-      const { error: requestUpdateError } = await supabase
-        .from("premium_query_requests" as any)
-        .update({
+      const requestUpdatePayload: PremiumQueryRequestUpdate = {
           status: "APPROVED",
-          selected_candidate: candidate,
+          selected_candidate: candidate as unknown as Json,
           approved_at: new Date().toISOString(),
-        })
+        };
+      const { error: requestUpdateError } = await supabase
+        .from(PREMIUM_QUERY_REQUESTS_TABLE)
+        .update(requestUpdatePayload)
         .eq("id", premiumRequestId);
 
       if (requestUpdateError) {
@@ -605,7 +675,7 @@ export default function BriefForm({
         });
       }
 
-      setAuthorizedSources((prev) => Array.from(new Set([...prev, (createdSource as any).id as string])));
+      setAuthorizedSources((prev) => Array.from(new Set([...prev, createdSourceRow.id])));
       toast({ title: "Fuente premium aprobada y agregada" });
       onUpdate();
     } catch {

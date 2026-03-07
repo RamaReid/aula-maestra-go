@@ -18,6 +18,13 @@ interface AuthorizedSource {
   status: string;
 }
 
+type AuthorizedSourceTarget = {
+  source_id: string;
+};
+
+const AUTHORIZED_SOURCE_TARGETS_TABLE = "authorized_source_targets" as never;
+const AUTHORIZED_SOURCES_TABLE = "authorized_sources" as never;
+
 interface BibliographySelectorProps {
   courseId: string;
   lessonId?: string;
@@ -97,9 +104,7 @@ export default function BibliographySelector({
       setLoading(true);
 
       const cleanCandidates = (rawNodes: Array<Node & { order_index?: number }>): Node[] => {
-        const contentFirst = rawNodes.filter((node) => ["CONTENIDO", "BLOQUE", "UNIDAD"].includes(node.node_type));
-        const candidates = contentFirst.length > 0 ? contentFirst : rawNodes;
-        const bibliographyOnly = candidates.filter((node) => isLikelyBibliographyEntry(node.name));
+        const bibliographyOnly = rawNodes.filter((node) => isLikelyBibliographyEntry(node.name));
         const filtered = bibliographyOnly.filter((node) => !shouldHideNode(node.name));
         const dedupMap = new Map<string, Node>();
         filtered.forEach((node) => {
@@ -197,7 +202,7 @@ export default function BibliographySelector({
 
         if (canUseAuthorizedSources && lessonId) {
           const { data: targets, error: targetsError } = await supabase
-            .from("authorized_source_targets" as any)
+            .from(AUTHORIZED_SOURCE_TARGETS_TABLE)
             .select("source_id")
             .eq("lesson_id", lessonId);
 
@@ -211,7 +216,7 @@ export default function BibliographySelector({
               setAuthorizedSources([]);
             } else {
               const { data: sourcesData } = await supabase
-                .from("authorized_sources" as any)
+                .from(AUTHORIZED_SOURCES_TABLE)
                 .select("id, title, media_type, origin_type, status")
                 .eq("course_id", courseId)
                 .in("id", sourceIds)

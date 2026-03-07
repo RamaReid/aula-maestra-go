@@ -59,6 +59,21 @@ serve(async (req) => {
     });
   }
 
+  const { data: activeSubscription, error: subscriptionError } = await userClient
+    .from("subscriptions")
+    .select("plan_type, status")
+    .eq("user_id", userData.user.id)
+    .eq("status", "ACTIVE")
+    .maybeSingle();
+  if (subscriptionError) {
+    return new Response(JSON.stringify({ error: subscriptionError.message }), {
+      status: 400,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  const planType = activeSubscription?.plan_type || "FREE";
+
   let body: RequestBody;
   try {
     body = await req.json();
@@ -69,9 +84,12 @@ serve(async (req) => {
     });
   }
 
-  if (!body.official_url || !body.subject || !body.cycle || !body.year_level) {
+  const wantsManualUpload = Boolean(body.file_base64);
+  const wantsOfficialUrl = Boolean(body.official_url);
+
+  if ((!wantsManualUpload && !wantsOfficialUrl) || !body.subject || !body.cycle || !body.year_level) {
     return new Response(
-      JSON.stringify({ error: "Debe enviar official_url de abc.gob.ar, ademas de subject, cycle y year_level" }),
+      JSON.stringify({ error: "Debe enviar file_base64 o official_url, ademas de subject, cycle y year_level" }),
       {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -79,11 +97,14 @@ serve(async (req) => {
     );
   }
 
-  if (body.file_base64) {
-    return new Response(JSON.stringify({ error: "La carga manual de PDF fue deshabilitada. Usa solo URLs oficiales de abc.gob.ar." }), {
-      status: 400,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+  if (wantsManualUpload && planType === "FREE") {
+    return new Response(
+      JSON.stringify({ error: "La carga manual de PDF requiere un plan BASICO o PREMIUM." }),
+      {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    );
   }
 
   try {

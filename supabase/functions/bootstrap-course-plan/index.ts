@@ -1,6 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+type SupabaseClientLike = ReturnType<typeof createClient>;
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -30,6 +32,29 @@ type CurriculumNodeRow = {
   name: string;
   node_type: "EJE" | "UNIDAD" | "BLOQUE" | "CONTENIDO";
   order_index: number;
+};
+
+type CourseSummary = {
+  id: string;
+  subject: string;
+  year_level: number;
+  orientation: string | null;
+  speciality: string | null;
+  schools: {
+    official_name: string | null;
+    school_type: string | null;
+  } | null;
+};
+
+type PlanLessonSummary = {
+  id: string;
+  lesson_number: number;
+  term: number;
+};
+
+type InsertedPlanContentMapping = {
+  id: string;
+  curriculum_node_id: string;
 };
 
 type CanonLessonSeed = {
@@ -166,8 +191,9 @@ function buildNodePools(nodes: CurriculumNodeRow[]): {
   bibliographyNodes: CurriculumNodeRow[];
 } {
   const planningNodes = selectPlanningNodes(nodes);
+  const safeDocumentNodes = nodes.filter((node) => !isCurriculumNoiseNode(node));
   const bibliographyNodes = uniqueNodes(
-    planningNodes.filter((node) => isLikelyBibliographyNodeName(node.name))
+    safeDocumentNodes.filter((node) => isLikelyBibliographyNodeName(node.name))
   );
 
   const coreNodes = uniqueNodes(
@@ -607,7 +633,7 @@ function normalizeBootstrapPayload(
 }
 
 async function ensureCurriculumNodes(
-  adminClient: any,
+  adminClient: SupabaseClientLike,
   curriculumDocumentId: string,
   subject: string,
   officialTitle: string | null
@@ -716,6 +742,7 @@ serve(async (req) => {
       .eq("id", body.course_id)
       .single();
     if (courseError || !course) throw new Error("Curso no encontrado");
+    const courseRecord = course as CourseSummary;
 
     const { data: plan, error: planError } = await userClient
       .from("plans")
@@ -738,7 +765,7 @@ serve(async (req) => {
     const { nodes, synthetic: syntheticNodesCreated } = await ensureCurriculumNodes(
       adminClient,
       body.curriculum_document_id,
-      course.subject,
+      courseRecord.subject,
       curriculumDocument.official_title || null
     );
     const nodePools = buildNodePools(nodes);
@@ -761,7 +788,7 @@ serve(async (req) => {
     const targetPlanStatus = (lessonCount || 0) > 0 ? "EDITED" : "INCOMPLETE";
 
     const nodeNames = nodePools.nodesForPrompt.map((node) => `[${node.node_type}] ${node.name}`);
-    const subjectCanonNote = isFyHctSubject(course.subject)
+    const subjectCanonNote = isFyHctSubject(courseRecord.subject)
       ? [
           "Canon disciplinar obligatorio para FyHyCyT:",
           "- No la conviertas en Filosofia pura ni en tecnica descontextualizada.",
@@ -824,12 +851,12 @@ Reglas:
 ${subjectCanonNote}
 
 Contexto del curso:
-- Materia: ${course.subject}
-- Ano: ${course.year_level}
-- Escuela: ${(course as any).schools?.official_name || "Sin escuela"}
-- Tipo de escuela: ${(course as any).schools?.school_type || "No especificado"}
-- Orientacion: ${course.orientation || "No especificada"}
-- Especialidad: ${course.speciality || "No especificada"}
+- Materia: ${courseRecord.subject}
+- Ano: ${courseRecord.year_level}
+- Escuela: ${courseRecord.schools?.official_name || "Sin escuela"}
+- Tipo de escuela: ${courseRecord.schools?.school_type || "No especificado"}
+- Orientacion: ${courseRecord.orientation || "No especificada"}
+- Especialidad: ${courseRecord.speciality || "No especificada"}
 
 Documento curricular:
 - Titulo: ${curriculumDocument.official_title || curriculumDocument.subject}
@@ -851,7 +878,7 @@ ${nodeNames.join("\n")}`;
 
     const normalized = normalizeBootstrapPayload(
       aiPayload,
-      course.subject,
+      courseRecord.subject,
       nodePools.nodesForPrompt.map((node) => node.name),
       planLessons.length
     );
@@ -859,7 +886,7 @@ ${nodeNames.join("\n")}`;
     await adminClient
       .from("plans")
       .update({
-        status: targetPlanStatus as any,
+        status: targetPlanStatus as "EDITED" | "INCOMPLETE",
         fundamentacion: normalized.fundamentacion,
         estrategias_marco: normalized.estrategias_marco,
         estrategias_practicas: normalized.estrategias_practicas,
@@ -891,7 +918,9 @@ ${nodeNames.join("\n")}`;
         .from("plan_content_mappings")
         .insert(mappingRows)
         .select("id, curriculum_node_id");
-      mappingIdByNodeId = new Map((insertedMappings || []).map((row: any) => [row.curriculum_node_id, row.id]));
+      mappingIdByNodeId = new Map(
+        ((insertedMappings || []) as InsertedPlanContentMapping[]).map((row) => [row.curriculum_node_id, row.id])
+      );
     }
 
     for (const lesson of normalized.lessons) {
@@ -916,7 +945,7 @@ ${nodeNames.join("\n")}`;
     await adminClient
       .from("plan_lesson_content_links")
       .delete()
-      .in("plan_lesson_id", planLessons.map((lesson: any) => lesson.id));
+      .in("plan_lesson_id", (planLessons as PlanLessonSummary[]).map((lesson) => lesson.id));
 
     if (nodePools.nodesForMappings.length > 0 && mappingIdByNodeId.size > 0) {
       const coreNodesForLinking = nodePools.coreNodes.filter((node) => mappingIdByNodeId.has(node.id));
@@ -924,7 +953,7 @@ ${nodeNames.join("\n")}`;
         mappingIdByNodeId.has(node.id)
       );
 
-      const linkRows = planLessons.flatMap((lesson: any, index: number) => {
+      const linkRows = (planLessons as PlanLessonSummary[]).flatMap((lesson, index: number) => {
         const mappingIds = new Set<string>();
 
         if (coreNodesForLinking.length > 0) {

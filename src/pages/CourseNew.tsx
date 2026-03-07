@@ -183,6 +183,8 @@ export default function CourseNew() {
   const { user } = useAuth();
   const queryCycle = searchParams.get("cycle");
   const initialCycle = queryCycle === "BASIC" || queryCycle === "UPPER" ? queryCycle : "";
+  const querySchoolType = searchParams.get("school_type");
+  const initialSchoolType = querySchoolType === "COMUN" || querySchoolType === "TECNICA" ? querySchoolType : "COMUN";
   const queryYearLevel = Number(searchParams.get("year_level"));
   const initialYearLevel = Number.isInteger(queryYearLevel) && queryYearLevel >= 1 && queryYearLevel <= 6 ? queryYearLevel : null;
   const initialCurriculumId = searchParams.get("curriculum_document_id") || "";
@@ -201,7 +203,7 @@ export default function CourseNew() {
   const [state, setState] = useState<WizardState>({
     province: "PBA",
     schoolId: "",
-    schoolType: "COMUN",
+    schoolType: initialSchoolType,
     cycle: initialCycle,
     yearLevel: initialYearLevel,
     subject: searchParams.get("subject") || "",
@@ -612,8 +614,8 @@ export default function CourseNew() {
             }
       );
       navigate(courseDetailUrl(course!.id));
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } catch (err: unknown) {
+      toast({ title: "Error", description: err instanceof Error ? err.message : "Error desconocido", variant: "destructive" });
     } finally {
       setCreating(false);
     }
@@ -1036,6 +1038,7 @@ export default function CourseNew() {
                     {resolutionError && <p className="text-muted-foreground">{resolutionError}</p>}
                     <p className="text-muted-foreground">
                       Esta instancia ya no admite carga manual. La base curricular solo acepta documentos resueltos o sincronizados desde `abc.gob.ar`.
+                      Si necesitas importar un PDF manual, hacelo desde Sincronizar ABC con un plan BASICO o PREMIUM.
                     </p>
                     <a
                       href={officialIndexUrl}

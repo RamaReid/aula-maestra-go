@@ -1,5 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+type SupabaseClientLike = ReturnType<typeof createClient>;
+
 export const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -289,7 +291,7 @@ export async function getAuthenticatedUser(req: Request) {
 }
 
 export async function syncMercadoPagoSubscription(
-  adminClient: any,
+  adminClient: SupabaseClientLike,
   accessToken: string,
   providerSubscriptionId: string
 ): Promise<{

@@ -8,6 +8,8 @@ import {
   SchoolType,
 } from "../_shared/curriculumCommon.ts";
 
+type SupabaseClientLike = ReturnType<typeof createClient>;
+
 const PRIMARY_OFFICIAL_INDEX_URL =
   "https://abc.gob.ar/secretarias/areas/subsecretaria-de-educacion/educacion-secundaria/educacion-secundaria/disenos-curriculares";
 const OFFICIAL_INDEX_URLS = [PRIMARY_OFFICIAL_INDEX_URL];
@@ -201,7 +203,7 @@ async function fetchOfficialIndexMatches(subject: string, yearLevel: number): Pr
 }
 
 async function searchLocalCandidates(
-  adminClient: any,
+  adminClient: SupabaseClientLike,
   body: Required<Pick<RequestBody, "province" | "subject" | "cycle" | "year_level">>
 ): Promise<CurriculumCandidate[]> {
   const baseSelect =
@@ -213,14 +215,15 @@ async function searchLocalCandidates(
     .eq("province", body.province)
     .eq("cycle", body.cycle)
     .eq("year_level", body.year_level)
-    .eq("status", "VERIFIED");
+    .eq("status", "VERIFIED")
+    .eq("source_provider", "ABC_PBA_WEB");
 
   if (error) throw new Error(error.message);
   return ((data || []) as CurriculumCandidate[]).filter((candidate) => subjectsMatch(candidate.subject, body.subject));
 }
 
 async function findById(
-  adminClient: any,
+  adminClient: SupabaseClientLike,
   curriculumDocumentId: string
 ): Promise<CurriculumCandidate | null> {
   const { data, error } = await adminClient

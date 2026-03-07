@@ -26,6 +26,7 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import type { Tables } from "@/integrations/supabase/types";
 
 interface CourseWithDetails {
   id: string;
@@ -36,6 +37,11 @@ interface CourseWithDetails {
   school: { official_name: string } | null;
   plan: { status: string } | null;
 }
+
+type CourseQueryRow = Pick<Tables<"courses">, "id" | "subject" | "year_level" | "academic_year" | "status"> & {
+  schools: Pick<Tables<"schools">, "official_name"> | null;
+  plans: { status: string } | null;
+};
 
 const planBadgeVariant: Record<string, "default" | "secondary" | "outline"> = {
   FREE: "outline",
@@ -71,7 +77,7 @@ export default function Dashboard() {
 
     if (data) {
       setCourses(
-        data.map((c: any) => ({
+        (data as unknown as CourseQueryRow[]).map((c) => ({
           id: c.id,
           subject: c.subject,
           year_level: c.year_level,
