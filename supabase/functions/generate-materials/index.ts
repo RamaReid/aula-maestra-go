@@ -151,6 +151,33 @@ function sanitizeIdList(value: unknown): string[] {
   return Array.from(unique);
 }
 
+function resolveCurriculumSelections(
+  requestedEntries: string[],
+  directNodes: CurriculumNodeSelection[],
+  fallbackNodes: CurriculumNodeSelection[]
+): CurriculumNodeSelection[] {
+  const resolved = new Map<string, CurriculumNodeSelection>();
+  const directById = new Map(directNodes.map((node) => [node.id, node] as const));
+  const fallbackByNormalizedName = new Map(
+    fallbackNodes.map((node) => [normalizeKey(node.name), node] as const)
+  );
+
+  for (const entry of requestedEntries) {
+    const directNode = directById.get(entry);
+    if (directNode) {
+      resolved.set(directNode.id, directNode);
+      continue;
+    }
+
+    const fallbackNode = fallbackByNormalizedName.get(normalizeKey(entry));
+    if (fallbackNode) {
+      resolved.set(fallbackNode.id, fallbackNode);
+    }
+  }
+
+  return Array.from(resolved.values());
+}
+
 function isAuthorizedSourceAllowedForPlan(planType: string, originType: string): boolean {
   if (planType === "PREMIUM") return true;
   if (planType === "BASICO") return originType === "DOCENTE_ARCHIVO" || originType === "CURRICULAR";
@@ -915,11 +942,45 @@ serve(async (req) => {
 
       let nodes: CurriculumNodeSelection[] = [];
       if (requestedBibliographyIds.length > 0) {
-        const { data: fetchedNodes } = await adminClient
+        const { data: fetchedNodes, error: fetchedNodesError } = await adminClient
           .from("curriculum_nodes")
           .select("id, name, node_type, curriculum_document_id")
           .in("id", requestedBibliographyIds);
-        nodes = (fetchedNodes || []) as CurriculumNodeSelection[];
+
+        if (fetchedNodesError) {
+          await adminClient.from("lessons").update({ is_generating: false }).eq("id", lessonId);
+          return new Response(JSON.stringify({ error: fetchedNodesError.message }), {
+            status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        const directNodes = (fetchedNodes || []) as CurriculumNodeSelection[];
+        let fallbackNodes: CurriculumNodeSelection[] = [];
+        const missingEntries = requestedBibliographyIds.filter((entry) => !directNodes.some((node) => node.id === entry));
+
+        if (missingEntries.length > 0) {
+          let fallbackQuery = adminClient
+            .from("curriculum_nodes")
+            .select("id, name, node_type, curriculum_document_id");
+
+          if (course.curriculum_document_id) {
+            fallbackQuery = fallbackQuery.eq("curriculum_document_id", course.curriculum_document_id);
+          } else if (planMappedNodeIds.size > 0) {
+            fallbackQuery = fallbackQuery.in("id", Array.from(planMappedNodeIds));
+          }
+
+          const { data: fallbackNodeData, error: fallbackNodesError } = await fallbackQuery;
+          if (fallbackNodesError) {
+            await adminClient.from("lessons").update({ is_generating: false }).eq("id", lessonId);
+            return new Response(JSON.stringify({ error: fallbackNodesError.message }), {
+              status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
+
+          fallbackNodes = (fallbackNodeData || []) as CurriculumNodeSelection[];
+        }
+
+        nodes = resolveCurriculumSelections(requestedBibliographyIds, directNodes, fallbackNodes);
 
         if (nodes.length !== requestedBibliographyIds.length) {
           await adminClient.from("lessons").update({ is_generating: false }).eq("id", lessonId);
@@ -954,7 +1015,7 @@ serve(async (req) => {
         return new Response(
           JSON.stringify({
             error:
-              "La bibliografia confirmada no contiene fuentes validas (autor/titulo). Reabre el brief y selecciona fuentes bibliograficas reales.",
+              "La bibliografia confirmada no contiene fuentes curriculares o bibliograficas validas. Reabre el brief y vuelve a seleccionar.",
           }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
