@@ -8,6 +8,7 @@ type ResponsePayload = {
 };
 
 type ErrorLike = {
+  error?: unknown;
   message?: unknown;
   details?: unknown;
   hint?: unknown;

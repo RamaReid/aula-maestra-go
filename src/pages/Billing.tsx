@@ -50,7 +50,7 @@ type ManualPaymentRequestInsert = {
   notes: string | null;
 };
 
-const MANUAL_PAYMENT_REQUESTS_TABLE = "manual_payment_requests" as never;
+const MANUAL_PAYMENT_REQUESTS_TABLE = "manual_payment_requests" as any;
 
 const planCardCopy: Record<
   PlanType,
@@ -173,7 +173,7 @@ export default function Billing() {
       supabase
         .from("subscriptions")
         .select(
-          "plan_type, status, provider, provider_subscription_id, start_date, end_date, current_period_end, cancel_at_period_end, last_payment_status, updated_at"
+          "plan_type, status, start_date, end_date, updated_at"
         )
         .eq("user_id", user.id)
         .maybeSingle(),
@@ -184,7 +184,8 @@ export default function Billing() {
         .order("created_at", { ascending: false }),
     ]);
 
-    setSubscription((subscriptionRes.data as SubscriptionRow | null) || null);
+    // Cast needed: billing columns (provider, etc.) may not exist yet until migrations are applied
+    setSubscription((subscriptionRes.data as unknown as SubscriptionRow | null) || null);
     setRequests((requestsRes.data as unknown as ManualPaymentRequestRow[] | null) || []);
     setLoading(false);
   }, [user]);
