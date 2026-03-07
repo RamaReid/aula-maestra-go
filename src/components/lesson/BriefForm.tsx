@@ -112,6 +112,15 @@ function getErrorMessage(error: unknown, fallback = "Error desconocido"): string
   return error instanceof Error ? error.message : fallback;
 }
 
+function isMissingAuthorizedSourceIdsColumn(error: unknown): boolean {
+  const message = getErrorMessage(error, "").toLowerCase();
+  return message.includes("authorized_source_ids") && (
+    message.includes("column") ||
+    message.includes("schema cache") ||
+    message.includes("does not exist")
+  );
+}
+
 function getFileExtension(fileName: string): string {
   const parts = fileName.split(".");
   if (parts.length < 2) return "";
@@ -337,32 +346,52 @@ export default function BriefForm({
     ]
   );
 
-  const buildPayload = (status?: "IN_PROGRESS" | "READY_FOR_PRODUCTION" | "PRODUCED"): LessonBriefPayload => ({
+  const buildPayload = (
+    status?: "IN_PROGRESS" | "READY_FOR_PRODUCTION" | "PRODUCED",
+    includeAuthorizedSources = true
+  ): LessonBriefPayload => ({
     lesson_id: lessonId,
     enfoque_deseado: enfoque,
     tipo_dinamica_sugerida: dinamica,
     nivel_profundidad: profundidad,
     observaciones_docente: observaciones,
     bibliografia_confirmada: bibliografia,
-    authorized_source_ids: authorizedSources,
+    ...(includeAuthorizedSources ? { authorized_source_ids: authorizedSources } : {}),
     ...(status ? { status } : {}),
   });
+
+  const persistBrief = async (status?: "IN_PROGRESS" | "READY_FOR_PRODUCTION" | "PRODUCED") => {
+    const attempt = async (includeAuthorizedSources: boolean) => {
+      const payload = buildPayload(status, includeAuthorizedSources);
+
+      if (brief) {
+        const { error } = await supabase.from("lesson_briefs").update(payload).eq("id", brief.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("lesson_briefs").insert([payload]);
+        if (error) throw error;
+      }
+    };
+
+    try {
+      await attempt(true);
+    } catch (error) {
+      if (!authorizedSources.length || !isMissingAuthorizedSourceIdsColumn(error)) {
+        throw error;
+      }
+
+      await attempt(false);
+    }
+  };
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      const payload = buildPayload();
-
-      if (brief) {
-        await supabase.from("lesson_briefs").update(payload).eq("id", brief.id);
-      } else {
-        await supabase.from("lesson_briefs").insert([payload]);
-      }
-
+      await persistBrief();
       toast({ title: "Relevamiento guardado" });
       onUpdate();
-    } catch {
-      toast({ title: "Error al guardar", variant: "destructive" });
+    } catch (error) {
+      toast({ title: "Error al guardar", description: getErrorMessage(error), variant: "destructive" });
     }
     setSaving(false);
   };
@@ -379,18 +408,11 @@ export default function BriefForm({
 
     setSaving(true);
     try {
-      const payload = buildPayload("READY_FOR_PRODUCTION");
-
-      if (brief) {
-        await supabase.from("lesson_briefs").update(payload).eq("id", brief.id);
-      } else {
-        await supabase.from("lesson_briefs").insert([payload]);
-      }
-
+      await persistBrief("READY_FOR_PRODUCTION");
       toast({ title: "Relevamiento confirmado" });
       onUpdate();
-    } catch {
-      toast({ title: "Error al confirmar", variant: "destructive" });
+    } catch (error) {
+      toast({ title: "Error al confirmar", description: getErrorMessage(error), variant: "destructive" });
     }
     setSaving(false);
   };
