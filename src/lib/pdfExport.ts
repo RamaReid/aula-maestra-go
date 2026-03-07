@@ -179,7 +179,7 @@ export function downloadStructuredPdf(options: ExportPdfOptions) {
   const lines = buildLines(options);
   const pages = paginateLines(lines);
   const bytes = buildPdfBytes(pages);
-  const blob = new Blob([bytes], { type: "application/pdf" });
+  const blob = new Blob([bytes as BlobPart], { type: "application/pdf" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;

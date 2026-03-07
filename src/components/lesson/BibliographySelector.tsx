@@ -217,7 +217,7 @@ export default function BibliographySelector({
                 .in("id", sourceIds)
                 .order("created_at", { ascending: false });
 
-              const processed = ((sourcesData || []) as AuthorizedSource[]).filter(
+              const processed = ((sourcesData || []) as unknown as AuthorizedSource[]).filter(
                 (source) => source.status === "PROCESSED" || source.status === "APPROVED"
               );
               setAuthorizedSources(processed);

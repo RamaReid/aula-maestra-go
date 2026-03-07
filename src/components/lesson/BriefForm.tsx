@@ -476,7 +476,7 @@ export default function BriefForm({ lessonId, courseId, brief, onUpdate, planTyp
         });
       }
 
-      setAuthorizedSources((prev) => Array.from(new Set([...prev, createdSource.id as string])));
+      setAuthorizedSources((prev) => Array.from(new Set([...prev, (createdSource as any).id as string])));
       toast({ title: "Fuente premium aprobada y agregada" });
       onUpdate();
     } catch {
