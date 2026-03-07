@@ -73,6 +73,7 @@ export default {
           DEFAULT: "hsl(var(--archived))",
           foreground: "hsl(var(--archived-foreground))",
         },
+        "brand-accent": "hsl(var(--brand-accent))",
       },
       borderRadius: {
         lg: "var(--radius)",

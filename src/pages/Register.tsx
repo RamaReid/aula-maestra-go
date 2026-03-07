@@ -61,7 +61,11 @@ export default function Register() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <Card className="w-full max-w-sm">
+      <div className="w-full max-w-sm space-y-4">
+        <p className="text-center text-2xl font-bold tracking-tight">
+          Docenc<span className="text-brand-accent">IA</span>
+        </p>
+      <Card>
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">Crear cuenta</CardTitle>
           <CardDescription>Registrate para empezar a planificar</CardDescription>
@@ -138,6 +142,7 @@ export default function Register() {
           </p>
         </CardFooter>
       </Card>
+      </div>
     </div>
   );
 }

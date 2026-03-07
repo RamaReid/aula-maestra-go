@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Navigate, Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -10,12 +11,25 @@ import {
   Settings2,
   ArrowRight,
   CheckCircle2,
+  Minus,
   Layers,
   Sparkles,
+  Menu,
+  Link2,
+  RefreshCw,
+  Workflow,
 } from "lucide-react";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 
 export default function Landing() {
   const { user, loading } = useAuth();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   if (!loading && user) return <Navigate to="/dashboard" replace />;
 
@@ -25,7 +39,7 @@ export default function Landing() {
       <header className="sticky top-0 z-50 border-b bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
           <span className="text-lg font-bold tracking-tight text-foreground">
-            Docenc<span className="text-primary">IA</span>
+            Docenc<span className="text-brand-accent">IA</span>
           </span>
           <nav className="hidden items-center gap-6 text-sm text-muted-foreground md:flex">
             <a href="#como-funciona" className="transition-colors hover:text-foreground">
@@ -38,9 +52,41 @@ export default function Landing() {
               Contacto
             </a>
           </nav>
-          <Button variant="outline" size="sm" asChild>
-            <Link to="/login">Ingresar</Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" asChild>
+              <Link to="/login">Ingresar</Link>
+            </Button>
+            {/* Mobile hamburger */}
+            <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon" className="md:hidden">
+                  <Menu className="h-5 w-5" />
+                  <span className="sr-only">Menú</span>
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="right" className="w-64">
+                <SheetHeader>
+                  <SheetTitle className="text-left">
+                    Docenc<span className="text-brand-accent">IA</span>
+                  </SheetTitle>
+                </SheetHeader>
+                <nav className="mt-6 flex flex-col gap-4 text-sm">
+                  <a href="#como-funciona" className="text-foreground hover:text-brand-accent" onClick={() => setMobileMenuOpen(false)}>
+                    Cómo funciona
+                  </a>
+                  <a href="#planes" className="text-foreground hover:text-brand-accent" onClick={() => setMobileMenuOpen(false)}>
+                    Planes
+                  </a>
+                  <a href="#contacto" className="text-foreground hover:text-brand-accent" onClick={() => setMobileMenuOpen(false)}>
+                    Contacto
+                  </a>
+                  <Link to="/demo" className="text-foreground hover:text-brand-accent" onClick={() => setMobileMenuOpen(false)}>
+                    Probar demo
+                  </Link>
+                </nav>
+              </SheetContent>
+            </Sheet>
+          </div>
         </div>
       </header>
 
@@ -51,7 +97,7 @@ export default function Landing() {
           <div className="space-y-5">
             <div>
               <h1 className="text-4xl font-bold tracking-tight md:text-5xl">
-                Docenc<span className="text-primary">IA</span>
+                Docenc<span className="text-brand-accent">IA</span>
               </h1>
               <p className="mt-1 text-sm font-medium uppercase tracking-widest text-muted-foreground">
                 Sistema operativo para la tarea docente
@@ -151,37 +197,51 @@ export default function Landing() {
           <h2 className="text-center text-2xl font-bold md:text-3xl">
             Todo sigue un mismo recorrido.
           </h2>
-          <div className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
-            {[
-              {
-                step: "1",
-                title: "Organizá tu curso",
-                desc: "Definí el espacio desde el que vas a ordenar el año.",
-              },
-              {
-                step: "2",
-                title: "Planificá",
-                desc: "Armá el recorrido anual, unidades y clases.",
-              },
-              {
-                step: "3",
-                title: "Prepará materiales y actividades",
-                desc: "Usá la inteligencia artificial para acelerar la producción de recursos.",
-              },
-              {
-                step: "4",
-                title: "Reuní agenda y gestión",
-                desc: "Sostené el seguimiento cotidiano desde el mismo entorno.",
-              },
-            ].map(({ step, title, desc }) => (
-              <div key={step} className="flex flex-col items-center text-center">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
-                  {step}
+          <div className="mt-12">
+            {/* Desktop: horizontal with connectors */}
+            <div className="hidden lg:grid lg:grid-cols-4 lg:gap-0">
+              {[
+                { step: "1", title: "Organizá tu curso", desc: "Definí el espacio desde el que vas a ordenar el año." },
+                { step: "2", title: "Planificá", desc: "Armá el recorrido anual, unidades y clases." },
+                { step: "3", title: "Prepará materiales y actividades", desc: "Usá la inteligencia artificial para acelerar la producción de recursos." },
+                { step: "4", title: "Reuní agenda y gestión", desc: "Sostené el seguimiento cotidiano desde el mismo entorno." },
+              ].map(({ step, title, desc }, i) => (
+                <div key={step} className="relative flex flex-col items-center text-center px-4">
+                  {/* Connector line */}
+                  {i > 0 && (
+                    <div className="absolute top-5 right-1/2 w-full border-t-2 border-dashed border-muted-foreground/30" />
+                  )}
+                  <div className="relative z-10 flex h-10 w-10 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
+                    {step}
+                  </div>
+                  <h3 className="mt-4 font-semibold">{title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{desc}</p>
                 </div>
-                <h3 className="mt-4 font-semibold">{title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{desc}</p>
-              </div>
-            ))}
+              ))}
+            </div>
+            {/* Mobile/tablet: vertical with connectors */}
+            <div className="flex flex-col gap-0 lg:hidden">
+              {[
+                { step: "1", title: "Organizá tu curso", desc: "Definí el espacio desde el que vas a ordenar el año." },
+                { step: "2", title: "Planificá", desc: "Armá el recorrido anual, unidades y clases." },
+                { step: "3", title: "Prepará materiales y actividades", desc: "Usá la inteligencia artificial para acelerar la producción de recursos." },
+                { step: "4", title: "Reuní agenda y gestión", desc: "Sostené el seguimiento cotidiano desde el mismo entorno." },
+              ].map(({ step, title, desc }, i) => (
+                <div key={step} className="relative flex gap-4 pb-8 last:pb-0">
+                  {/* Vertical connector */}
+                  {i < 3 && (
+                    <div className="absolute left-5 top-10 bottom-0 w-px border-l-2 border-dashed border-muted-foreground/30" />
+                  )}
+                  <div className="relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
+                    {step}
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">{title}</h3>
+                    <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>
@@ -189,7 +249,7 @@ export default function Landing() {
       {/* ── Bloque 4 — Diferenciación ── */}
       <section className="border-t">
         <div className="mx-auto max-w-3xl px-4 py-16 text-center sm:px-6 md:py-20">
-          <Layers className="mx-auto h-8 w-8 text-primary" />
+          <Layers className="mx-auto h-8 w-8 text-brand-accent" />
           <h2 className="mt-4 text-2xl font-bold md:text-3xl">
             No es solo generar. Es reunir y dar continuidad.
           </h2>
@@ -197,11 +257,25 @@ export default function Landing() {
             DocencIA integra planificación, clases, materiales, agenda y gestión para acompañar el
             trabajo cotidiano en un mismo sistema.
           </p>
+          <div className="mt-6 flex flex-col items-start gap-3 text-left text-sm text-muted-foreground mx-auto max-w-md">
+            <div className="flex items-center gap-2">
+              <Link2 className="h-4 w-4 shrink-0 text-brand-accent" />
+              <span>Integración: todo conectado en un mismo flujo de trabajo.</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <RefreshCw className="h-4 w-4 shrink-0 text-brand-accent" />
+              <span>Continuidad: cada paso alimenta el siguiente sin empezar de cero.</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Workflow className="h-4 w-4 shrink-0 text-brand-accent" />
+              <span>Sistema: un entorno que sostiene la práctica cotidiana.</span>
+            </div>
+          </div>
         </div>
       </section>
 
       {/* ── Bloque 5 — Planes ── */}
-            <section id="planes" className="scroll-mt-16 border-t bg-muted/40">
+      <section id="planes" className="scroll-mt-16 border-t bg-muted/40">
         <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 md:py-20">
           <h2 className="text-center text-2xl font-bold md:text-3xl">Elegi como empezar</h2>
           <p className="mx-auto mt-3 max-w-xl text-center text-muted-foreground">
@@ -211,7 +285,6 @@ export default function Landing() {
             {[
               {
                 name: "Gratis",
-                code: "FREE",
                 highlight: false,
                 summary: "Para probar el flujo completo en 1 curso.",
                 items: [
@@ -226,8 +299,7 @@ export default function Landing() {
                 to: "/register",
               },
               {
-                name: "Basico",
-                code: "BASICO",
+                name: "Básico",
                 highlight: true,
                 summary: "Produccion docente diaria con control de curso.",
                 items: [
@@ -238,16 +310,15 @@ export default function Landing() {
                   "Copiloto en modo limited",
                   "Sin busqueda libre en internet",
                 ],
-                cta: "Empezar Basico",
+                cta: "Empezar Básico",
                 to: "/register",
               },
               {
                 name: "Premium",
-                code: "PREMIUM",
                 highlight: false,
                 summary: "Maxima profundidad para planificar y enriquecer materiales.",
                 items: [
-                  "Incluye todo Basico",
+                  "Incluye todo Básico",
                   "Fuentes por URL y video",
                   "Consultas concretas en internet con aprobacion docente",
                   "Tolerancia a typos en autor/canal/titulo",
@@ -257,26 +328,30 @@ export default function Landing() {
                 cta: "Empezar Premium",
                 to: "/register",
               },
-            ].map(({ name, code, highlight, summary, items, cta, to }) => (
+            ].map(({ name, highlight, summary, items, cta, to }) => (
               <Card
                 key={name}
                 className={highlight ? "border-primary ring-1 ring-primary/20" : "border"}
               >
                 <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg">{name}</CardTitle>
-                    <StatusBadge tone={highlight ? "success" : "neutral"} label={code} />
-                  </div>
+                  <CardTitle className="text-lg">{name}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <p className="text-sm text-muted-foreground">{summary}</p>
                   <ul className="space-y-2 text-sm">
-                    {items.map((item) => (
-                      <li key={item} className="flex items-start gap-2">
-                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" />
-                        <span>{item}</span>
-                      </li>
-                    ))}
+                    {items.map((item) => {
+                      const isNegative = item.startsWith("Sin ");
+                      return (
+                        <li key={item} className="flex items-start gap-2">
+                          {isNegative ? (
+                            <Minus className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                          ) : (
+                            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" />
+                          )}
+                          <span className={isNegative ? "text-muted-foreground" : ""}>{item}</span>
+                        </li>
+                      );
+                    })}
                   </ul>
                   <Button
                     className="mt-6 w-full"
@@ -322,7 +397,7 @@ export default function Landing() {
         <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
           <div className="flex flex-col items-center justify-between gap-6 sm:flex-row">
             <span className="text-sm font-bold tracking-tight">
-              Docenc<span className="text-primary">IA</span>
+              Docenc<span className="text-brand-accent">IA</span>
             </span>
             <nav className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-muted-foreground">
               <a href="#como-funciona" className="hover:text-foreground">
@@ -353,44 +428,64 @@ export default function Landing() {
    ───────────────────────────────────────────── */
 function HeroMockup() {
   return (
-    <Card className="hidden border shadow-lg md:block">
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-base">Historia · 4° año</CardTitle>
-          <StatusBadge tone="success" label="Validado" />
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-2">
-        {/* Clase 1 */}
-        <div className="rounded-md bg-muted px-3 py-2.5">
-          <div className="flex items-center justify-between text-sm">
-            <span className="font-medium">Clase 1 — Revolución Industrial</span>
+    <>
+      {/* Desktop version */}
+      <Card className="hidden border shadow-lg md:block">
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">Historia · 4° año</CardTitle>
             <StatusBadge tone="success" label="Validado" />
           </div>
-          <div className="mt-1.5 flex flex-wrap gap-1.5">
-            {["Plan de clase", "Actividades", "Guía de lectura"].map((m) => (
-              <span
-                key={m}
-                className="inline-flex items-center gap-1 rounded bg-success/10 px-2 py-0.5 text-xs text-success"
-              >
-                <CheckCircle2 className="h-3 w-3" />
-                {m}
-              </span>
-            ))}
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <div className="rounded-md bg-muted px-3 py-2.5">
+            <div className="flex items-center justify-between text-sm">
+              <span className="font-medium">Clase 1 — Revolución Industrial</span>
+              <StatusBadge tone="success" label="Validado" />
+            </div>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {["Plan de clase", "Actividades", "Guía de lectura"].map((m) => (
+                <span
+                  key={m}
+                  className="inline-flex items-center gap-1 rounded bg-success/10 px-2 py-0.5 text-xs text-success"
+                >
+                  <CheckCircle2 className="h-3 w-3" />
+                  {m}
+                </span>
+              ))}
+            </div>
           </div>
-        </div>
-        {/* Clase 2 */}
-        <div className="flex items-center justify-between rounded-md bg-muted px-3 py-2.5 text-sm">
-          <span className="font-medium">Clase 2 — Imperialismo</span>
-          <StatusBadge tone="warning" label="En progreso" />
-        </div>
-        {/* Clase 3 */}
-        <div className="flex items-center justify-between rounded-md bg-muted px-3 py-2.5 text-sm">
-          <span className="font-medium">Clase 3 — Primera Guerra Mundial</span>
-          <StatusBadge tone="neutral" label="Borrador" />
-        </div>
-      </CardContent>
-    </Card>
+          <div className="flex items-center justify-between rounded-md bg-muted px-3 py-2.5 text-sm">
+            <span className="font-medium">Clase 2 — Imperialismo</span>
+            <StatusBadge tone="warning" label="En progreso" />
+          </div>
+          <div className="flex items-center justify-between rounded-md bg-muted px-3 py-2.5 text-sm">
+            <span className="font-medium">Clase 3 — Primera Guerra Mundial</span>
+            <StatusBadge tone="neutral" label="Borrador" />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Mobile compact version */}
+      <Card className="border shadow-lg md:hidden">
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm">Historia · 4° año</CardTitle>
+            <StatusBadge tone="success" label="Validado" />
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-1.5">
+          <div className="flex items-center justify-between rounded-md bg-muted px-3 py-2 text-sm">
+            <span className="font-medium text-xs">Clase 1 — Rev. Industrial</span>
+            <StatusBadge tone="success" label="Validado" />
+          </div>
+          <div className="flex items-center justify-between rounded-md bg-muted px-3 py-2 text-sm">
+            <span className="font-medium text-xs">Clase 2 — Imperialismo</span>
+            <StatusBadge tone="warning" label="En progreso" />
+          </div>
+        </CardContent>
+      </Card>
+    </>
   );
 }
 
@@ -451,4 +546,3 @@ function CourseMockup() {
     </Card>
   );
 }
-
