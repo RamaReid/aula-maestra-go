@@ -1,0 +1,63 @@
+fecha/hora: 2026-03-07T21:55:00Z
+project_ref: jsejuuyqjtevtoguljiv
+responsable: Lovable AI
+
+=== Precondiciones verificadas ===
+
+1. Usuario QA: rgarciareid@gmail.com (user_id: 7382fc69-6356-46c7-b956-13936853839c)
+   - Plan: PREMIUM / ACTIVE
+   - Entitlements: copiloto_mode=full, max_courses=9999, max_weekly_sessions=9999
+
+2. Curriculum documents disponibles (6):
+   - 2782a1bc-5366-479c-a8dd-9ba16992985f | Filosofia | 6to | UPPER
+   - a0000001-0000-0000-0000-000000000004 | Filosofía | 6to | UPPER
+   - a0000001-0000-0000-0000-000000000005 | Filosofía e Historia de la Ciencia y la Tecnología | 6to | UPPER
+   - a0000001-0000-0000-0000-000000000001 | Historia | 5to | UPPER
+   - a0000001-0000-0000-0000-000000000003 | Matemática | 6to | UPPER
+   - a0000001-0000-0000-0000-000000000002 | Matemática | 5to | UPPER
+
+3. Curriculum nodes: 561
+
+4. Tablas operativas confirmadas:
+   - courses, plans, plan_lessons, plan_objectives, plan_content_mappings
+   - lessons, lesson_briefs, teaching_materials, reading_materials
+   - authorized_sources, authorized_source_targets
+   - subscriptions, user_entitlements, usage_counters
+
+5. Edge functions desplegadas y respondiendo (sin errores de import):
+   - import-curriculum-pdf
+   - process-authorized-source
+   - repair-curriculum-bibliography
+   - bootstrap-course-plan (pre-existente)
+   - generate-materials (pre-existente)
+
+=== Ruta E2E paso a paso ===
+
+Paso 1: Crear curso
+  - POST desde frontend: CourseNew.tsx
+  - Requiere: school_id, subject, year_level, academic_year, curriculum_document_id
+  - Resultado esperado: course_id (UUID)
+
+Paso 2: Bootstrap plan
+  - Invocar edge function bootstrap-course-plan con course_id
+  - Resultado esperado: plan creado con plan_lessons, plan_objectives, plan_content_mappings
+
+Paso 3: Validar plan
+  - RPC validate_plan(plan_id)
+  - Resultado esperado: plan.status = 'VALIDATED', lessons creadas
+
+Paso 4: Crear brief
+  - INSERT en lesson_briefs con lesson_id
+  - Campos: enfoque_deseado, nivel_profundidad, bibliografia_confirmada, tipo_dinamica_sugerida
+
+Paso 5: Confirmar brief
+  - UPDATE lesson_briefs SET status = 'READY_FOR_PRODUCTION'
+
+Paso 6: Generar materiales
+  - Invocar edge function generate-materials con lesson_id
+  - Resultado esperado: teaching_material_id + reading_material_id
+
+=== Estado actual ===
+No hay cursos creados aun (courses count = 0).
+El flujo E2E requiere interaccion del usuario QA en el frontend.
+Todas las precondiciones estan satisfechas para ejecutarlo.

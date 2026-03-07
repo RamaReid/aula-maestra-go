@@ -1,0 +1,38 @@
+fecha/hora: 2026-03-07T21:54:00Z
+project_ref: jsejuuyqjtevtoguljiv
+responsable: Lovable AI
+
+=== Deploy de edge functions ===
+comando: supabase--deploy_edge_functions(["import-curriculum-pdf", "process-authorized-source", "repair-curriculum-bibliography"])
+resultado: Successfully deployed edge functions: import-curriculum-pdf, process-authorized-source, repair-curriculum-bibliography
+
+=== Invocacion de prueba (sin auth — esperando 401, NO error de import) ===
+
+funcion: import-curriculum-pdf
+comando: POST /import-curriculum-pdf body={"test":true}
+resultado: HTTP 401 {"error":"No autorizado"}
+interpretacion: OK — respuesta de validacion de auth, no error de modulo/import
+
+funcion: process-authorized-source
+comando: POST /process-authorized-source body={"test":true}
+resultado: HTTP 401 {"error":"No autorizado"}
+interpretacion: OK — respuesta de validacion de auth, no error de modulo/import
+
+funcion: repair-curriculum-bibliography
+comando: POST /repair-curriculum-bibliography body={"test":true}
+resultado: HTTP 401 {"error":"No autorizado"}
+interpretacion: OK — respuesta de validacion de auth, no error de modulo/import
+
+=== Logs post-deploy (import-curriculum-pdf) ===
+2026-03-07T21:54:21Z INFO Listening on http://localhost:9999/
+2026-03-07T21:54:21Z LOG booted (time: 35ms)
+interpretacion: Sin errores de import Deno. Boot exitoso.
+
+=== D2 — Diff de imports ===
+archivo: supabase/functions/_shared/curriculumImport.ts linea 2
+antes:  import { getDocument } from "npm:pdfjs-dist@4.10.38/legacy/build/pdf.mjs";
+despues: import { getDocument } from "https://esm.sh/pdfjs-dist@4.10.38/legacy/build/pdf.mjs";
+
+archivo: supabase/functions/process-authorized-source/index.ts linea 3
+antes:  import { getDocument } from "npm:pdfjs-dist@4.10.38/legacy/build/pdf.mjs";
+despues: import { getDocument } from "https://esm.sh/pdfjs-dist@4.10.38/legacy/build/pdf.mjs";

@@ -1,0 +1,73 @@
+fecha/hora: 2026-03-07T21:53:00Z
+project_ref: jsejuuyqjtevtoguljiv
+responsable: Lovable AI
+
+=== C1.1 — Tablas nuevas ===
+comando: SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('authorized_sources','authorized_source_targets','premium_query_requests','billing_events','manual_payment_requests') ORDER BY table_name;
+resultado:
+  authorized_source_targets
+  authorized_sources
+  billing_events
+  manual_payment_requests
+  premium_query_requests
+
+=== C1.2 — Columnas billing en subscriptions (12 nuevas) ===
+comando: SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='subscriptions' AND column_name IN ('provider','provider_customer_id','provider_subscription_id','provider_plan_id','billing_email','current_period_start','current_period_end','cancel_at_period_end','last_payment_status','last_payment_at','last_invoice_url','metadata') ORDER BY column_name;
+resultado:
+  billing_email
+  cancel_at_period_end
+  current_period_end
+  current_period_start
+  last_invoice_url
+  last_payment_at
+  last_payment_status
+  metadata
+  provider
+  provider_customer_id
+  provider_plan_id
+  provider_subscription_id
+
+=== C1.3 — Columna lesson_briefs.authorized_source_ids ===
+comando: SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='lesson_briefs' AND column_name='authorized_source_ids';
+resultado:
+  authorized_source_ids
+
+=== C1.4 — Funciones SQL nuevas ===
+comando: SELECT routine_name FROM information_schema.routines WHERE routine_schema='public' AND routine_name IN ('is_authorized_source_owner','is_premium_query_owner','admin_upsert_billing_subscription') ORDER BY routine_name;
+resultado:
+  admin_upsert_billing_subscription
+  is_authorized_source_owner
+  is_premium_query_owner
+
+=== C1.5 — RLS Policies en tablas nuevas ===
+comando: SELECT tablename, policyname FROM pg_policies WHERE tablename IN ('authorized_sources','authorized_source_targets','premium_query_requests','billing_events','manual_payment_requests') ORDER BY tablename, policyname;
+resultado:
+  authorized_source_targets | Owners can manage authorized source targets
+  authorized_sources | Owners can create authorized sources
+  authorized_sources | Owners can delete authorized sources
+  authorized_sources | Owners can update authorized sources
+  authorized_sources | Owners can view authorized sources
+  manual_payment_requests | Users can create own manual payment requests
+  manual_payment_requests | Users can view own manual payment requests
+  premium_query_requests | Owners can create premium query requests
+  premium_query_requests | Owners can delete premium query requests
+  premium_query_requests | Owners can update premium query requests
+  premium_query_requests | Owners can view premium query requests
+
+Nota: billing_events tiene RLS habilitado sin policies (tabla admin-only, acceso solo via service_role_key).
+
+=== C1.6 — Bucket authorized-sources ===
+comando: SELECT id FROM storage.buckets WHERE id='authorized-sources';
+resultado:
+  authorized-sources
+
+=== C1.7 — validate_plan con v_mapping_count ===
+comando: SELECT prosrc LIKE '%v_mapping_count%' as has_mapping_count FROM pg_proc WHERE proname='validate_plan';
+resultado:
+  has_mapping_count: true
+
+=== C1.8 — Unique constraint subscriptions.user_id (para ON CONFLICT) ===
+comando: SELECT conname, contype FROM pg_constraint WHERE conrelid = 'public.subscriptions'::regclass;
+resultado:
+  subscriptions_pkey | p
+  subscriptions_user_id_key | u
