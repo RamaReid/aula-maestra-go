@@ -205,7 +205,7 @@ export default function BibliographySelector({
             setAuthorizedSources([]);
           } else {
             const sourceIds = Array.from(
-              new Set(((targets || []) as Array<{ source_id: string }>).map((target) => target.source_id))
+              new Set(((targets || []) as unknown as Array<{ source_id: string }>).map((target) => target.source_id))
             );
             if (sourceIds.length === 0) {
               setAuthorizedSources([]);
