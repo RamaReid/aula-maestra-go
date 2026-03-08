@@ -969,7 +969,7 @@ export default function CourseNew() {
                       </SelectTrigger>
                       <SelectContent>
                         {availableCycles.includes("BASIC") && (
-                          <SelectItem value="BASIC">Ciclo BÃ¡sico (1 a 3)</SelectItem>
+                          <SelectItem value="BASIC">Ciclo Básico (1 a 3)</SelectItem>
                         )}
                         {availableCycles.includes("UPPER") && (
                           <SelectItem value="UPPER">Ciclo Superior (4 a 6)</SelectItem>
