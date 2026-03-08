@@ -687,7 +687,7 @@ export default function CourseNew() {
           ? {
               title: "Curso creado con compatibilidad",
               description:
-                "El curso se creÃ³ en una base sin curriculum_document_id. El backend de Lovable Cloud sigue desactualizado.",
+                "El curso se creó en una base sin curriculum_document_id. El backend de Lovable Cloud sigue desactualizado.",
             }
           : {
               title: "Curso creado",
