@@ -1767,7 +1767,7 @@ REGLAS OBLIGATORIAS:
 
     // G-3: Increment usage counter only ONCE per session (not per lesson)
     const anyValidated = allResults.some(
-      (r) => r.readingStatus === "VALIDATED" && regenerateOnly !== "teaching"
+      (r) => r.reading_status === "VALIDATED" && regenerateOnly !== "teaching"
     );
     if (entitlements && usageCounter && anyValidated) {
       const { error: usageCounterUpdateError } = await adminClient
