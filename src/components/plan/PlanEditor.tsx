@@ -362,7 +362,48 @@ export default function PlanEditor({ planId, courseId, curriculumDocumentId, pla
             <Card><CardContent className="space-y-4 pt-5"><div className="flex items-center justify-between gap-3"><Label>Recursos y soportes de trabajo</Label><Button type="button" variant="ghost" size="sm" onClick={() => setExpandedField("resources")}><Maximize2 className="mr-2 h-4 w-4" />Expandir</Button></div><Textarea value={plan.resources} onChange={(event) => updateField("resources", event.target.value)} rows={7} disabled={readOnly} placeholder="Describe recursos, soportes, bibliografía de trabajo, formas de uso y alternativas low-tech." /></CardContent></Card>
           </TabsContent>
           <TabsContent value="bibliografia" className="space-y-4">
-            <Card><CardContent className="space-y-4 pt-5"><div><p className="text-sm font-medium text-foreground">Bibliografía curricular</p><p className="text-xs text-muted-foreground">Referencias detectadas en el diseño curricular oficial del curso.</p></div><div className="space-y-2">{curriculumBibliographyNodes.length > 0 ? curriculumBibliographyNodes.map((node) => <p key={node.id} className="text-sm text-foreground">{node.name}</p>) : bibliographyRepairStatus === "repairing" ? <p className="text-sm text-muted-foreground">Reparando bibliografía curricular...</p> : <div className="space-y-3"><div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 p-3"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" /><p className="text-sm text-foreground">No se detectó bibliografía curricular. El documento puede requerir reparación.</p></div>{!readOnly && curriculumDocumentId ? <Button type="button" variant="outline" size="sm" onClick={handleManualBibliographyRepair}><RotateCcw className="mr-2 h-4 w-4" />Reparar bibliografía curricular</Button> : null}</div>}</div></CardContent></Card>
+            <Card>
+              <CardContent className="space-y-4 pt-5">
+                <div>
+                  <p className="text-sm font-medium text-foreground">Bibliografía curricular</p>
+                  <p className="text-xs text-muted-foreground">
+                    Referencias detectadas en el diseño curricular oficial del curso.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  {curriculumBibliographyNodes.length > 0 ? (
+                    curriculumBibliographyNodes.map((node) => (
+                      <p key={node.id} className="text-sm text-foreground">{node.name}</p>
+                    ))
+                  ) : bibliographyRepairStatus === "repairing" ? (
+                    <p className="text-sm text-muted-foreground">Reparando bibliografía curricular...</p>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3">
+                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+                        <p className="text-sm text-foreground">
+                          {bibliographyRepairStatus === "failed"
+                            ? "La reparación no encontró bibliografía en el documento curricular. Revisá la importación del diseño oficial."
+                            : "No se detectó bibliografía curricular. El documento puede requerir reparación."}
+                        </p>
+                      </div>
+                      {!readOnly && curriculumDocumentId ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={handleManualBibliographyRepair}
+                          disabled={bibliographyRepairStatus === "repairing"}
+                        >
+                          <RotateCcw className="mr-2 h-4 w-4" />
+                          Reparar bibliografía curricular
+                        </Button>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
             <PlanTeacherBibliographyEditor planId={planId} readOnly={readOnly} onDirty={transitionToEdited} />
           </TabsContent>
         </Tabs>
