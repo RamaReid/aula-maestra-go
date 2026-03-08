@@ -8,7 +8,7 @@ import { PageIntro } from "@/components/editorial/PageIntro";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { LogOut, Plus, ChevronDown, BookOpen, Upload, Trash2, Archive, MoreVertical, CreditCard } from "lucide-react";
+import { LogOut, Plus, ChevronDown, BookOpen, Upload, Trash2, Archive, MoreVertical, CreditCard, RefreshCw } from "lucide-react";
 import { PlanType, useEntitlements } from "@/hooks/useEntitlements";
 import { PlanSwitcher } from "@/components/PlanSwitcher";
 import { StatusBadge, planTone, planLabel } from "@/components/ui/StatusBadge";
@@ -328,6 +328,10 @@ export default function Dashboard() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => navigate(`/curriculum/import?course_id=${course.id}`)}>
+                            <RefreshCw className="mr-2 h-4 w-4" />
+                            Recargar diseño curricular
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => setCourseToArchive(course)}>
                             <Archive className="mr-2 h-4 w-4" />
                             Archivar
