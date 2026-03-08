@@ -457,7 +457,13 @@ export default function Course() {
 
       <main className="mx-auto max-w-4xl px-4 py-8">
         {loading ? (
-          <SkeletonList count={6} />
+          <LoadingState
+            tips={[
+              "Cargando el curso...",
+              "Buscando la planificación y las clases...",
+              "Organizando todo para vos...",
+            ]}
+          />
         ) : plan ? (
           <div className="space-y-4">
             <PageIntro
