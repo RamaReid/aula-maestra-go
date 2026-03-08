@@ -298,7 +298,7 @@ export default function PlanEditor({ planId, courseId, curriculumDocumentId, pla
       if (data?.error) throw new Error(data.error);
       const { data: refreshedPlan } = await supabase.from("plans").select("fundamentacion, estrategias_marco, estrategias_practicas, evaluacion_marco, resources").eq("id", planId).single();
       if (refreshedPlan) setPlan(refreshedPlan);
-      await Promise.all([fetchMappedNodes(), fetchCurriculumBibliography()]);
+      await Promise.all([fetchMappedNodes(), fetchCurriculumBibliography(), refreshContentBlockCount(), refreshRubricCount(), refreshObjectiveCount(), refreshTeacherBibCount()]);
       const nextStatus = data?.plan_status === "EDITED" || data?.plan_status === "VALIDATED" ? data.plan_status : "INCOMPLETE";
       setCurrentStatus(nextStatus);
       setHasEditedAfterValidation(nextStatus === "EDITED");
