@@ -328,6 +328,34 @@ export default function PlanEditor({
     transitioningRef.current = false;
   }, [currentStatus, planId, readOnly]);
 
+  const saveRubricItem = useCallback(async (itemId: string, criteria: string) => {
+    if (readOnly) return;
+    if (currentStatus === "VALIDATED") await transitionToEdited();
+    await supabase.from("plan_rubric_items").update({ criteria }).eq("id", itemId);
+  }, [readOnly, currentStatus, transitionToEdited]);
+
+  const initRubricFromContent = useCallback(async () => {
+    if (readOnly) return;
+    setRubricLoading(true);
+    try {
+      await supabase.from("plan_rubric_items").delete().eq("plan_id", planId);
+      const groups = groupedContent.length > 0
+        ? groupedContent.map((g, i) => ({ unit_label: g.groupLabel, order_index: i }))
+        : [{ unit_label: "General", order_index: 0 }];
+      const inserts = groups.map((g) => ({
+        plan_id: planId,
+        unit_label: g.unit_label,
+        criteria: "",
+        order_index: g.order_index,
+      }));
+      await supabase.from("plan_rubric_items").insert(inserts);
+      await fetchRubricItems();
+      toast({ title: "Rúbrica inicializada", description: `Se crearon ${inserts.length} criterios por módulo/unidad.` });
+    } finally {
+      setRubricLoading(false);
+    }
+  }, [planId, groupedContent, readOnly, fetchRubricItems]);
+
   const saveField = useCallback(
     (field: keyof PlanData, value: string | string[]) => {
       if (readOnly) return;
