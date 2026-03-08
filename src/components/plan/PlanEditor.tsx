@@ -732,7 +732,7 @@ export default function PlanEditor({
               <Label className="text-base font-semibold">Fundamentación</Label>
               <Button type="button" variant="ghost" size="sm" onClick={() => setExpandedField("fundamentacion")}>
                 <Maximize2 className="mr-2 h-4 w-4" />
-                Expandir
+                Expandir editar
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
