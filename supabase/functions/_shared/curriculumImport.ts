@@ -532,9 +532,27 @@ function extractCurriculumNodes(rawText: string): DraftNode[] {
     }
 
     if (isLikelyContentLine(line) && (currentBloque || currentUnidad || currentEje)) {
+      const contentName = line.replace(/^[•*-]\s+/, "").replace(/^\d+[).]\s+/, "");
       pushNode(
         "CONTENIDO",
-        line.replace(/^[•*-]\s+/, "").replace(/^\d+[).]\s+/, ""),
+        contentName,
+        currentBloque?.tempId || currentUnidad?.tempId || currentEje?.tempId || null
+      );
+      continue;
+    }
+
+    // Merge continuation lines (start with lowercase) into previous CONTENIDO
+    if (startsWithLowercase(line) && nodes.length > 0 && nodes[nodes.length - 1].nodeType === "CONTENIDO") {
+      const lastNode = nodes[nodes.length - 1];
+      lastNode.name = `${lastNode.name} ${line.replace(/\s+/g, " ").trim()}`;
+      continue;
+    }
+
+    // Non-bulleted content lines under a hierarchy parent
+    if (isLikelyUnbulletedContent(line) && (currentBloque || currentUnidad || currentEje)) {
+      pushNode(
+        "CONTENIDO",
+        line,
         currentBloque?.tempId || currentUnidad?.tempId || currentEje?.tempId || null
       );
     }
