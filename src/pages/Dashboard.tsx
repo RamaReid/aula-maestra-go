@@ -8,7 +8,7 @@ import { PageIntro } from "@/components/editorial/PageIntro";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { LogOut, Plus, ChevronDown, BookOpen, Upload, Trash2, Archive, MoreVertical, CreditCard } from "lucide-react";
+import { LogOut, Plus, ChevronDown, BookOpen, Upload, Trash2, Archive, MoreVertical, CreditCard, RefreshCw } from "lucide-react";
 import { PlanType, useEntitlements } from "@/hooks/useEntitlements";
 import { PlanSwitcher } from "@/components/PlanSwitcher";
 import { StatusBadge, planTone, planLabel } from "@/components/ui/StatusBadge";
