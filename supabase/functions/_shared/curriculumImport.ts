@@ -198,11 +198,32 @@ function isLikelyUnitHeading(line: string): boolean {
   return /^(modulo|m[oó]dulo|unidad)\s+\d+/i.test(line.trim());
 }
 
+function isTocLine(line: string): boolean {
+  return /\.{3,}\s*\d+/.test(line);
+}
+
 function isLikelyContentLine(line: string): boolean {
   if (line.length < 8 || line.length > 180) return false;
+  if (isTocLine(line)) return false;
   if (/^[•*-]\s+/.test(line)) return true;
   if (/^\d+[).]\s+/.test(line)) return true;
   return false;
+}
+
+function isLikelyUnbulletedContent(line: string): boolean {
+  if (line.length < 20 || line.length > 250) return false;
+  if (isTocLine(line)) return false;
+  if (isLikelyPageArtifactLine(line)) return false;
+  if (isLikelySectionHeading(line)) return false;
+  if (isLikelyUnitHeading(line)) return false;
+  if (isBibliographyHeading(line)) return false;
+  if (!/[a-záéíóúñ]{4,}/i.test(line)) return false;
+  if (/^(pág|página|\d+$)/i.test(line.trim())) return false;
+  return true;
+}
+
+function startsWithLowercase(line: string): boolean {
+  return /^[a-záéíóúñ]/.test(line);
 }
 
 function isBibliographyHeading(line: string): boolean {
@@ -511,9 +532,27 @@ function extractCurriculumNodes(rawText: string): DraftNode[] {
     }
 
     if (isLikelyContentLine(line) && (currentBloque || currentUnidad || currentEje)) {
+      const contentName = line.replace(/^[•*-]\s+/, "").replace(/^\d+[).]\s+/, "");
       pushNode(
         "CONTENIDO",
-        line.replace(/^[•*-]\s+/, "").replace(/^\d+[).]\s+/, ""),
+        contentName,
+        currentBloque?.tempId || currentUnidad?.tempId || currentEje?.tempId || null
+      );
+      continue;
+    }
+
+    // Merge continuation lines (start with lowercase) into previous CONTENIDO
+    if (startsWithLowercase(line) && nodes.length > 0 && nodes[nodes.length - 1].nodeType === "CONTENIDO") {
+      const lastNode = nodes[nodes.length - 1];
+      lastNode.name = `${lastNode.name} ${line.replace(/\s+/g, " ").trim()}`;
+      continue;
+    }
+
+    // Non-bulleted content lines under a hierarchy parent
+    if (isLikelyUnbulletedContent(line) && (currentBloque || currentUnidad || currentEje)) {
+      pushNode(
+        "CONTENIDO",
+        line,
         currentBloque?.tempId || currentUnidad?.tempId || currentEje?.tempId || null
       );
     }

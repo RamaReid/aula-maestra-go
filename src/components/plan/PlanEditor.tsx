@@ -8,7 +8,7 @@ import { InlineValidationSummary } from "@/components/ui/InlineValidationSummary
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { Download, Maximize2, RotateCcw, ShieldCheck } from "lucide-react";
+import { AlertTriangle, Download, Maximize2, RotateCcw, ShieldCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { toast } from "@/hooks/use-toast";
@@ -102,6 +102,7 @@ export default function PlanEditor({ planId, courseId, curriculumDocumentId, pla
   const [expandedField, setExpandedField] = useState<ExpandableField | null>(null);
   const [mappedNodes, setMappedNodes] = useState<MappedCurriculumNode[]>([]);
   const [curriculumBibliographyNodes, setCurriculumBibliographyNodes] = useState<MappedCurriculumNode[]>([]);
+  const [bibliographyRepairStatus, setBibliographyRepairStatus] = useState<"idle" | "repairing" | "failed">("idle");
   const [currentStatus, setCurrentStatus] = useState(planStatus);
   const [hasEditedAfterValidation, setHasEditedAfterValidation] = useState(planStatus === "EDITED");
   const [exportingPdf, setExportingPdf] = useState(false);
@@ -131,6 +132,7 @@ export default function PlanEditor({ planId, courseId, curriculumDocumentId, pla
       setCurriculumBibliographyNodes([]);
       return;
     }
+    setBibliographyRepairStatus("idle");
     const { data: nodes } = await supabase.from("curriculum_nodes").select("id, name, node_type, parent_id, order_index").eq("curriculum_document_id", curriculumDocumentId).order("order_index");
     const bibNodes = extractBibliographyProtocolNodes((nodes || []) as Array<{ id: string; name: string; node_type: string; parent_id: string | null; order_index: number }>);
     if (bibNodes.length > 0) {
@@ -141,11 +143,30 @@ export default function PlanEditor({ planId, courseId, curriculumDocumentId, pla
     const { error: repairError } = await supabase.functions.invoke("repair-curriculum-bibliography", { body: { course_id: courseId } });
     if (repairError) {
       setCurriculumBibliographyNodes([]);
+      setBibliographyRepairStatus("failed");
       return;
     }
     const { data: repairedNodes } = await supabase.from("curriculum_nodes").select("id, name, node_type, parent_id, order_index").eq("curriculum_document_id", curriculumDocumentId).order("order_index");
-    setCurriculumBibliographyNodes(extractBibliographyProtocolNodes((repairedNodes || []) as Array<{ id: string; name: string; node_type: string; parent_id: string | null; order_index: number }>));
+    const repairedBib = extractBibliographyProtocolNodes((repairedNodes || []) as Array<{ id: string; name: string; node_type: string; parent_id: string | null; order_index: number }>);
+    setCurriculumBibliographyNodes(repairedBib);
+    if (repairedBib.length === 0) setBibliographyRepairStatus("failed");
   }, [courseId, curriculumDocumentId]);
+
+  const handleManualBibliographyRepair = async () => {
+    if (!curriculumDocumentId) return;
+    setBibliographyRepairStatus("repairing");
+    try {
+      await supabase.functions.invoke("repair-curriculum-bibliography", { body: { course_id: courseId } });
+      const { data: nodes } = await supabase.from("curriculum_nodes").select("id, name, node_type, parent_id, order_index").eq("curriculum_document_id", curriculumDocumentId).order("order_index");
+      const bibNodes = extractBibliographyProtocolNodes((nodes || []) as Array<{ id: string; name: string; node_type: string; parent_id: string | null; order_index: number }>);
+      setCurriculumBibliographyNodes(bibNodes);
+      setBibliographyRepairStatus(bibNodes.length === 0 ? "failed" : "idle");
+      if (bibNodes.length > 0) toast({ title: "Bibliografía reparada", description: `Se detectaron ${bibNodes.length} referencias bibliográficas.` });
+    } catch {
+      setBibliographyRepairStatus("failed");
+      toast({ title: "No se pudo reparar la bibliografía", variant: "destructive" });
+    }
+  };
 
   useEffect(() => {
     const fetchPlan = async () => {
@@ -341,7 +362,7 @@ export default function PlanEditor({ planId, courseId, curriculumDocumentId, pla
             <Card><CardContent className="space-y-4 pt-5"><div className="flex items-center justify-between gap-3"><Label>Recursos y soportes de trabajo</Label><Button type="button" variant="ghost" size="sm" onClick={() => setExpandedField("resources")}><Maximize2 className="mr-2 h-4 w-4" />Expandir</Button></div><Textarea value={plan.resources} onChange={(event) => updateField("resources", event.target.value)} rows={7} disabled={readOnly} placeholder="Describe recursos, soportes, bibliografía de trabajo, formas de uso y alternativas low-tech." /></CardContent></Card>
           </TabsContent>
           <TabsContent value="bibliografia" className="space-y-4">
-            <Card><CardContent className="space-y-4 pt-5"><div><p className="text-sm font-medium text-foreground">Bibliografía curricular</p><p className="text-xs text-muted-foreground">Referencias detectadas en el diseño curricular oficial del curso.</p></div><div className="space-y-2">{curriculumBibliographyNodes.length > 0 ? curriculumBibliographyNodes.map((node) => <p key={node.id} className="text-sm text-foreground">{node.name}</p>) : <p className="text-sm text-muted-foreground">No se detectó bibliografía curricular en la planificación. Esto debe revisarse en el documento curricular o en su reparación.</p>}</div></CardContent></Card>
+            <Card><CardContent className="space-y-4 pt-5"><div><p className="text-sm font-medium text-foreground">Bibliografía curricular</p><p className="text-xs text-muted-foreground">Referencias detectadas en el diseño curricular oficial del curso.</p></div><div className="space-y-2">{curriculumBibliographyNodes.length > 0 ? curriculumBibliographyNodes.map((node) => <p key={node.id} className="text-sm text-foreground">{node.name}</p>) : bibliographyRepairStatus === "repairing" ? <p className="text-sm text-muted-foreground">Reparando bibliografía curricular...</p> : <div className="space-y-3"><div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 p-3"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" /><p className="text-sm text-foreground">No se detectó bibliografía curricular. El documento puede requerir reparación.</p></div>{!readOnly && curriculumDocumentId ? <Button type="button" variant="outline" size="sm" onClick={handleManualBibliographyRepair}><RotateCcw className="mr-2 h-4 w-4" />Reparar bibliografía curricular</Button> : null}</div>}</div></CardContent></Card>
             <PlanTeacherBibliographyEditor planId={planId} readOnly={readOnly} onDirty={transitionToEdited} />
           </TabsContent>
         </Tabs>
