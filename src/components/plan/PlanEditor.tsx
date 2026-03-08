@@ -30,7 +30,19 @@ interface MappedCurriculumNode {
   id: string;
   name: string;
   node_type: string;
+  parent_id?: string | null;
   order_index?: number | null;
+}
+
+interface BibNode extends BibliographyProtocolNode {
+  parent_id: string | null;
+  order_index?: number;
+}
+
+interface GroupedContent {
+  groupLabel: string;
+  groupType: string;
+  children: MappedCurriculumNode[];
 }
 
 type PlanExportSectionKey =
