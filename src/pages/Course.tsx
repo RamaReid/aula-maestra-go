@@ -569,8 +569,8 @@ export default function Course() {
                               </p>
                               <p className="text-sm text-muted-foreground">
                                 {isFreePlan
-                                  ? "En Free tenÃ©s que elegir exactamente 3 clases del mismo curso. Pueden ser tres clases puntuales o una secuencia."
-                                  : `PodÃ©s seleccionar 1 clase o una secuencia de hasta ${maxSelectableLessons} clases, que coincide con las clases existentes en el curso.`}
+                                  ? "En Free tenés que elegir exactamente 3 clases del mismo curso. Pueden ser tres clases puntuales o una secuencia."
+                                  : `Podés seleccionar 1 clase o una secuencia de hasta ${maxSelectableLessons} clases, que coincide con las clases existentes en el curso.`}
                               </p>
                               {selectedLessons.length > 0 && (
                                 <p className="text-xs text-muted-foreground">
