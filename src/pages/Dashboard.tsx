@@ -313,7 +313,7 @@ export default function Dashboard() {
           ) : (
             <div className="grid gap-4 sm:grid-cols-2">
               {activeCourses.map((course) => (
-                <Card key={course.id} className="rounded-[1.5rem] border-border/80 bg-card/90 transition-colors hover:border-primary/50">
+                <Card key={course.id} className="flex flex-col rounded-[1.5rem] border-border/80 bg-card/90 transition-colors hover:border-primary/50">
                   <CardHeader className="pb-2">
                     <div className="flex items-start justify-between gap-3">
                       <div className="space-y-1">
