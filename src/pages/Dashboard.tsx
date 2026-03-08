@@ -263,7 +263,6 @@ export default function Dashboard() {
             </div>
           </div>
           <PlanSwitcher planType={planType} isQaUser={isQaUser} switchingPlan={switchingPlan} onPlanSwitch={handlePlanSwitch} />
-          </div>
           <div className="flex items-center gap-2">
             <Button asChild variant="outline" size="sm">
               <Link to="/billing">
