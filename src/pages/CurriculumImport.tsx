@@ -263,7 +263,7 @@ export default function CurriculumImport() {
                 <Input id="subject" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Ej. Filosofia" />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="year-level">Ano</Label>
+                <Label htmlFor="year-level">Año</Label>
                 <Input id="year-level" type="number" min={1} max={6} value={yearLevel} onChange={(e) => setYearLevel(e.target.value)} />
               </div>
             </div>

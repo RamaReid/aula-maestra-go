@@ -24,6 +24,7 @@ interface PlanData {
   estrategias_practicas: string[];
   evaluacion_marco: string;
   resources: string;
+  bibliografia_curso: string;
 }
 
 interface MappedCurriculumNode {
@@ -49,41 +50,42 @@ type PlanExportSectionKey =
   | "fundamentacion"
   | "objetivos"
   | "estrategias"
+  | "contenidos"
   | "evaluacion"
-  | "recursos"
-  | "bibliografia"
   | "clases"
-  | "contenidos";
+  | "recursos"
+  | "bibliografia";
 
 const DEFAULT_PLAN_EXPORT_ORDER: PlanExportSectionKey[] = [
   "fundamentacion",
   "objetivos",
   "estrategias",
+  "contenidos",
   "evaluacion",
+  "clases",
   "recursos",
   "bibliografia",
-  "clases",
-  "contenidos",
 ];
 
 const PLAN_EXPORT_LABELS: Record<PlanExportSectionKey, string> = {
-  fundamentacion: "Fundamentacion",
+  fundamentacion: "Fundamentación",
   objetivos: "Objetivos",
   estrategias: "Estrategias",
-  evaluacion: "Criterios de evaluacion",
-  recursos: "Recursos",
-  bibliografia: "Bibliografia",
-  clases: "Clases",
   contenidos: "Contenidos",
+  evaluacion: "Evaluación",
+  clases: "Clases",
+  recursos: "Recursos",
+  bibliografia: "Bibliografía",
 };
 
-type ExpandableField = "fundamentacion" | "estrategias_marco" | "evaluacion_marco" | "resources";
+type ExpandableField = "fundamentacion" | "estrategias_marco" | "evaluacion_marco" | "resources" | "bibliografia_curso";
 
 const fieldTitles: Record<ExpandableField, string> = {
-  fundamentacion: "Fundamentacion",
-  estrategias_marco: "Estrategias marco",
-  evaluacion_marco: "Criterios de evaluacion",
+  fundamentacion: "Fundamentación",
+  estrategias_marco: "Estrategia marco",
+  evaluacion_marco: "Evaluación",
   resources: "Recursos",
+  bibliografia_curso: "Bibliografía del curso",
 };
 
 interface Props {
@@ -103,31 +105,31 @@ function buildRepairGuidance(errors: string[]) {
 
   for (const error of errors) {
     if (error.includes("Fundamentacion")) {
-      steps.push("Revise la pestana Fundamentacion y extienda el marco del plan hasta dejar una base anual util.");
+      steps.push("Revise la pestaña Fundamentación y extienda el marco del plan hasta dejar una base anual útil.");
       continue;
     }
     if (error.includes("Estrategias marco") || error.includes("estrategia practica")) {
-      steps.push("Revise la pestana Estrategias y complete tanto el enfoque general como al menos una estrategia practica.");
+      steps.push("Revise la pestaña Estrategias y complete tanto el enfoque general como al menos una estrategia práctica.");
       continue;
     }
     if (error.includes("Evaluacion marco")) {
-      steps.push("Revise la pestana Criterios de evaluacion y explicite como se seguira y recuperara el trabajo del curso.");
+      steps.push("Revise la pestaña Evaluación y explicite cómo se seguirá y recuperará el trabajo del curso.");
       continue;
     }
     if (error.includes("Recursos")) {
-      steps.push("Revise la pestana Recursos y complete los soportes, materiales y alternativas low-tech del plan.");
+      steps.push("Revise la pestaña Recursos y complete los soportes, materiales y alternativas low-tech del plan.");
       continue;
     }
     if (error.includes("propositos")) {
-      steps.push("Revise la pestana Objetivos y deje entre 4 y 8 objetivos observables.");
+      steps.push("Revise la pestaña Objetivos y deje entre 4 y 8 objetivos observables.");
       continue;
     }
     if (error.includes("contenido curricular mapeado")) {
-      steps.push("La base curricular no quedo bien enlazada: rearme el borrador curricular o revise el programa asociado al curso.");
+      steps.push("La base curricular no quedó bien enlazada: rearme el borrador curricular o revise el programa asociado al curso.");
       continue;
     }
     if (error.includes("Ya existen lecciones para este curso")) {
-      steps.push("El curso ya tiene lecciones creadas. Si hubo cambios fuertes, use la revalidacion o rearme el borrador en lugar de validar como plan nuevo.");
+      steps.push("El curso ya tiene lecciones creadas. Si hubo cambios fuertes, use la revalidación o rearme el borrador en lugar de validar como plan nuevo.");
       continue;
     }
 
@@ -145,7 +147,7 @@ function buildRepairGuidance(errors: string[]) {
     .sort((a, b) => a[0] - b[0])
     .map(([lessonNumber, issues]) => {
       const normalizedIssues = issues.map((issue) => issue.replace(" es obligatorio", "").trim().toLowerCase());
-      return `Clase ${lessonNumber}: revise ${normalizedIssues.join(", ")} en la pestana Clases.`;
+      return `Clase ${lessonNumber}: revise ${normalizedIssues.join(", ")} en la pestaña Clases.`;
     });
 
   return Array.from(new Set([...steps, ...lessonRepairs]));
@@ -215,7 +217,6 @@ export default function PlanEditor({
   }, [planStatus]);
 
   const fetchMappedNodes = useCallback(async () => {
-    // 1. Fetch mapped content nodes with parent info
     const { data: mappings } = await supabase
       .from("plan_content_mappings")
       .select("curriculum_node_id")
@@ -233,7 +234,6 @@ export default function PlanEditor({
       contentNodes = ((nodes || []) as MappedCurriculumNode[]).filter((n) => !isAuthorityOrNoiseNode(n.name) && !isLikelyBibliographyNode(n.name));
     }
 
-    // Build grouped content by fetching parent nodes
     const parentIds = Array.from(new Set(contentNodes.map((n) => n.parent_id).filter(Boolean))) as string[];
     let parentMap = new Map<string, { name: string; node_type: string }>();
     if (parentIds.length > 0) {
@@ -259,7 +259,6 @@ export default function PlanEditor({
     });
     setGroupedContent(Array.from(groups.values()));
 
-    // 2. Fetch bibliography directly from curriculum_nodes of the document
     if (curriculumDocumentId) {
       const { data: allDocNodes } = await supabase
         .from("curriculum_nodes")
@@ -276,11 +275,11 @@ export default function PlanEditor({
     const fetch = async () => {
       const { data } = await supabase
         .from("plans")
-        .select("fundamentacion, estrategias_marco, estrategias_practicas, evaluacion_marco, resources")
+        .select("fundamentacion, estrategias_marco, estrategias_practicas, evaluacion_marco, resources, bibliografia_curso")
         .eq("id", planId)
         .single();
 
-      if (data) setPlan(data);
+      if (data) setPlan(data as PlanData);
       await fetchMappedNodes();
       setLoading(false);
     };
@@ -364,11 +363,11 @@ export default function PlanEditor({
 
       const { data: refreshedPlan } = await supabase
         .from("plans")
-        .select("fundamentacion, estrategias_marco, estrategias_practicas, evaluacion_marco, resources")
+        .select("fundamentacion, estrategias_marco, estrategias_practicas, evaluacion_marco, resources, bibliografia_curso")
         .eq("id", planId)
         .single();
 
-      if (refreshedPlan) setPlan(refreshedPlan);
+      if (refreshedPlan) setPlan(refreshedPlan as PlanData);
       await fetchMappedNodes();
 
       const nextStatus =
@@ -379,8 +378,8 @@ export default function PlanEditor({
       toast({
         title: "Borrador reconstruido",
         description: data?.synthetic_nodes_created
-          ? "Se regenero el plan y se creo una estructura curricular minima porque el documento aun no tenia nodos procesados."
-          : "Se regenero la base anual del plan a partir del programa oficial del curso.",
+          ? "Se regeneró el plan y se creó una estructura curricular mínima porque el documento aún no tenía nodos procesados."
+          : "Se regeneró la base anual del plan a partir del programa oficial del curso.",
       });
       onValidated();
     } catch (err: unknown) {
@@ -408,7 +407,7 @@ export default function PlanEditor({
       if (!result.success) {
         setValidationErrors(result.errors);
         toast({
-          title: "Validacion fallida",
+          title: "Validación fallida",
           description: result.errors.join(". "),
           variant: "destructive",
         });
@@ -445,7 +444,7 @@ export default function PlanEditor({
         return (
           <div className="flex items-center gap-2">
             <Badge variant="destructive">Editado</Badge>
-            <span className="text-xs text-muted-foreground">Requiere revalidacion</span>
+            <span className="text-xs text-muted-foreground">Requiere revalidación</span>
           </div>
         );
       default:
@@ -485,7 +484,7 @@ export default function PlanEditor({
       const strategiesLines = [
         plan.estrategias_marco?.trim() ? `Marco: ${plan.estrategias_marco.trim()}` : "",
         ...(plan.estrategias_practicas || [])
-          .map((strategy, index) => strategy.trim() ? `Estrategia practica ${index + 1}: ${strategy.trim()}` : "")
+          .map((strategy, index) => strategy.trim() ? `Estrategia práctica ${index + 1}: ${strategy.trim()}` : "")
           .filter(Boolean),
       ].filter(Boolean);
 
@@ -502,10 +501,20 @@ export default function PlanEditor({
           })
           .filter(Boolean) || [];
 
+      const bibliografiaLines = [
+        ...(bibliographyNodes.length > 0
+          ? ["Bibliografía curricular:", ...bibliographyNodes.map((node, index) => `  ${index + 1}. ${node.name}`)]
+          : ["Sin bibliografía curricular detectada."]),
+        "",
+        ...(plan.bibliografia_curso?.trim()
+          ? ["Bibliografía del curso:", plan.bibliografia_curso.trim()]
+          : ["Sin bibliografía del curso cargada."]),
+      ];
+
       const sectionContent: Record<PlanExportSectionKey, { title: string; body: string[] }> = {
         fundamentacion: {
-          title: "Fundamentacion",
-          body: [plan.fundamentacion?.trim() || "Sin fundamentacion cargada."],
+          title: "Fundamentación",
+          body: [plan.fundamentacion?.trim() || "Sin fundamentación cargada."],
         },
         objetivos: {
           title: "Objetivos",
@@ -515,39 +524,36 @@ export default function PlanEditor({
           title: "Estrategias",
           body: strategiesLines.length > 0 ? strategiesLines : ["Sin estrategias cargadas."],
         },
+        contenidos: {
+          title: "Contenidos",
+          body:
+            allContentNodes.length > 0
+              ? groupedContent.flatMap((g) => [
+                  g.groupLabel,
+                  ...g.children.map((node) => `  • ${node.name}`),
+                ])
+              : ["Sin contenidos curriculares mapeados."],
+        },
         evaluacion: {
-          title: "Criterios de evaluacion",
-          body: [plan.evaluacion_marco?.trim() || "Sin criterios de evaluacion cargados."],
+          title: "Evaluación",
+          body: [plan.evaluacion_marco?.trim() || "Sin criterios de evaluación cargados."],
+        },
+        clases: {
+          title: "Clases",
+          body: classesLines.length > 0 ? classesLines : ["Sin clases cargadas."],
         },
         recursos: {
           title: "Recursos",
           body: [plan.resources?.trim() || "Sin recursos cargados."],
         },
         bibliografia: {
-          title: "Bibliografia",
-          body:
-            bibliographyNodes.length > 0
-              ? bibliographyNodes.map((node, index) => `${index + 1}. ${node.name}`)
-              : ["Sin bibliografia sugerida detectada."],
-        },
-        clases: {
-          title: "Clases",
-          body: classesLines.length > 0 ? classesLines : ["Sin clases cargadas."],
-        },
-        contenidos: {
-          title: "Contenidos",
-          body:
-            allContentNodes.length > 0
-              ? groupedContent.flatMap((g) => [
-                  `[${g.groupType}] ${g.groupLabel}`,
-                  ...g.children.map((node) => `  - [${node.node_type}] ${node.name}`),
-                ])
-              : ["Sin contenidos curriculares mapeados."],
+          title: "Bibliografía",
+          body: bibliografiaLines,
         },
       };
 
       downloadStructuredPdf({
-        title: "Planificacion anual",
+        title: "Planificación anual",
         subtitle: "Documento de trabajo anual con fundamento, objetivos, estrategias, contenidos y recorrido de clases.",
         filename: `planificacion-anual-${planId.slice(0, 8)}.pdf`,
         generatedAt: new Intl.DateTimeFormat("es-AR", {
@@ -556,7 +562,7 @@ export default function PlanEditor({
           year: "numeric",
         }).format(new Date()),
         meta: [
-          { label: "Documento", value: "Planificacion anual" },
+          { label: "Documento", value: "Planificación anual" },
           { label: "Plan", value: planId.slice(0, 8).toUpperCase() },
         ],
         sections: exportOrder.map((sectionKey) => sectionContent[sectionKey]),
@@ -588,7 +594,7 @@ export default function PlanEditor({
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-lg">Planificacion anual</CardTitle>
+        <CardTitle className="text-lg">Planificación anual</CardTitle>
         {renderStatusBadge()}
       </CardHeader>
       <CardContent className="space-y-4">
@@ -597,7 +603,7 @@ export default function PlanEditor({
           <div className="rounded-lg border border-warning/30 bg-warning/10 p-4 space-y-2">
             <div className="flex items-center gap-2 text-sm font-medium text-warning">
               <ShieldCheck className="h-4 w-4" />
-              Reparacion sugerida
+              Reparación sugerida
             </div>
             <div className="space-y-1 text-sm text-foreground">
               {repairGuidance.map((step, index) => (
@@ -640,7 +646,7 @@ export default function PlanEditor({
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Cambia solo el orden de salida del PDF. No modifica lo elaborado en la planificacion.
+            Cambia solo el orden de salida del PDF. No modifica lo elaborado en la planificación.
           </p>
           <div className="space-y-1">
             {exportOrder.map((sectionKey, index) => (
@@ -677,68 +683,110 @@ export default function PlanEditor({
           </div>
         </div>
 
+        {/* ========= NAVEGACIÓN 2×4 ========= */}
         <Tabs defaultValue="fundamentacion">
-          <TabsList className="grid w-full grid-cols-8">
-            <TabsTrigger value="fundamentacion">Fundamentacion</TabsTrigger>
-            <TabsTrigger value="propositos">Objetivos</TabsTrigger>
-            <TabsTrigger value="estrategias">Estrategias</TabsTrigger>
-            <TabsTrigger value="evaluacion">Criterios de evaluacion</TabsTrigger>
-            <TabsTrigger value="recursos">Recursos</TabsTrigger>
-            <TabsTrigger value="bibliografia">Bibliografia</TabsTrigger>
-            <TabsTrigger value="clases">Clases</TabsTrigger>
-            <TabsTrigger value="contenidos">Contenidos</TabsTrigger>
-          </TabsList>
+          <div className="rounded-lg bg-muted p-1.5 space-y-1">
+            <TabsList className="grid w-full grid-cols-4 bg-transparent h-auto p-0">
+              <TabsTrigger value="fundamentacion" className="text-xs sm:text-sm py-2.5">Fundamentación</TabsTrigger>
+              <TabsTrigger value="objetivos" className="text-xs sm:text-sm py-2.5">Objetivos</TabsTrigger>
+              <TabsTrigger value="estrategias" className="text-xs sm:text-sm py-2.5">Estrategias</TabsTrigger>
+              <TabsTrigger value="contenidos" className="text-xs sm:text-sm py-2.5">Contenidos</TabsTrigger>
+            </TabsList>
+            <TabsList className="grid w-full grid-cols-4 bg-transparent h-auto p-0">
+              <TabsTrigger value="evaluacion" className="text-xs sm:text-sm py-2.5">Evaluación</TabsTrigger>
+              <TabsTrigger value="clases" className="text-xs sm:text-sm py-2.5">Clases</TabsTrigger>
+              <TabsTrigger value="recursos" className="text-xs sm:text-sm py-2.5">Recursos</TabsTrigger>
+              <TabsTrigger value="bibliografia" className="text-xs sm:text-sm py-2.5">Bibliografía</TabsTrigger>
+            </TabsList>
+          </div>
 
-          <TabsContent value="fundamentacion" className="space-y-2 pt-2">
+          {/* 1. FUNDAMENTACIÓN */}
+          <TabsContent value="fundamentacion" className="space-y-2 pt-4">
             <div className="flex items-center justify-between gap-2">
-              <Label>Fundamentacion</Label>
+              <Label className="text-base font-semibold">Fundamentación</Label>
               <Button type="button" variant="ghost" size="sm" onClick={() => setExpandedField("fundamentacion")}>
                 <Maximize2 className="mr-2 h-4 w-4" />
                 Expandir
               </Button>
             </div>
+            <p className="text-xs text-muted-foreground">
+              Texto académico-docente que sostiene el enfoque del curso. Cada párrafo debe arrancar con sangría y mantener interlineado formal.
+            </p>
             <Textarea
               value={plan.fundamentacion}
               onChange={(e) => updateField("fundamentacion", e.target.value)}
-              placeholder="Escribir la fundamentacion del plan..."
-              rows={6}
+              placeholder="Escribir la fundamentación del plan anual..."
+              rows={10}
               disabled={readOnly}
               onDoubleClick={() => setExpandedField("fundamentacion")}
+              className="indent-8 leading-relaxed whitespace-pre-wrap"
             />
             <p className="text-xs text-muted-foreground">{plan.fundamentacion.length} caracteres</p>
           </TabsContent>
 
-          <TabsContent value="estrategias" className="space-y-4 pt-2">
+          {/* 2. OBJETIVOS */}
+          <TabsContent value="objetivos" className="pt-4">
+            <div className="space-y-2">
+              <Label className="text-base font-semibold">Objetivos del curso</Label>
+              <p className="text-xs text-muted-foreground">
+                Listado de 4 a 8 objetivos observables del curso. Cada objetivo debe expresar lo que el estudiantado podrá hacer al cierre del año.
+              </p>
+            </div>
+            <div className="mt-3">
+              <PlanObjectivesEditor planId={planId} readOnly={readOnly} onDirty={transitionToEdited} />
+            </div>
+          </TabsContent>
+
+          {/* 3. ESTRATEGIAS */}
+          <TabsContent value="estrategias" className="space-y-4 pt-4">
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-2">
-                <Label>Estrategias marco</Label>
+                <Label className="text-base font-semibold">Estrategia marco</Label>
                 <Button type="button" variant="ghost" size="sm" onClick={() => setExpandedField("estrategias_marco")}>
                   <Maximize2 className="mr-2 h-4 w-4" />
                   Expandir
                 </Button>
               </div>
+              <p className="text-xs text-muted-foreground">
+                Enfoque general que organiza la enseñanza durante el año. Describe la lógica didáctica que atraviesa todo el curso.
+              </p>
               <Textarea
                 value={plan.estrategias_marco}
                 onChange={(e) => updateField("estrategias_marco", e.target.value)}
-                placeholder="Describir las estrategias generales..."
+                placeholder="Describir el enfoque estratégico general del curso..."
                 rows={4}
                 disabled={readOnly}
                 onDoubleClick={() => setExpandedField("estrategias_marco")}
+                className="indent-8 leading-relaxed"
               />
             </div>
 
-            <div className="space-y-2">
-              <Label>Estrategias practicas</Label>
-              <div className="flex flex-wrap gap-2">
+            <div className="space-y-3">
+              <Label className="text-base font-semibold">Estrategias prácticas</Label>
+              <p className="text-xs text-muted-foreground">
+                Estrategias concretas que se aplicarán en las clases. Agregue y quite según necesidad.
+              </p>
+              <div className="space-y-2">
                 {plan.estrategias_practicas.map((strategy, index) => (
-                  <Badge key={index} variant="secondary" className="gap-1 px-2 py-1">
-                    {strategy}
+                  <div key={index} className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-muted-foreground w-6 shrink-0">{index + 1}.</span>
+                    <Input
+                      value={strategy}
+                      onChange={(e) => {
+                        const updated = [...plan.estrategias_practicas];
+                        updated[index] = e.target.value;
+                        setPlan({ ...plan, estrategias_practicas: updated });
+                      }}
+                      onBlur={() => saveField("estrategias_practicas", plan.estrategias_practicas)}
+                      disabled={readOnly}
+                      placeholder="Describir estrategia práctica..."
+                    />
                     {!readOnly && (
-                      <button type="button" onClick={() => removeStrategy(index)} className="ml-1">
-                        <X className="h-3 w-3" />
-                      </button>
+                      <Button variant="ghost" size="icon" onClick={() => removeStrategy(index)}>
+                        <X className="h-4 w-4" />
+                      </Button>
                     )}
-                  </Badge>
+                  </div>
                 ))}
               </div>
               {!readOnly && (
@@ -746,110 +794,156 @@ export default function PlanEditor({
                   <Input
                     value={newStrategy}
                     onChange={(e) => setNewStrategy(e.target.value)}
-                    placeholder="Nueva estrategia..."
+                    placeholder="Nueva estrategia práctica..."
                     onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addStrategy())}
                   />
                   <Button type="button" variant="outline" size="sm" onClick={addStrategy}>
-                    <Plus className="h-4 w-4" />
+                    <Plus className="h-4 w-4 mr-1" /> Agregar
                   </Button>
                 </div>
               )}
             </div>
           </TabsContent>
 
-          <TabsContent value="evaluacion" className="space-y-2 pt-2">
-            <div className="flex items-center justify-between gap-2">
-              <Label>Criterios de evaluacion</Label>
-              <Button type="button" variant="ghost" size="sm" onClick={() => setExpandedField("evaluacion_marco")}>
-                <Maximize2 className="mr-2 h-4 w-4" />
-                Expandir
-              </Button>
-            </div>
-            <Textarea
-              value={plan.evaluacion_marco}
-              onChange={(e) => updateField("evaluacion_marco", e.target.value)}
-              placeholder="Describir los criterios de evaluacion..."
-              rows={6}
-              disabled={readOnly}
-              onDoubleClick={() => setExpandedField("evaluacion_marco")}
-            />
-          </TabsContent>
-
-          <TabsContent value="recursos" className="space-y-2 pt-2">
-            <div className="flex items-center justify-between gap-2">
-              <Label>Recursos</Label>
-              <Button type="button" variant="ghost" size="sm" onClick={() => setExpandedField("resources")}>
-                <Maximize2 className="mr-2 h-4 w-4" />
-                Expandir
-              </Button>
-            </div>
-            <Textarea
-              value={plan.resources}
-              onChange={(e) => updateField("resources", e.target.value)}
-              placeholder="Describir materiales, soportes y alternativas low-tech..."
-              rows={5}
-              disabled={readOnly}
-              onDoubleClick={() => setExpandedField("resources")}
-            />
-          </TabsContent>
-
-          <TabsContent value="contenidos" className="space-y-4 pt-2">
-            <div className="rounded-md border p-3">
-              <p className="text-sm font-medium">Contenidos curriculares del plan</p>
+          {/* 4. CONTENIDOS */}
+          <TabsContent value="contenidos" className="space-y-4 pt-4">
+            <div className="space-y-2">
+              <Label className="text-base font-semibold">Contenidos curriculares del plan</Label>
               <p className="text-xs text-muted-foreground">
-                {allContentNodes.length} contenidos mapeados para vinculacion de clases.
+                Estructura anual del contenido organizada por bloques, unidades o ejes. Estos temas son la base que luego se desarrollará en las clases.
               </p>
-              <div className="mt-3 max-h-64 space-y-3 overflow-y-auto pr-1">
+            </div>
+            <div className="rounded-md border p-4">
+              <p className="text-sm text-muted-foreground mb-3">
+                {allContentNodes.length} contenidos mapeados desde el programa curricular.
+              </p>
+              <div className="max-h-80 space-y-4 overflow-y-auto pr-1">
                 {groupedContent.length > 0 ? (
                   groupedContent.map((group) => (
-                    <div key={group.groupLabel} className="space-y-1">
+                    <div key={group.groupLabel} className="space-y-1.5">
                       <p className="text-sm font-semibold text-foreground">
-                        <span className="text-muted-foreground">[{group.groupType}]</span> {group.groupLabel}
+                        {group.groupLabel}
                       </p>
                       {group.children.map((node) => (
-                        <p key={node.id} className="pl-4 text-sm">
-                          <span className="font-medium text-muted-foreground">[{node.node_type}]</span> {node.name}
+                        <p key={node.id} className="pl-4 text-sm text-muted-foreground">
+                          • {node.name}
                         </p>
                       ))}
                     </div>
                   ))
                 ) : (
                   <p className="text-sm text-muted-foreground">
-                    No hay contenidos curriculares mapeados. Revisa el programa oficial y vuelve a rearmar el borrador.
+                    No hay contenidos curriculares mapeados. Revisá el programa oficial y volvé a rearmar el borrador.
                   </p>
                 )}
               </div>
             </div>
           </TabsContent>
 
-          <TabsContent value="bibliografia" className="space-y-4 pt-2">
-            <div className="rounded-md border p-3">
-              <p className="text-sm font-medium">Bibliografia sugerida</p>
+          {/* 5. EVALUACIÓN */}
+          <TabsContent value="evaluacion" className="space-y-4 pt-4">
+            <div className="flex items-center justify-between gap-2">
+              <Label className="text-base font-semibold">Evaluación</Label>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setExpandedField("evaluacion_marco")}>
+                <Maximize2 className="mr-2 h-4 w-4" />
+                Expandir
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Criterios de evaluación y rúbrica articulada con las unidades de contenido. Explicite cómo se seguirá, evaluará y recuperará el trabajo del curso.
+            </p>
+            <Textarea
+              value={plan.evaluacion_marco}
+              onChange={(e) => updateField("evaluacion_marco", e.target.value)}
+              placeholder="Describir los criterios de evaluación, la rúbrica por unidad o bloque de contenido y los mecanismos de seguimiento y recuperación..."
+              rows={8}
+              disabled={readOnly}
+              onDoubleClick={() => setExpandedField("evaluacion_marco")}
+              className="leading-relaxed"
+            />
+          </TabsContent>
+
+          {/* 6. CLASES */}
+          <TabsContent value="clases" className="pt-4">
+            <div className="space-y-2 mb-3">
+              <Label className="text-base font-semibold">Clases del año</Label>
               <p className="text-xs text-muted-foreground">
-                {bibliographyNodes.length} entradas sugeridas para soporte de indicaciones y materiales.
+                Las 28 clases del curso organizadas por cuatrimestre. Cada clase pertenece a una unidad curricular y tiene su propio tema.
               </p>
-              <div className="mt-3 max-h-56 space-y-2 overflow-y-auto pr-1">
-                {bibliographyNodes.length > 0 ? (
-                  bibliographyNodes.map((node) => (
-                    <p key={node.id} className="text-sm">
-                      {node.name}
+            </div>
+            <PlanLessonsEditor planId={planId} readOnly={readOnly} onDirty={transitionToEdited} />
+          </TabsContent>
+
+          {/* 7. RECURSOS */}
+          <TabsContent value="recursos" className="space-y-2 pt-4">
+            <div className="flex items-center justify-between gap-2">
+              <Label className="text-base font-semibold">Recursos</Label>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setExpandedField("resources")}>
+                <Maximize2 className="mr-2 h-4 w-4" />
+                Expandir
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Sección metodológica-instrumental: qué recursos se utilizarán, cómo se aprovechará la bibliografía, el programa y la orientación. Incluya herramientas, soportes y formas de trabajo.
+            </p>
+            <Textarea
+              value={plan.resources}
+              onChange={(e) => updateField("resources", e.target.value)}
+              placeholder="Describir qué recursos se utilizarán para transmitir conocimientos, cómo se aprovechará la bibliografía y el programa, qué herramientas y soportes se emplearán, y cómo se articula con la orientación del curso..."
+              rows={8}
+              disabled={readOnly}
+              onDoubleClick={() => setExpandedField("resources")}
+              className="leading-relaxed"
+            />
+          </TabsContent>
+
+          {/* 8. BIBLIOGRAFÍA */}
+          <TabsContent value="bibliografia" className="space-y-6 pt-4">
+            {/* Bibliografía curricular */}
+            <div className="space-y-2">
+              <Label className="text-base font-semibold">Bibliografía curricular</Label>
+              <p className="text-xs text-muted-foreground">
+                Bibliografía que surge del diseño curricular oficial de la materia.
+              </p>
+              <div className="rounded-md border p-4">
+                <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
+                  {bibliographyNodes.length > 0 ? (
+                    bibliographyNodes.map((node, index) => (
+                      <p key={node.id} className="text-sm">
+                        <span className="text-muted-foreground mr-1">{index + 1}.</span> {node.name}
+                      </p>
+                    ))
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      No se detectó bibliografía curricular en el programa importado. Reimportá el programa y rearmá el borrador.
                     </p>
-                  ))
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    No se detecto bibliografia sugerida en el mapeo actual. Reimporta el programa y rearma el borrador.
-                  </p>
-                )}
+                  )}
+                </div>
               </div>
             </div>
-          </TabsContent>
 
-          <TabsContent value="propositos" className="pt-2">
-            <PlanObjectivesEditor planId={planId} readOnly={readOnly} onDirty={transitionToEdited} />
-          </TabsContent>
-
-          <TabsContent value="clases" className="pt-2">
-            <PlanLessonsEditor planId={planId} readOnly={readOnly} onDirty={transitionToEdited} />
+            {/* Bibliografía del curso */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-base font-semibold">Bibliografía del curso</Label>
+                <Button type="button" variant="ghost" size="sm" onClick={() => setExpandedField("bibliografia_curso")}>
+                  <Maximize2 className="mr-2 h-4 w-4" />
+                  Expandir
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Bibliografía propuesta por el docente para este curso en particular.
+              </p>
+              <Textarea
+                value={plan.bibliografia_curso}
+                onChange={(e) => updateField("bibliografia_curso", e.target.value)}
+                placeholder="Agregar la bibliografía seleccionada para el curso: autores, textos, artículos, recursos digitales..."
+                rows={6}
+                disabled={readOnly}
+                onDoubleClick={() => setExpandedField("bibliografia_curso")}
+                className="leading-relaxed"
+              />
+            </div>
           </TabsContent>
         </Tabs>
 
@@ -868,13 +962,13 @@ export default function PlanEditor({
             {expandedField && (
               <div className="space-y-2">
                 <Textarea
-                  value={plan[expandedField]}
+                  value={(plan as unknown as Record<string, string>)[expandedField] ?? ""}
                   onChange={(event) => updateField(expandedField, event.target.value)}
                   rows={24}
                   disabled={readOnly}
-                  className="max-h-[70vh] min-h-[60vh]"
+                  className="max-h-[70vh] min-h-[60vh] leading-relaxed"
                 />
-                <p className="text-xs text-muted-foreground">{plan[expandedField].length} caracteres</p>
+                <p className="text-xs text-muted-foreground">{((plan as unknown as Record<string, string>)[expandedField] ?? "").length} caracteres</p>
               </div>
             )}
           </DialogContent>

@@ -461,7 +461,7 @@ export default function Course() {
           <div className="space-y-4">
             <PageIntro
               eyebrow="Curso"
-              title={`${course?.subject ?? "Curso"}${course?.year_level ? ` · ${course.year_level} ano` : ""}`}
+              title={`${course?.subject ?? "Curso"}${course?.year_level ? ` · ${course.year_level}° año` : ""}`}
               description="Revisa la base curricular, valida la planificacion y prepara clases o secuencias con una composicion mas clara para lectura y seguimiento."
             />
             <Card>

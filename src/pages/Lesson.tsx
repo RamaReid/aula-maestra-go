@@ -455,7 +455,7 @@ export default function Lesson() {
   const documentMeta = [
     { label: "Institucion", value: courseContext?.schools?.official_name || null },
     { label: "Materia", value: courseContext?.subject || null },
-    { label: "Curso", value: courseContext?.year_level ? `${courseContext.year_level} ano` : null },
+    { label: "Curso", value: courseContext?.year_level ? `${courseContext.year_level}° año` : null },
     { label: "Clase", value: `Leccion ${lesson.lesson_number}` },
     { label: "Tema", value: planLesson?.theme || null },
     { label: "Ciclo", value: courseContext?.academic_year || null },
