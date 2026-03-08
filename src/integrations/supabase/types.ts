@@ -231,6 +231,47 @@ export type Database = {
           },
         ]
       }
+      course_schedule_slots: {
+        Row: {
+          course_id: string
+          created_at: string
+          day_of_week: number
+          end_time: string
+          id: string
+          module_count: number
+          order_index: number
+          start_time: string
+        }
+        Insert: {
+          course_id: string
+          created_at?: string
+          day_of_week: number
+          end_time: string
+          id?: string
+          module_count?: number
+          order_index?: number
+          start_time: string
+        }
+        Update: {
+          course_id?: string
+          created_at?: string
+          day_of_week?: number
+          end_time?: string
+          id?: string
+          module_count?: number
+          order_index?: number
+          start_time?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_schedule_slots_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       courses: {
         Row: {
           academic_year: number
@@ -607,6 +648,47 @@ export type Database = {
           },
         ]
       }
+      plan_content_blocks: {
+        Row: {
+          created_at: string
+          description: string
+          id: string
+          order_index: number
+          plan_id: string
+          term: number | null
+          title: string
+          topics: string[]
+        }
+        Insert: {
+          created_at?: string
+          description?: string
+          id?: string
+          order_index?: number
+          plan_id: string
+          term?: number | null
+          title?: string
+          topics?: string[]
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          id?: string
+          order_index?: number
+          plan_id?: string
+          term?: number | null
+          title?: string
+          topics?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plan_content_blocks_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       plan_content_mappings: {
         Row: {
           created_at: string
@@ -685,6 +767,7 @@ export type Database = {
       plan_lessons: {
         Row: {
           activities_summary: string
+          content_block_id: string | null
           created_at: string
           id: string
           is_integrative_evaluation: boolean
@@ -700,6 +783,7 @@ export type Database = {
         }
         Insert: {
           activities_summary?: string
+          content_block_id?: string | null
           created_at?: string
           id?: string
           is_integrative_evaluation?: boolean
@@ -715,6 +799,7 @@ export type Database = {
         }
         Update: {
           activities_summary?: string
+          content_block_id?: string | null
           created_at?: string
           id?: string
           is_integrative_evaluation?: boolean
@@ -729,6 +814,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "plan_lessons_content_block_id_fkey"
+            columns: ["content_block_id"]
+            isOneToOne: false
+            referencedRelation: "plan_content_blocks"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "plan_lessons_plan_id_fkey"
             columns: ["plan_id"]
@@ -798,6 +890,98 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "plan_rubric_items_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      plan_rubrics: {
+        Row: {
+          advanced_level: string
+          basic_level: string
+          content_block_id: string | null
+          created_at: string
+          criterion_name: string
+          expected_level: string
+          focus_note: string
+          id: string
+          initial_level: string
+          order_index: number
+          plan_id: string
+        }
+        Insert: {
+          advanced_level?: string
+          basic_level?: string
+          content_block_id?: string | null
+          created_at?: string
+          criterion_name?: string
+          expected_level?: string
+          focus_note?: string
+          id?: string
+          initial_level?: string
+          order_index?: number
+          plan_id: string
+        }
+        Update: {
+          advanced_level?: string
+          basic_level?: string
+          content_block_id?: string | null
+          created_at?: string
+          criterion_name?: string
+          expected_level?: string
+          focus_note?: string
+          id?: string
+          initial_level?: string
+          order_index?: number
+          plan_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plan_rubrics_content_block_id_fkey"
+            columns: ["content_block_id"]
+            isOneToOne: false
+            referencedRelation: "plan_content_blocks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "plan_rubrics_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      plan_teacher_bibliography_entries: {
+        Row: {
+          citation: string
+          created_at: string
+          id: string
+          order_index: number
+          plan_id: string
+          usage_notes: string
+        }
+        Insert: {
+          citation?: string
+          created_at?: string
+          id?: string
+          order_index?: number
+          plan_id: string
+          usage_notes?: string
+        }
+        Update: {
+          citation?: string
+          created_at?: string
+          id?: string
+          order_index?: number
+          plan_id?: string
+          usage_notes?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plan_teacher_bibliography_entries_plan_id_fkey"
             columns: ["plan_id"]
             isOneToOne: false
             referencedRelation: "plans"
