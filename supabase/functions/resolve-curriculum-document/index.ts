@@ -8,7 +8,8 @@ import {
   SchoolType,
 } from "../_shared/curriculumCommon.ts";
 
-type SupabaseClientLike = ReturnType<typeof createClient>;
+// deno-lint-ignore no-explicit-any
+type SupabaseClientLike = ReturnType<typeof createClient> | any;
 
 const PRIMARY_OFFICIAL_INDEX_URL =
   "https://abc.gob.ar/secretarias/areas/subsecretaria-de-educacion/educacion-secundaria/educacion-secundaria/disenos-curriculares";

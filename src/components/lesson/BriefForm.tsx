@@ -97,10 +97,9 @@ type PremiumQueryRequestUpdate = {
   approved_at: string;
 };
 
-// Tables not yet in Cloud DB — use `as any` to bypass strict typing until migrations are applied
-const AUTHORIZED_SOURCES_TABLE = "authorized_sources" as never;
-const AUTHORIZED_SOURCE_TARGETS_TABLE = "authorized_source_targets" as never;
-const PREMIUM_QUERY_REQUESTS_TABLE = "premium_query_requests" as never;
+const AUTHORIZED_SOURCES_TABLE = "authorized_sources" as const;
+const AUTHORIZED_SOURCE_TARGETS_TABLE = "authorized_source_targets" as const;
+const PREMIUM_QUERY_REQUESTS_TABLE = "premium_query_requests" as const;
 
 function isMissingAuthorizedSourceIdsColumn(error: unknown): boolean {
   const message = formatErrorMessage(error, "").toLowerCase();
@@ -479,7 +478,7 @@ export default function BriefForm({
 
         const { data: createdSource, error: sourceError } = await supabase
           .from(AUTHORIZED_SOURCES_TABLE)
-          .insert(sourcePayload)
+          .insert(sourcePayload as any)
           .select("id")
           .single();
         const createdSourceRow = (createdSource || null) as unknown as Pick<AuthorizedSourceRow, "id"> | null;
@@ -493,7 +492,7 @@ export default function BriefForm({
           target_type: "LESSON",
           lesson_id: lessonId,
         };
-        const { error: targetError } = await supabase.from(AUTHORIZED_SOURCE_TARGETS_TABLE).insert(targetPayload);
+        const { error: targetError } = await supabase.from(AUTHORIZED_SOURCE_TARGETS_TABLE).insert(targetPayload as any);
         if (targetError) {
           failedCount += 1;
           continue;
@@ -653,7 +652,7 @@ export default function BriefForm({
 
       const { data: createdSource, error: sourceError } = await supabase
         .from(AUTHORIZED_SOURCES_TABLE)
-        .insert(sourcePayload)
+        .insert(sourcePayload as any)
         .select("id")
         .single();
 
@@ -668,7 +667,7 @@ export default function BriefForm({
         target_type: "LESSON",
         lesson_id: lessonId,
       };
-      const { error: targetError } = await supabase.from(AUTHORIZED_SOURCE_TARGETS_TABLE).insert(targetPayload);
+      const { error: targetError } = await supabase.from(AUTHORIZED_SOURCE_TARGETS_TABLE).insert(targetPayload as any);
       if (targetError) {
         toast({ title: "No se pudo asociar la fuente a la clase", variant: "destructive" });
         return;
@@ -681,7 +680,7 @@ export default function BriefForm({
         };
       const { error: requestUpdateError } = await supabase
         .from(PREMIUM_QUERY_REQUESTS_TABLE)
-        .update(requestUpdatePayload)
+        .update(requestUpdatePayload as any)
         .eq("id", premiumRequestId);
 
       if (requestUpdateError) {

@@ -19,7 +19,7 @@ type ExtractResult = {
   extractor: string;
 };
 
-const AUTHORIZED_SOURCES_TABLE = "authorized_sources" as never;
+const AUTHORIZED_SOURCES_TABLE = "authorized_sources" as const;
 
 const MAX_OCR_IMAGE_BYTES = 4 * 1024 * 1024;
 

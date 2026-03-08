@@ -19,8 +19,8 @@ interface AuthorizedSource {
   status: string;
 }
 
-const AUTHORIZED_SOURCE_TARGETS_TABLE = "authorized_source_targets" as never;
-const AUTHORIZED_SOURCES_TABLE = "authorized_sources" as never;
+const AUTHORIZED_SOURCE_TARGETS_TABLE = "authorized_source_targets" as const;
+const AUTHORIZED_SOURCES_TABLE = "authorized_sources" as const;
 const MAX_SOURCES = 5;
 
 interface BibliographySelectorProps {

@@ -855,7 +855,8 @@ serve(async (req) => {
     }
 
     // G-2: Validate all lessons belong to the same course and same user
-    const allResults: Array<{ lessonId: string; teachingStatus: string; readingStatus: string }> = [];
+    // deno-lint-ignore no-explicit-any
+    const allResults: Array<Record<string, any>> = [];
     let sharedCourseId: string | null = null;
 
     for (const lessonId of lessonIds) {
@@ -941,7 +942,7 @@ serve(async (req) => {
           });
         }
 
-        course = { ...legacyCourse, curriculum_document_id: null };
+        course = { ...(legacyCourse as any), curriculum_document_id: null };
       } else if (courseWithCurriculumError) {
         await adminClient.from("lessons").update({ is_generating: false }).eq("id", lessonId);
         return new Response(JSON.stringify({ error: courseWithCurriculumError.message }), {

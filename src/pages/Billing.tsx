@@ -51,7 +51,7 @@ type ManualPaymentRequestInsert = {
   notes: string | null;
 };
 
-const MANUAL_PAYMENT_REQUESTS_TABLE = "manual_payment_requests" as never;
+const MANUAL_PAYMENT_REQUESTS_TABLE = "manual_payment_requests" as const;
 
 const planCardCopy: Record<
   PlanType,
@@ -309,7 +309,7 @@ export default function Billing() {
         tax_id: taxId.trim() || null,
         notes: notes.trim() || null,
       };
-      const { error } = await supabase.from(MANUAL_PAYMENT_REQUESTS_TABLE).insert(payload);
+      const { error } = await supabase.from(MANUAL_PAYMENT_REQUESTS_TABLE).insert(payload as any);
 
       if (error) throw error;
 
