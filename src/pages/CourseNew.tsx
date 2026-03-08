@@ -1236,14 +1236,14 @@ export default function CourseNew() {
                   <span className="text-muted-foreground">Tipo:</span>
                   <span>{state.schoolType}</span>
                   <span className="text-muted-foreground">Ciclo:</span>
-                  <span>{state.cycle === "BASIC" ? "B\u00e1sico" : "Superior"}</span>
-                  <span className="text-muted-foreground">A\u00f1o:</span>
+                  <span>{state.cycle === "BASIC" ? "Básico" : "Superior"}</span>
+                  <span className="text-muted-foreground">Año:</span>
                   <span>{state.yearLevel}</span>
                   <span className="text-muted-foreground">Modalidad:</span>
                   <span>{contextModeLabel(state.contextMode)}</span>
                   {needsOrientation && (
                     <>
-                      <span className="text-muted-foreground">Orientaci\u00f3n:</span>
+                      <span className="text-muted-foreground">Orientación:</span>
                       <span>{state.orientation}</span>
                     </>
                   )}
