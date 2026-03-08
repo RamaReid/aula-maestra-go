@@ -197,7 +197,11 @@ function isLikelySectionHeading(line) {
 }
 
 function isLikelyUnitHeading(line) {
-  return /^(modulo|m[oó]dulo|unidad)\s+\d+/i.test(line.trim());
+  const trimmed = line.trim();
+  // Skip TOC entries: lines with dot leaders or page numbers like "Módulo 1 ........... 16"
+  if (/\.{3,}/.test(trimmed)) return false;
+  if (/\d+\s*$/.test(trimmed) && /\.{2,}|…/.test(trimmed)) return false;
+  return /^(modulo|m[oó]dulo|unidad)\s+\d+/i.test(trimmed);
 }
 
 function isLikelyContentLine(line) {
@@ -207,11 +211,43 @@ function isLikelyContentLine(line) {
   return false;
 }
 
+function isTocLine(line) {
+  // Lines with dot leaders (.....) or page-number patterns typical of a table of contents
+  if (/\.{4,}/.test(line)) return true;
+  if (/…{2,}/.test(line)) return true;
+  // Pattern: text followed by dots and a page number at the end
+  if (/\.{2,}\s*\d+\s*$/.test(line)) return true;
+  return false;
+}
+
 function extractCurriculumNodes(rawText) {
-  const lines = rawText
+  const rawLines = rawText
     .split("\n")
     .map((line) => collapseSpacedWords(line.trim()))
     .filter(Boolean);
+
+  // Detect and skip the TOC section: from "ÍNDICE" heading until a real section heading appears
+  let inToc = false;
+  const lines = [];
+  for (const line of rawLines) {
+    const normalized = normalizeText(line);
+    if (/^[ií]ndice$/i.test(normalized) || normalized === "indice") {
+      inToc = true;
+      continue;
+    }
+    if (inToc) {
+      // Exit TOC when we hit a real section heading (not a TOC entry)
+      if (!isTocLine(line) && isLikelySectionHeading(line) && line.length > 5) {
+        inToc = false;
+        lines.push(line);
+      }
+      // Skip all TOC lines
+      continue;
+    }
+    // Always skip TOC-style lines even outside the TOC block
+    if (isTocLine(line)) continue;
+    lines.push(line);
+  }
 
   const nodes = [];
   const seen = new Set();

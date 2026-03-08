@@ -770,6 +770,41 @@ export type Database = {
           },
         ]
       }
+      plan_rubric_items: {
+        Row: {
+          created_at: string
+          criteria: string
+          id: string
+          order_index: number
+          plan_id: string
+          unit_label: string
+        }
+        Insert: {
+          created_at?: string
+          criteria?: string
+          id?: string
+          order_index?: number
+          plan_id: string
+          unit_label?: string
+        }
+        Update: {
+          created_at?: string
+          criteria?: string
+          id?: string
+          order_index?: number
+          plan_id?: string
+          unit_label?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plan_rubric_items_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       plans: {
         Row: {
           bibliografia_curso: string

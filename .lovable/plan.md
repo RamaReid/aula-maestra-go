@@ -1,78 +1,89 @@
+# Plan: Validación Hard-Stop + Cierre de Evidencia
+
+## Estado actual (verificado ahora)
+
+**Tracking E2E: FUNCIONAL** — 4 filas en `ai_usage_logs`:
 
 
-# Plan: Corregir contenidos (son de índice, no reales), agregar rúbrica en Evaluación, y renombrar "Expandir"
+| #   | Feature  | Model            | Tokens | Cost USD  | Duration |
+| --- | -------- | ---------------- | ------ | --------- | -------- |
+| 1   | teaching | gemini-2.5-flash | 1,871  | $0.000666 | 6,223ms  |
+| 2   | reading  | gemini-2.5-pro   | 5,977  | $0.050311 | 43,795ms |
+| 3   | reading  | gemini-2.5-pro   | 5,004  | $0.040153 | 37,020ms |
+| 4   | reading  | gemini-2.5-pro   | 7,018  | $0.060161 | 53,109ms |
 
-## Problemas identificados
 
-### 1. Los contenidos mostrados son el ÍNDICE del PDF, no los contenidos reales
-Los `curriculum_nodes` almacenados contienen entradas del índice del PDF como:
-- `"Módulo 1 ..................................................................................................................... 16"`
-- `"Módulo 2 ..................................................................................................................... 16"`
+**Total: 19,870 tokens / $0.151291 / 4 llamadas**
 
-Pero los contenidos reales del documento son:
-- **MÓDULO 1**: "¿En qué sentido la filosofía puede ser considerada un pensamiento problematizador?" con temas como "La filosofía en el territorio de la ciencia...", "¿Filosofía o filosofar?...", etc.
-- **MÓDULO 2**: "Del conocimiento como copia al conocimiento como acción..." con sus propios temas.
+Lesson `b1b122c0` estado: `PLANNED`, `is_generating=false`.
+Teaching: `INVALIDATED`. Reading: `INVALIDATED` (1449 palabras, fuera de rango 1000-1300).
 
-El problema es que el script de extracción (`import-curriculum-pdfs.mjs`) parsea las líneas del índice como si fueran encabezados de unidad/contenido. Los verdaderos contenidos están más adelante en el `raw_text` y nunca se extrajeron como nodos.
+**Baseline para hard-stop:** count=4, max(created_at)=`2026-03-08 01:26:20.466031+00`
 
-### 2. La pestaña Evaluación no tiene rúbrica
-Debe incluir criterios de evaluación por módulo, no solo un textarea libre. El PDF original tiene una sección "Criterios de evaluación" por módulo (páginas 25-27) que ya está en `raw_text`.
+---
 
-### 3. Los botones dicen "Expandir" en vez de "Expandir editar"
+## Pasos a ejecutar
 
-## Cambios
+### Paso 1 — Configurar presupuesto bloqueante
 
-### A. Corregir extracción de nodos curriculares (script + reimportación)
+Usar `add_secret` para crear `AI_DAILY_BUDGET_USD = 0.0001`.
+El gasto actual del día ($0.151291) ya supera este límite, por lo que el hard-stop debe activarse.
 
-**`scripts/import-curriculum-pdfs.mjs`** - Mejorar `extractCurriculumNodes`:
-- Detectar y **saltar la sección del ÍNDICE** (desde la línea "ÍNDICE" hasta la siguiente sección real como "PRESENTACIÓN").
-- Reconocer las líneas con puntos suspendidos y números de página (`........ 16`) como entradas de índice y descartarlas.
-- Parsear los `MÓDULO N` reales que vienen con pregunta-problema y bullet points de contenido.
+### Paso 2 — Invocar generate-materials
 
-Después de corregir el script, re-ejecutar la importación para reemplazar los nodos incorrectos con los verdaderos contenidos por módulo.
+Llamar vía `curl_edge_functions` a `/generate-materials` con `lesson_id=b1b122c0-4161-414c-9e5a-3ffd97913ea8`.
+Resultado esperado: error `"Presupuesto diario de IA agotado"`.
 
-### B. Evaluación: agregar rúbrica basada en módulos de contenido
+### Paso 3 — Verificar no inserción
 
-**`src/components/plan/PlanEditor.tsx`** - Pestaña Evaluación:
-- Mantener el textarea actual de `evaluacion_marco` para criterios generales.
-- Debajo, mostrar una sección "Rúbrica por módulo/unidad" que liste los módulos de contenido (obtenidos de `groupedContent` o del fallback curricular) con un campo de texto editable por cada uno para que el docente defina criterios de evaluación específicos.
-- Esto requiere una nueva tabla o columna para almacenar la rúbrica por unidad.
+Ejecutar dos queries:
 
-**Migración de base de datos**: Crear tabla `plan_rubric_items`:
-```sql
-CREATE TABLE plan_rubric_items (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  plan_id uuid NOT NULL REFERENCES plans(id) ON DELETE CASCADE,
-  unit_label text NOT NULL DEFAULT '',
-  criteria text NOT NULL DEFAULT '',
-  order_index integer NOT NULL DEFAULT 0,
-  created_at timestamptz NOT NULL DEFAULT now()
-);
-ALTER TABLE plan_rubric_items ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Owners can manage rubric items" ON plan_rubric_items FOR ALL
-  USING (is_plan_owner(auth.uid(), plan_id));
-```
+- `SELECT count(*) FROM ai_usage_logs WHERE lesson_id = '<ID>'` — debe seguir en 4
+- `SELECT max(created_at) FROM ai_usage_logs WHERE lesson_id = '<ID>'` — debe ser idéntico al baseline
 
-En la pestaña Evaluación:
-1. Sección superior: textarea de criterios generales (ya existe).
-2. Sección inferior: lista de módulos/unidades con un campo de criterios por cada uno, editable, con autoguardado.
+### Paso 4 — Restaurar presupuesto
 
-### C. Renombrar "Expandir" a "Expandir editar"
+Usar `add_secret` para setear `AI_DAILY_BUDGET_USD = 2.0`.
 
-**`src/components/plan/PlanEditor.tsx`** - 5 ocurrencias del botón "Expandir" (líneas 735, 773, 883, 917, 965) cambian a "Expandir editar".
+### Paso 5 — Actualizar 4 archivos de evidencia
+
+`**docs/evidence/sql_outputs.txt**` — Agregar queries 1-5 con resultados reales:
+
+- Query 1: ai_usage_logs (4 filas con datos completos)
+- Query 2: lessons status/is_generating
+- Query 3: teaching_materials status
+- Query 4: reading_materials status + validation_reasons
+- Query 5: count/max antes y después del bloqueo
+
+`**docs/evidence/logs_extract.txt**` — Agregar logs de generate-materials:
+
+- 4 líneas AI_TRACKED (1 teaching + 3 reading)
+- Mensaje de bloqueo por presupuesto agotado
+
+`**docs/evidence/e2e_run_ids.txt**` — Agregar sección de validación tracking:
+
+- user_id, course_id, lesson_id
+- Resumen de resultados (4 calls, $0.151291)
+- Hard-stop verificado
+
+`**docs/CONTEXT_EVIDENCE_REPORT.md**` — Agregar 2 secciones:
+
+- "Tracking IA validado" con tabla de costos
+- "Budget hard-stop validado" con evidencia de bloqueo y no-inserción
+
+---
 
 ## Archivos a modificar
 
-| Archivo | Cambio |
-|---|---|
-| `scripts/import-curriculum-pdfs.mjs` | Filtrar índice del PDF, parsear módulos reales con sus contenidos |
-| `src/components/plan/PlanEditor.tsx` | Renombrar botones, agregar rúbrica por módulo en Evaluación |
-| Nueva migración SQL | Crear tabla `plan_rubric_items` |
 
-## Orden de ejecución
+| Archivo                           | Acción                                |
+| --------------------------------- | ------------------------------------- |
+| `docs/evidence/sql_outputs.txt`   | Agregar queries 1-5 + resultados      |
+| `docs/evidence/logs_extract.txt`  | Agregar logs tracking + hard-stop     |
+| `docs/evidence/e2e_run_ids.txt`   | Agregar IDs + resumen validación      |
+| `docs/CONTEXT_EVIDENCE_REPORT.md` | Secciones tracking + budget validados |
 
-1. Migración DB para `plan_rubric_items`
-2. Corregir script de importación para que no tome el índice como contenido
-3. Actualizar PlanEditor: botones "Expandir editar" + sección rúbrica en Evaluación
-4. Re-importar los nodos curriculares con los contenidos reales (requiere ejecutar el script manualmente)
 
+No se modifican archivos de código. Solo evidencia y secreto temporal.
+
+- confirmar explícitamente que AI_DAILY_BUDGET_USD quedó restaurado a 2.0 al terminar.

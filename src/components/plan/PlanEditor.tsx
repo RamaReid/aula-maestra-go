@@ -207,6 +207,8 @@ export default function PlanEditor({
   const [exportOrder, setExportOrder] = useState<PlanExportSectionKey[]>(DEFAULT_PLAN_EXPORT_ORDER);
   const [exportingPdf, setExportingPdf] = useState(false);
   const [showExportDialog, setShowExportDialog] = useState(false);
+  const [rubricItems, setRubricItems] = useState<{ id: string; unit_label: string; criteria: string; order_index: number }[]>([]);
+  const [rubricLoading, setRubricLoading] = useState(false);
   const transitioningRef = useRef(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -287,6 +289,17 @@ export default function PlanEditor({
     }
   }, [planId, curriculumDocumentId]);
 
+  const fetchRubricItems = useCallback(async () => {
+    const { data } = await supabase
+      .from("plan_rubric_items")
+      .select("id, unit_label, criteria, order_index")
+      .eq("plan_id", planId)
+      .order("order_index");
+    setRubricItems((data as typeof rubricItems) || []);
+  }, [planId]);
+
+  // saveRubricItem and initRubricFromContent are defined after transitionToEdited below
+
   useEffect(() => {
     const fetch = async () => {
       const { data } = await supabase
@@ -297,11 +310,12 @@ export default function PlanEditor({
 
       if (data) setPlan(data as PlanData);
       await fetchMappedNodes();
+      await fetchRubricItems();
       setLoading(false);
     };
 
     fetch();
-  }, [planId, fetchMappedNodes]);
+  }, [planId, fetchMappedNodes, fetchRubricItems]);
 
   const transitionToEdited = useCallback(async () => {
     if (transitioningRef.current || readOnly) return;
@@ -313,6 +327,34 @@ export default function PlanEditor({
     setHasEditedAfterValidation(true);
     transitioningRef.current = false;
   }, [currentStatus, planId, readOnly]);
+
+  const saveRubricItem = useCallback(async (itemId: string, criteria: string) => {
+    if (readOnly) return;
+    if (currentStatus === "VALIDATED") await transitionToEdited();
+    await supabase.from("plan_rubric_items").update({ criteria }).eq("id", itemId);
+  }, [readOnly, currentStatus, transitionToEdited]);
+
+  const initRubricFromContent = useCallback(async () => {
+    if (readOnly) return;
+    setRubricLoading(true);
+    try {
+      await supabase.from("plan_rubric_items").delete().eq("plan_id", planId);
+      const groups = groupedContent.length > 0
+        ? groupedContent.map((g, i) => ({ unit_label: g.groupLabel, order_index: i }))
+        : [{ unit_label: "General", order_index: 0 }];
+      const inserts = groups.map((g) => ({
+        plan_id: planId,
+        unit_label: g.unit_label,
+        criteria: "",
+        order_index: g.order_index,
+      }));
+      await supabase.from("plan_rubric_items").insert(inserts);
+      await fetchRubricItems();
+      toast({ title: "Rúbrica inicializada", description: `Se crearon ${inserts.length} criterios por módulo/unidad.` });
+    } finally {
+      setRubricLoading(false);
+    }
+  }, [planId, groupedContent, readOnly, fetchRubricItems]);
 
   const saveField = useCallback(
     (field: keyof PlanData, value: string | string[]) => {
@@ -732,7 +774,7 @@ export default function PlanEditor({
               <Label className="text-base font-semibold">Fundamentación</Label>
               <Button type="button" variant="ghost" size="sm" onClick={() => setExpandedField("fundamentacion")}>
                 <Maximize2 className="mr-2 h-4 w-4" />
-                Expandir
+                Expandir editar
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
@@ -770,7 +812,7 @@ export default function PlanEditor({
                 <Label className="text-base font-semibold">Estrategia marco</Label>
                 <Button type="button" variant="ghost" size="sm" onClick={() => setExpandedField("estrategias_marco")}>
                   <Maximize2 className="mr-2 h-4 w-4" />
-                  Expandir
+                  Expandir editar
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">
@@ -880,7 +922,7 @@ export default function PlanEditor({
               <Label className="text-base font-semibold">Evaluación</Label>
               <Button type="button" variant="ghost" size="sm" onClick={() => setExpandedField("evaluacion_marco")}>
                 <Maximize2 className="mr-2 h-4 w-4" />
-                Expandir
+                Expandir editar
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
@@ -894,7 +936,55 @@ export default function PlanEditor({
               disabled={readOnly}
               onDoubleClick={() => setExpandedField("evaluacion_marco")}
               className="leading-relaxed"
-            />
+             />
+
+            {/* Rúbrica por módulo/unidad */}
+            <div className="space-y-3 pt-4 border-t">
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-base font-semibold">Rúbrica por módulo / unidad</Label>
+                {!readOnly && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={initRubricFromContent}
+                    disabled={rubricLoading}
+                  >
+                    <RotateCcw className="mr-1 h-3.5 w-3.5" />
+                    {rubricLoading ? "Generando..." : rubricItems.length > 0 ? "Regenerar desde contenidos" : "Inicializar desde contenidos"}
+                  </Button>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Criterios de evaluación específicos por cada módulo o unidad de contenido. Inicialice desde los contenidos curriculares y complete cada criterio.
+              </p>
+              {rubricItems.length > 0 ? (
+                <div className="space-y-3">
+                  {rubricItems.map((item, idx) => (
+                    <div key={item.id} className="space-y-1">
+                      <Label className="text-sm font-medium">{item.unit_label || `Módulo ${idx + 1}`}</Label>
+                      <Textarea
+                        value={item.criteria}
+                        onChange={(e) => {
+                          const updated = [...rubricItems];
+                          updated[idx] = { ...updated[idx], criteria: e.target.value };
+                          setRubricItems(updated);
+                        }}
+                        onBlur={() => saveRubricItem(item.id, item.criteria)}
+                        placeholder="Criterios de evaluación para este módulo..."
+                        rows={3}
+                        disabled={readOnly}
+                        className="leading-relaxed"
+                      />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground italic">
+                  No hay rúbrica definida. Presione "Inicializar desde contenidos" para crear criterios por cada módulo.
+                </p>
+              )}
+            </div>
           </TabsContent>
 
           {/* 6. CLASES */}
@@ -914,11 +1004,11 @@ export default function PlanEditor({
               <Label className="text-base font-semibold">Recursos</Label>
               <Button type="button" variant="ghost" size="sm" onClick={() => setExpandedField("resources")}>
                 <Maximize2 className="mr-2 h-4 w-4" />
-                Expandir
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Sección metodológica-instrumental: qué recursos se utilizarán, cómo se aprovechará la bibliografía, el programa y la orientación. Incluya herramientas, soportes y formas de trabajo.
+                Expandir editar
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Sección metodológica-instrumental: qué recursos se utilizarán, cómo se aprovechará la bibliografía, el programa y la orientación. Incluya herramientas, soportes y formas de trabajo.
             </p>
             <Textarea
               value={plan.resources}
@@ -962,7 +1052,7 @@ export default function PlanEditor({
                 <Label className="text-base font-semibold">Bibliografía del curso</Label>
                 <Button type="button" variant="ghost" size="sm" onClick={() => setExpandedField("bibliografia_curso")}>
                   <Maximize2 className="mr-2 h-4 w-4" />
-                  Expandir
+                  Expandir editar
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">
