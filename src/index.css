@@ -419,3 +419,87 @@ All colors MUST be HSL.
 .curriculum-book-page-3 {
   animation: curriculum-book-page-flip 1.2s ease-in-out infinite 0.4s;
 }
+
+/* ── Loading State Animations ── */
+
+/* Orbit spinner for full-page loading */
+.loading-orbit {
+  position: relative;
+  width: 40px;
+  height: 40px;
+}
+
+.loading-orbit-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid hsl(var(--border));
+  border-top-color: hsl(var(--primary));
+  animation: loading-orbit-spin 1s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.loading-orbit-dot {
+  position: absolute;
+  top: -3px;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  margin-left: -3px;
+  border-radius: 50%;
+  background: hsl(var(--primary));
+  animation: loading-orbit-spin 1s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@keyframes loading-orbit-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Pulse bars for card loading */
+.loading-pulse-bars {
+  display: flex;
+  align-items: end;
+  gap: 3px;
+  height: 24px;
+}
+
+.loading-pulse-bars span {
+  display: block;
+  width: 4px;
+  border-radius: 2px;
+  background: hsl(var(--primary));
+  animation: loading-pulse-bar 1.2s ease-in-out infinite;
+}
+
+.loading-pulse-bars span:nth-child(1) { height: 8px; animation-delay: 0s; }
+.loading-pulse-bars span:nth-child(2) { height: 16px; animation-delay: 0.15s; }
+.loading-pulse-bars span:nth-child(3) { height: 12px; animation-delay: 0.3s; }
+.loading-pulse-bars span:nth-child(4) { height: 20px; animation-delay: 0.45s; }
+
+@keyframes loading-pulse-bar {
+  0%, 100% { opacity: 0.3; transform: scaleY(0.6); }
+  50% { opacity: 1; transform: scaleY(1); }
+}
+
+/* Dots for inline loading */
+.loading-dots {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.loading-dots span {
+  display: block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: hsl(var(--primary));
+  animation: loading-dot-bounce 1.4s ease-in-out infinite;
+}
+
+.loading-dots span:nth-child(2) { animation-delay: 0.2s; }
+.loading-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes loading-dot-bounce {
+  0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+  40% { opacity: 1; transform: scale(1.2); }
+}
