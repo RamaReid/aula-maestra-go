@@ -537,8 +537,11 @@ export default function PlanEditor({
         contenidos: {
           title: "Contenidos",
           body:
-            curricularNodes.length > 0
-              ? curricularNodes.map((node, index) => `${index + 1}. [${node.node_type}] ${node.name}`)
+            allContentNodes.length > 0
+              ? groupedContent.flatMap((g) => [
+                  `[${g.groupType}] ${g.groupLabel}`,
+                  ...g.children.map((node) => `  - [${node.node_type}] ${node.name}`),
+                ])
               : ["Sin contenidos curriculares mapeados."],
         },
       };
