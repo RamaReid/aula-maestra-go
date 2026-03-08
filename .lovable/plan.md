@@ -1,89 +1,71 @@
-# Plan: Validación Hard-Stop + Cierre de Evidencia
-
-## Estado actual (verificado ahora)
-
-**Tracking E2E: FUNCIONAL** — 4 filas en `ai_usage_logs`:
 
 
-| #   | Feature  | Model            | Tokens | Cost USD  | Duration |
-| --- | -------- | ---------------- | ------ | --------- | -------- |
-| 1   | teaching | gemini-2.5-flash | 1,871  | $0.000666 | 6,223ms  |
-| 2   | reading  | gemini-2.5-pro   | 5,977  | $0.050311 | 43,795ms |
-| 3   | reading  | gemini-2.5-pro   | 5,004  | $0.040153 | 37,020ms |
-| 4   | reading  | gemini-2.5-pro   | 7,018  | $0.060161 | 53,109ms |
+# Plan completo: Todas las correcciones pendientes del PlanEditor
 
+Tenés razón, me quedé solo con la sangría y dejé de lado todo lo demás. Acá va el plan completo con los 7 cambios que acordamos.
 
-**Total: 19,870 tokens / $0.151291 / 4 llamadas**
+## Cambios a implementar
 
-Lesson `b1b122c0` estado: `PLANNED`, `is_generating=false`.
-Teaching: `INVALIDATED`. Reading: `INVALIDATED` (1449 palabras, fuera de rango 1000-1300).
+### 1. Fundamentación — sangría en primer línea de CADA párrafo
+- Reemplazar el `<Textarea className="indent-8">` por un sistema vista/edición
+- **Vista (default):** texto spliteado por `\n\n`, cada `<p>` con `text-indent: 2rem` via CSS class `.fundamentacion-preview p`
+- **Edición:** click o doble-click muestra textarea normal; `onBlur` vuelve a vista formateada
+- Mismo approach en el modal expandido
 
-**Baseline para hard-stop:** count=4, max(created_at)=`2026-03-08 01:26:20.466031+00`
+### 2. Recursos — 4 sub-bloques según canon
+Reemplazar el textarea único por 4 campos separados:
+1. **Infraestructura disponible**
+2. **Materiales y soportes**
+3. **Casos y situaciones**
+4. **Aportes y alternativas low-tech**
 
----
+Se guardan en `plan.resources` como texto con separadores internos (`===INFRAESTRUCTURA===\n...===MATERIALES===\n...`). Al cargar se parsean, al guardar se unifican. Cada sub-bloque tiene su textarea con placeholder orientador.
 
-## Pasos a ejecutar
+### 3. Evaluación / Rúbrica — alineada 1:1 con módulos reales
+- `initRubricFromContent` debe generar exactamente un item por cada grupo UNIDAD (no duplicar)
+- Si ya hay rubricItems cuya cantidad coincide con los módulos, deshabilitar el botón con tooltip "La rúbrica ya está alineada"
+- Placeholders por módulo: "Criterios para evaluar comprensión del Módulo N: [tema del módulo]"
 
-### Paso 1 — Configurar presupuesto bloqueante
+### 4. Clases — vista compacta en planificación
+Reescribir `PlanLessonsEditor.tsx`:
+- Eliminar el Accordion con campos editables completos
+- Mostrar tabla compacta: `Clase N | T1/T2 | Unidad | Tema | Estado`
+- Solo `theme` editable inline (click para editar)
+- Los campos justificación, resultado, operación+evidencia se editan cuando el usuario entra a la clase individual post-validación
+- Mantener `fetchLessonUnitMap` export sin cambios
 
-Usar `add_secret` para crear `AI_DAILY_BUDGET_USD = 0.0001`.
-El gasto actual del día ($0.151291) ya supera este límite, por lo que el hard-stop debe activarse.
+### 5. "Rearmar borrador" — solo si hay cambio
+- Agregar estado `needsRebuild` que es `true` si: (a) plan está INCOMPLETE, o (b) no hay contenidos mapeados, o (c) el plan no tiene fundamentación
+- Si el plan ya tiene contenido y está VALIDATED/EDITED, deshabilitar el botón con tooltip "El borrador ya está construido"
 
-### Paso 2 — Invocar generate-materials
+### 6. Repair-curriculum-nodes — merge de líneas de continuación
+Actualizar `parseModulesFromRawText` en la edge function:
+- Líneas que empiezan con `•` crean un nuevo child
+- Líneas SIN bullet que siguen a un bullet se concatenan al último child (son continuaciones de párrafo)
+- Esto resuelve que contenidos como "de la filosofía con el conjunto de los saberes." se unan al bullet anterior
 
-Llamar vía `curl_edge_functions` a `/generate-materials` con `lesson_id=b1b122c0-4161-414c-9e5a-3ffd97913ea8`.
-Resultado esperado: error `"Presupuesto diario de IA agotado"`.
-
-### Paso 3 — Verificar no inserción
-
-Ejecutar dos queries:
-
-- `SELECT count(*) FROM ai_usage_logs WHERE lesson_id = '<ID>'` — debe seguir en 4
-- `SELECT max(created_at) FROM ai_usage_logs WHERE lesson_id = '<ID>'` — debe ser idéntico al baseline
-
-### Paso 4 — Restaurar presupuesto
-
-Usar `add_secret` para setear `AI_DAILY_BUDGET_USD = 2.0`.
-
-### Paso 5 — Actualizar 4 archivos de evidencia
-
-`**docs/evidence/sql_outputs.txt**` — Agregar queries 1-5 con resultados reales:
-
-- Query 1: ai_usage_logs (4 filas con datos completos)
-- Query 2: lessons status/is_generating
-- Query 3: teaching_materials status
-- Query 4: reading_materials status + validation_reasons
-- Query 5: count/max antes y después del bloqueo
-
-`**docs/evidence/logs_extract.txt**` — Agregar logs de generate-materials:
-
-- 4 líneas AI_TRACKED (1 teaching + 3 reading)
-- Mensaje de bloqueo por presupuesto agotado
-
-`**docs/evidence/e2e_run_ids.txt**` — Agregar sección de validación tracking:
-
-- user_id, course_id, lesson_id
-- Resumen de resultados (4 calls, $0.151291)
-- Hard-stop verificado
-
-`**docs/CONTEXT_EVIDENCE_REPORT.md**` — Agregar 2 secciones:
-
-- "Tracking IA validado" con tabla de costos
-- "Budget hard-stop validado" con evidencia de bloqueo y no-inserción
-
----
+### 7. CSS
+Agregar en `index.css`:
+```css
+.fundamentacion-preview p {
+  text-indent: 2rem;
+  margin-bottom: 0.75rem;
+  line-height: 1.8;
+}
+```
 
 ## Archivos a modificar
 
+| Archivo | Cambio |
+|---|---|
+| `src/components/plan/PlanEditor.tsx` | Fundamentación vista/edición, Recursos 4 sub-bloques, Rúbrica sin duplicados + placeholders, Rearmar condicionado |
+| `src/components/plan/PlanLessonsEditor.tsx` | Vista compacta tabla sin accordion |
+| `src/index.css` | Clase `.fundamentacion-preview p` |
+| `supabase/functions/repair-curriculum-nodes/index.ts` | Merge de líneas de continuación en parseModulesFromRawText |
 
-| Archivo                           | Acción                                |
-| --------------------------------- | ------------------------------------- |
-| `docs/evidence/sql_outputs.txt`   | Agregar queries 1-5 + resultados      |
-| `docs/evidence/logs_extract.txt`  | Agregar logs tracking + hard-stop     |
-| `docs/evidence/e2e_run_ids.txt`   | Agregar IDs + resumen validación      |
-| `docs/CONTEXT_EVIDENCE_REPORT.md` | Secciones tracking + budget validados |
+## Orden de ejecución
+1. Edge function (repair-curriculum-nodes) — fix parsing
+2. PlanLessonsEditor — vista compacta
+3. PlanEditor — fundamentación, recursos, rúbrica, rearmar
+4. CSS
 
-
-No se modifican archivos de código. Solo evidencia y secreto temporal.
-
-- confirmar explícitamente que AI_DAILY_BUDGET_USD quedó restaurado a 2.0 al terminar.
