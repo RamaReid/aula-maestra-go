@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { X, Plus, RotateCcw, ShieldCheck, Maximize2, Download, ArrowUp, ArrowDown } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import PlanObjectivesEditor from "./PlanObjectivesEditor";
-import PlanLessonsEditor from "./PlanLessonsEditor";
+import PlanLessonsEditor, { fetchLessonUnitMap } from "./PlanLessonsEditor";
 import { InlineValidationSummary } from "@/components/ui/InlineValidationSummary";
 import type { Tables } from "@/integrations/supabase/types";
 import { formatErrorMessage } from "@/lib/errors";
