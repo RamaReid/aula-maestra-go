@@ -231,7 +231,7 @@ function buildNodePools(nodes: CurriculumNodeRow[]): {
       : nonBibliographyDocumentNodes.length > 0
         ? nonBibliographyDocumentNodes
         : planningNodes;
-  const nodesForPrompt = uniqueNodes([...safeCoreNodes, ...bibliographyNodes]).slice(0, 180);
+  const nodesForPrompt = uniqueNodes([...safeCoreNodes, ...bibliographyNodes]).slice(0, 60);
   const nodesForMappings = uniqueNodes(safeCoreNodes).slice(0, 260);
 
   return {
