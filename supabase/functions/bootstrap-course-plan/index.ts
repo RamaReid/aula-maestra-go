@@ -1012,6 +1012,21 @@ serve(async (req) => {
       throw new Error("Documento curricular no encontrado");
     }
 
+    // Repair curriculum nodes if the document has raw_text but few/no nodes
+    const { data: preCheckNodes } = await adminClient
+      .from("curriculum_nodes")
+      .select("id", { count: "exact", head: true })
+      .eq("curriculum_document_id", body.curriculum_document_id);
+    const preCheckCount = (preCheckNodes as unknown as number) || 0;
+    const hasRawText = (curriculumDocument.raw_text || "").trim().length >= 500;
+    if (hasRawText && preCheckCount < 5) {
+      try {
+        await repairCurriculumDocumentNodes(adminClient, body.curriculum_document_id!);
+      } catch {
+        // Non-fatal: continue with whatever nodes exist
+      }
+    }
+
     const { nodes, synthetic: syntheticNodesCreated } = await ensureCurriculumNodes(
       adminClient,
       body.curriculum_document_id,
