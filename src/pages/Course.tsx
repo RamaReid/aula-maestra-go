@@ -423,7 +423,7 @@ export default function Course() {
             </div>
             {course && (
               <p className="text-sm text-muted-foreground">
-                {course.school_name} Â· {course.year_level}Â° aÃ±o Â· {course.academic_year}
+                {course.school_name} · {course.year_level}° año · {course.academic_year}
               </p>
             )}
           </div>
