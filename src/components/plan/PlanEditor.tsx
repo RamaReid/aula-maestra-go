@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { extractBibliographyProtocolNodes, shouldHideBibliographyNode } from "@/lib/bibliographyProtocol";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -87,19 +88,6 @@ function buildRepairGuidance(errors: string[]) {
   return Array.from(new Set(steps));
 }
 
-function isLikelyBibliographyNode(name: string) {
-  const trimmed = name.trim();
-  const commaCount = (trimmed.match(/,/g) || []).length;
-  const hasAuthorPrefix = /^[A-ZÁÉÍÓÚÑ][^,]{1,90},/.test(trimmed);
-  const hasYear = /\b(1[89]\d{2}|20\d{2})\b/.test(trimmed);
-  const hasEditionFallback = /\bvarias\s+ediciones\b/i.test(trimmed);
-  return hasAuthorPrefix && commaCount >= 2 && (hasYear || hasEditionFallback || commaCount >= 3);
-}
-
-function isAuthorityOrNoiseNode(name: string) {
-  const normalized = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, "");
-  return normalized.includes("isbn") || normalized.includes("cdd") || normalized.includes("disenocurricular") || normalized.includes("educacionsecundaria") || normalized.includes("directorageneral") || normalized.includes("presidentadelconsejo") || normalized.includes("subsecretariadeeducacion") || normalized.includes("directoraprovincial") || normalized.includes("equipodeespecialistas") || normalized.includes("autoridades");
-}
 
 function splitParagraphs(value: string) {
   return value.split(/\n\s*\n/).map((paragraph) => paragraph.trim()).filter(Boolean);
@@ -135,7 +123,7 @@ export default function PlanEditor({ planId, courseId, curriculumDocumentId, pla
       return;
     }
     const { data: nodes } = await supabase.from("curriculum_nodes").select("id, name, node_type, order_index").in("id", nodeIds).order("order_index");
-    setMappedNodes((nodes || []).filter((node) => !isAuthorityOrNoiseNode(node.name)));
+    setMappedNodes((nodes || []).filter((node) => !shouldHideBibliographyNode(node.name)));
   }, [planId]);
 
   const fetchCurriculumBibliography = useCallback(async () => {
@@ -143,9 +131,21 @@ export default function PlanEditor({ planId, courseId, curriculumDocumentId, pla
       setCurriculumBibliographyNodes([]);
       return;
     }
-    const { data: nodes } = await supabase.from("curriculum_nodes").select("id, name, node_type, order_index").eq("curriculum_document_id", curriculumDocumentId).order("order_index");
-    setCurriculumBibliographyNodes((nodes || []).filter((node) => !isAuthorityOrNoiseNode(node.name) && isLikelyBibliographyNode(node.name)));
-  }, [curriculumDocumentId]);
+    const { data: nodes } = await supabase.from("curriculum_nodes").select("id, name, node_type, parent_id, order_index").eq("curriculum_document_id", curriculumDocumentId).order("order_index");
+    const bibNodes = extractBibliographyProtocolNodes((nodes || []) as Array<{ id: string; name: string; node_type: string; parent_id: string | null; order_index: number }>);
+    if (bibNodes.length > 0) {
+      setCurriculumBibliographyNodes(bibNodes);
+      return;
+    }
+    // Auto-repair: invoke edge function then retry
+    const { error: repairError } = await supabase.functions.invoke("repair-curriculum-bibliography", { body: { course_id: courseId } });
+    if (repairError) {
+      setCurriculumBibliographyNodes([]);
+      return;
+    }
+    const { data: repairedNodes } = await supabase.from("curriculum_nodes").select("id, name, node_type, parent_id, order_index").eq("curriculum_document_id", curriculumDocumentId).order("order_index");
+    setCurriculumBibliographyNodes(extractBibliographyProtocolNodes((repairedNodes || []) as Array<{ id: string; name: string; node_type: string; parent_id: string | null; order_index: number }>));
+  }, [courseId, curriculumDocumentId]);
 
   useEffect(() => {
     const fetchPlan = async () => {
@@ -257,7 +257,7 @@ export default function PlanEditor({ planId, courseId, curriculumDocumentId, pla
     return <Badge variant="secondary">Incompleto</Badge>;
   };
 
-  const visibleMappedNodes = useMemo(() => mappedNodes.filter((node) => !isLikelyBibliographyNode(node.name)), [mappedNodes]);
+  const visibleMappedNodes = useMemo(() => mappedNodes.filter((node) => !shouldHideBibliographyNode(node.name)), [mappedNodes]);
 
   const handleExportPlanPdf = async () => {
     if (!plan) return;
