@@ -289,6 +289,48 @@ export default function PlanEditor({
     }
   }, [planId, curriculumDocumentId]);
 
+  const fetchRubricItems = useCallback(async () => {
+    const { data } = await supabase
+      .from("plan_rubric_items")
+      .select("id, unit_label, criteria, order_index")
+      .eq("plan_id", planId)
+      .order("order_index");
+    setRubricItems((data as typeof rubricItems) || []);
+  }, [planId]);
+
+  const saveRubricItem = useCallback(async (itemId: string, criteria: string) => {
+    if (readOnly) return;
+    if (currentStatus === "VALIDATED") await transitionToEdited();
+    await supabase.from("plan_rubric_items").update({ criteria }).eq("id", itemId);
+  }, [readOnly, currentStatus, transitionToEdited]);
+
+  const initRubricFromContent = useCallback(async () => {
+    if (readOnly) return;
+    setRubricLoading(true);
+    try {
+      // Delete existing items
+      await supabase.from("plan_rubric_items").delete().eq("plan_id", planId);
+
+      // Create items from grouped content (one per group/unit)
+      const groups = groupedContent.length > 0
+        ? groupedContent.map((g, i) => ({ unit_label: g.groupLabel, order_index: i }))
+        : [{ unit_label: "General", order_index: 0 }];
+
+      const inserts = groups.map((g) => ({
+        plan_id: planId,
+        unit_label: g.unit_label,
+        criteria: "",
+        order_index: g.order_index,
+      }));
+
+      await supabase.from("plan_rubric_items").insert(inserts);
+      await fetchRubricItems();
+      toast({ title: "Rúbrica inicializada", description: `Se crearon ${inserts.length} criterios por módulo/unidad.` });
+    } finally {
+      setRubricLoading(false);
+    }
+  }, [planId, groupedContent, readOnly, fetchRubricItems]);
+
   useEffect(() => {
     const fetch = async () => {
       const { data } = await supabase
@@ -299,11 +341,12 @@ export default function PlanEditor({
 
       if (data) setPlan(data as PlanData);
       await fetchMappedNodes();
+      await fetchRubricItems();
       setLoading(false);
     };
 
     fetch();
-  }, [planId, fetchMappedNodes]);
+  }, [planId, fetchMappedNodes, fetchRubricItems]);
 
   const transitionToEdited = useCallback(async () => {
     if (transitioningRef.current || readOnly) return;
