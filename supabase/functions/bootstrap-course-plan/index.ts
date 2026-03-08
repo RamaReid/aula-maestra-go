@@ -231,7 +231,7 @@ function buildNodePools(nodes: CurriculumNodeRow[]): {
       : nonBibliographyDocumentNodes.length > 0
         ? nonBibliographyDocumentNodes
         : planningNodes;
-  const nodesForPrompt = uniqueNodes([...safeCoreNodes, ...bibliographyNodes]).slice(0, 180);
+  const nodesForPrompt = uniqueNodes([...safeCoreNodes, ...bibliographyNodes]).slice(0, 60);
   const nodesForMappings = uniqueNodes(safeCoreNodes).slice(0, 260);
 
   return {
@@ -589,25 +589,32 @@ const GOLDEN_FYHCT_6_EESA_LESSONS: CanonLessonSeed[] = [
 ];
 
 async function callAI(apiKey: string, messages: Array<{ role: string; content: string }>) {
-  const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "google/gemini-2.5-pro",
-      messages,
-      response_format: { type: "json_object" },
-    }),
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 50000); // 50s max
+  try {
+    const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages,
+        response_format: { type: "json_object" },
+      }),
+      signal: controller.signal,
+    });
 
-  if (!resp.ok) {
-    const text = await resp.text();
-    throw new Error(`AI gateway error ${resp.status}: ${text}`);
+    if (!resp.ok) {
+      const text = await resp.text();
+      throw new Error(`AI gateway error ${resp.status}: ${text}`);
+    }
+
+    return await resp.json();
+  } finally {
+    clearTimeout(timeout);
   }
-
-  return await resp.json();
 }
 
 function fallbackObjectives(subject: string): string[] {
@@ -986,6 +993,7 @@ serve(async (req) => {
   }
 
   try {
+    console.log("[bootstrap] START", { course_id: body.course_id, plan_id: body.plan_id, curriculum_document_id: body.curriculum_document_id });
     const { data: course, error: courseError } = await userClient
       .from("courses")
       .select("id, subject, year_level, orientation, speciality, schools(official_name, school_type)")
@@ -1054,7 +1062,7 @@ serve(async (req) => {
 
     const nodeNames = nodePools.nodesForPrompt.map((node) => `[${node.node_type}] ${node.name}`);
     const bibliographyNodeNames = nodePools.bibliographyNodes.map((node) => node.name);
-    const truncatedRawText = (curriculumDocument.raw_text || "").slice(0, 24000);
+    const truncatedRawText = (curriculumDocument.raw_text || "").slice(0, 8000);
     const subjectCanonNote = isFyHctSubject(courseRecord.subject)
       ? [
           "Canon disciplinar obligatorio para FyHyCyT:",
@@ -1163,7 +1171,7 @@ Documento curricular:
 - Titulo: ${curriculumDocument.official_title || curriculumDocument.subject}
 - URL oficial: ${curriculumDocument.official_url || "No registrada"}
 
-Texto fuente disponible (primeros 12000 caracteres):
+Texto fuente disponible (fragmento inicial):
 ${truncatedRawText || "No hay texto crudo cargado; usar los nodos curriculares como base principal."}
 
 Nodos curriculares (contenido):
@@ -1172,11 +1180,14 @@ ${nodeNames.join("\n")}
 Bibliografia curricular detectada (${bibliographyNodeNames.length} referencias):
 ${bibliographyNodeNames.length > 0 ? bibliographyNodeNames.join("\n") : "No se detecto bibliografia curricular en el documento."}`;
 
+    console.log("[bootstrap] AI call starting", { promptNodes: nodeNames.length, bibNodes: bibliographyNodeNames.length, rawTextLen: truncatedRawText.length });
     let aiPayload: Partial<BootstrapPayload> | null = null;
     try {
       const aiResponse = await callAI(lovableApiKey, [{ role: "user", content: prompt }]);
       aiPayload = JSON.parse(aiResponse.choices[0].message.content || "{}");
-    } catch {
+      console.log("[bootstrap] AI response OK", { hasBlocks: Array.isArray(aiPayload?.content_blocks), blockCount: aiPayload?.content_blocks?.length, hasObjectives: Array.isArray(aiPayload?.objectives) });
+    } catch (aiError) {
+      console.log("[bootstrap] AI failed, using fallback", { error: aiError instanceof Error ? aiError.message : String(aiError) });
       aiPayload = null;
     }
 
@@ -1186,6 +1197,7 @@ ${bibliographyNodeNames.length > 0 ? bibliographyNodeNames.join("\n") : "No se d
       nodePools.nodesForPrompt.map((node) => node.name),
       planLessons.length
     );
+    console.log("[bootstrap] Normalized payload", { blocks: normalized.content_blocks.length, objectives: normalized.objectives.length, rubrics: normalized.rubrics.length, lessons: normalized.lessons.length });
 
     await adminClient
       .from("plans")
