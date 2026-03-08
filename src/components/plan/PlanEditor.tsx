@@ -215,25 +215,62 @@ export default function PlanEditor({
   }, [planStatus]);
 
   const fetchMappedNodes = useCallback(async () => {
+    // 1. Fetch mapped content nodes with parent info
     const { data: mappings } = await supabase
       .from("plan_content_mappings")
       .select("curriculum_node_id")
       .eq("plan_id", planId);
 
     const nodeIds = Array.from(new Set((mappings || []).map((mapping) => mapping.curriculum_node_id)));
-    if (nodeIds.length === 0) {
-      setMappedNodes([]);
-      return;
+
+    let contentNodes: MappedCurriculumNode[] = [];
+    if (nodeIds.length > 0) {
+      const { data: nodes } = await supabase
+        .from("curriculum_nodes")
+        .select("id, name, node_type, parent_id, order_index")
+        .in("id", nodeIds)
+        .order("order_index");
+      contentNodes = ((nodes || []) as MappedCurriculumNode[]).filter((n) => !isAuthorityOrNoiseNode(n.name) && !isLikelyBibliographyNode(n.name));
     }
 
-    const { data: nodes } = await supabase
-      .from("curriculum_nodes")
-      .select("id, name, node_type, order_index")
-      .in("id", nodeIds)
-      .order("order_index");
+    // Build grouped content by fetching parent nodes
+    const parentIds = Array.from(new Set(contentNodes.map((n) => n.parent_id).filter(Boolean))) as string[];
+    let parentMap = new Map<string, { name: string; node_type: string }>();
+    if (parentIds.length > 0) {
+      const { data: parents } = await supabase
+        .from("curriculum_nodes")
+        .select("id, name, node_type")
+        .in("id", parentIds);
+      (parents || []).forEach((p) => parentMap.set(p.id, { name: p.name, node_type: p.node_type }));
+    }
 
-    setMappedNodes((nodes || []) as MappedCurriculumNode[]);
-  }, [planId]);
+    const groups = new Map<string, GroupedContent>();
+    contentNodes.forEach((node) => {
+      const parentKey = node.parent_id || "__root__";
+      if (!groups.has(parentKey)) {
+        const parent = node.parent_id ? parentMap.get(node.parent_id) : null;
+        groups.set(parentKey, {
+          groupLabel: parent?.name || "Otros contenidos",
+          groupType: parent?.node_type || "",
+          children: [],
+        });
+      }
+      groups.get(parentKey)!.children.push(node);
+    });
+    setGroupedContent(Array.from(groups.values()));
+
+    // 2. Fetch bibliography directly from curriculum_nodes of the document
+    if (curriculumDocumentId) {
+      const { data: allDocNodes } = await supabase
+        .from("curriculum_nodes")
+        .select("id, name, node_type, parent_id, order_index")
+        .eq("curriculum_document_id", curriculumDocumentId)
+        .order("order_index");
+      setBibliographyNodes(extractBibliographyProtocolNodes((allDocNodes || []) as BibNode[]));
+    } else {
+      setBibliographyNodes([]);
+    }
+  }, [planId, curriculumDocumentId]);
 
   useEffect(() => {
     const fetch = async () => {
