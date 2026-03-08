@@ -160,7 +160,7 @@ function buildPremiumRecommendations(params: {
     recommendations.push({
       id: "reading-coverage",
       title: "La lectura no esta citando las fuentes confirmadas",
-      detail: "Conviene regenerar el material de lectura para mejorar la trazabilidad bibliografica.",
+      detail: "Conviene regenerar el material de lectura para mejorar la vinculacion bibliografica.",
       actionLabel: "Regenerar lectura",
       action: "regenerate_reading",
     });
@@ -296,7 +296,7 @@ export default function CopilotPanel({
           <AlertTitle>{isPremium ? "Diagnostico contextual activo" : "Modo operativo limitado"}</AlertTitle>
           <AlertDescription className="text-xs">
             {isPremium
-              ? "El copiloto premium analiza indicaciones, trazabilidad, bibliografia y estado de materiales para sugerir ajustes concretos."
+              ? "El copiloto premium analiza indicaciones, vinculacion curricular, bibliografia y estado de materiales para sugerir ajustes concretos."
               : "En Basico el copiloto controla profundidad, bibliografia sugerida visible y regeneracion de materiales."}
           </AlertDescription>
         </Alert>
@@ -362,7 +362,7 @@ export default function CopilotPanel({
             <p className="mt-1 text-sm font-medium text-foreground">{processedAuthorizedSources.length} procesadas</p>
           </div>
           <div className="rounded-md border p-3">
-            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Nodos curriculares</p>
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Contenidos curriculares</p>
             <p className="mt-1 text-sm font-medium text-foreground">{mappedCurriculumNodes.length} vinculados</p>
           </div>
           <div className="rounded-md border p-3">

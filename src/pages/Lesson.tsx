@@ -502,12 +502,12 @@ export default function Lesson() {
             {planLesson && (
               <Card>
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-base">Trazabilidad curricular</CardTitle>
+                  <CardTitle className="text-base">Vinculacion curricular</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
                     <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Nodos curriculares mapeados a esta clase
+                      Contenidos curriculares mapeados a esta clase
                     </p>
                     <div className="flex flex-wrap gap-2">
                       {mappedCurriculumNodes.length > 0 ? (
@@ -518,7 +518,7 @@ export default function Lesson() {
                         ))
                       ) : (
                         <p className="text-sm text-muted-foreground">
-                          Esta clase aun no muestra nodos curriculares enlazados desde la anual.
+                          Esta clase aun no muestra contenidos curriculares enlazados desde la anual.
                         </p>
                       )}
                     </div>

@@ -216,7 +216,7 @@ function buildBriefAutocompleteDraft(input: {
     evidenceSentence ? `La evidencia esperada debe quedar visible durante el cierre: ${evidenceSentence}` : "",
     bibliographySummary ? `Priorizar bibliografia confirmada: ${bibliographySummary}.` : "",
     authorizedSummary ? `Integrar como respaldo del docente: ${authorizedSummary}.` : "",
-    mappedCount > 0 ? `Mantener trazabilidad con ${mappedCount} nodo(s) curriculares asociados.` : "",
+    mappedCount > 0 ? `Mantener vinculacion curricular con ${mappedCount} nodo(s) asociados.` : "",
   ].filter(Boolean);
 
   return {
@@ -224,7 +224,7 @@ function buildBriefAutocompleteDraft(input: {
     dinamica,
     profundidad,
     observaciones: observationParts.join(" "),
-    summary: `Profundidad ${profundidad.toLowerCase()} sugerida con ${mappedCount} nodo(s) curriculares y ${totalSources} fuente(s) ya disponibles.`,
+    summary: `Profundidad ${profundidad.toLowerCase()} sugerida con ${mappedCount} contenido(s) curricular(es) y ${totalSources} fuente(s) ya disponibles.`,
   };
 }
 

@@ -733,9 +733,9 @@ export default function PlanEditor({
 
           <TabsContent value="contenidos" className="space-y-4 pt-2">
             <div className="rounded-md border p-3">
-              <p className="text-sm font-medium">Nodos curriculares del plan</p>
+              <p className="text-sm font-medium">Contenidos curriculares del plan</p>
               <p className="text-xs text-muted-foreground">
-                {curricularNodes.length} nodos mapeados para trazabilidad de clases.
+                {curricularNodes.length} contenidos mapeados para vinculacion de clases.
               </p>
               <div className="mt-3 max-h-56 space-y-2 overflow-y-auto pr-1">
                 {curricularNodes.length > 0 ? (
@@ -746,7 +746,7 @@ export default function PlanEditor({
                   ))
                 ) : (
                   <p className="text-sm text-muted-foreground">
-                    No hay nodos curriculares mapeados. Revisa el programa oficial y vuelve a rearmar el borrador.
+                    No hay contenidos curriculares mapeados. Revisa el programa oficial y vuelve a rearmar el borrador.
                   </p>
                 )}
               </div>

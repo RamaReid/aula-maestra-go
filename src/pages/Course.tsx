@@ -472,12 +472,12 @@ export default function Course() {
                     </div>
                     <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
                       <span>Fuente: {curriculum.source_provider}</span>
-                      <span>Nodos curriculares: {curriculum.node_count ?? 0}</span>
+                      <span>Contenidos curriculares: {curriculum.node_count ?? 0}</span>
                       <span>Curso: {course?.subject} {course?.year_level} año</span>
                     </div>
                     {curriculum.source_provider === "ABC_PBA_WEB" && (
                       <p className="text-xs text-muted-foreground">
-                        Documento resuelto desde ABC. La trazabilidad ya esta fijada, pero la extraccion profunda del contenido curricular sigue en construccion.
+                        Documento resuelto desde ABC. La vinculacion curricular ya esta fijada, pero la extraccion profunda del contenido curricular sigue en construccion.
                       </p>
                     )}
                     {course?.curriculum_link_mode === "session_fallback" && (

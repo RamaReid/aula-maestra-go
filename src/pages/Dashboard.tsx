@@ -196,7 +196,7 @@ export default function Dashboard() {
                 <Button asChild variant="outline" size="sm">
                   <Link to="/billing">
                     <CreditCard className="mr-2 h-4 w-4" />
-                    Billing
+                    Facturacion
                   </Link>
                 </Button>
                 <Button variant="ghost" size="sm" onClick={logout}>
@@ -266,7 +266,7 @@ export default function Dashboard() {
             <Button asChild variant="outline" size="sm">
               <Link to="/billing">
                 <CreditCard className="mr-2 h-4 w-4" />
-                Billing
+                Facturacion
               </Link>
             </Button>
             <Button variant="ghost" size="sm" onClick={logout}>

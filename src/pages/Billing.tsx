@@ -247,7 +247,7 @@ export default function Billing() {
 
       await Promise.all([fetchBillingData(), refetch()]);
       toast({
-        title: "Billing sincronizado",
+        title: "Facturacion sincronizada",
         description:
           typeof data?.raw_status === "string"
             ? `Mercado Pago devolvio estado ${data.raw_status}.`
@@ -255,7 +255,7 @@ export default function Billing() {
       });
     } catch (error) {
       toast({
-        title: "No se pudo sincronizar billing",
+        title: "No se pudo sincronizar la facturacion",
         description: formatErrorMessage(error),
         variant: "destructive",
       });
@@ -319,7 +319,7 @@ export default function Billing() {
 
       toast({
         title: "Solicitud enviada",
-        description: "Quedo registrada para revision manual en billing.",
+        description: "Quedo registrada para revision manual en facturacion.",
       });
     } catch (error) {
       toast({
@@ -338,7 +338,7 @@ export default function Billing() {
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4">
           <div>
             <p className="text-sm text-muted-foreground">Facturacion y planes</p>
-            <h1 className="text-lg font-semibold text-foreground">Billing</h1>
+            <h1 className="text-lg font-semibold text-foreground">Facturacion</h1>
           </div>
           <Button asChild variant="ghost" size="sm">
             <Link to="/dashboard">
@@ -360,7 +360,7 @@ export default function Billing() {
               {loading ? (
                 <div className="flex items-center text-sm text-muted-foreground">
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Cargando estado de billing
+                  Cargando estado de facturacion
                 </div>
               ) : (
                 <>
@@ -499,7 +499,7 @@ export default function Billing() {
                   {reconciling ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Sincronizando billing
+                      Sincronizando facturacion
                     </>
                   ) : (
                     <>
