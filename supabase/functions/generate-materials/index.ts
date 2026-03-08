@@ -1753,9 +1753,15 @@ REGLAS OBLIGATORIAS:
       }
 
       allResults.push({
-        lessonId,
-        teachingStatus: regenerateOnly === "reading" ? "skipped" : teachingStatus,
-        readingStatus: regenerateOnly === "teaching" ? "skipped" : readingStatus,
+        lesson_id: lessonId,
+        teaching_status: regenerateOnly === "reading" ? "skipped" : teachingStatus,
+        reading_status: regenerateOnly === "teaching" ? "skipped" : readingStatus,
+        reading_word_count: wordCount,
+        reading_pdf_pages: pdfPageCount,
+        reading_pdf_url: pdfUrl,
+        reading_pdf_base64: pdfBase64,
+        reading_validation_issues: lastReasons,
+        watermark_applied: watermarkApplied,
       });
     } // end for loop
 
