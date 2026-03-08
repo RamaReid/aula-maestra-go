@@ -197,7 +197,11 @@ function isLikelySectionHeading(line) {
 }
 
 function isLikelyUnitHeading(line) {
-  return /^(modulo|m[oó]dulo|unidad)\s+\d+/i.test(line.trim());
+  const trimmed = line.trim();
+  // Skip TOC entries: lines with dot leaders or page numbers like "Módulo 1 ........... 16"
+  if (/\.{3,}/.test(trimmed)) return false;
+  if (/\d+\s*$/.test(trimmed) && /\.{2,}|…/.test(trimmed)) return false;
+  return /^(modulo|m[oó]dulo|unidad)\s+\d+/i.test(trimmed);
 }
 
 function isLikelyContentLine(line) {
