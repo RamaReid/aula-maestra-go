@@ -393,7 +393,7 @@ export default function PlanEditor({ planId, courseId, curriculumDocumentId, pla
                           variant="outline"
                           size="sm"
                           onClick={handleManualBibliographyRepair}
-                          disabled={bibliographyRepairStatus === "repairing"}
+                          disabled={false}
                         >
                           <RotateCcw className="mr-2 h-4 w-4" />
                           Reparar bibliografía curricular
