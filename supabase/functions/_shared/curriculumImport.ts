@@ -198,11 +198,32 @@ function isLikelyUnitHeading(line: string): boolean {
   return /^(modulo|m[oó]dulo|unidad)\s+\d+/i.test(line.trim());
 }
 
+function isTocLine(line: string): boolean {
+  return /\.{3,}\s*\d+/.test(line);
+}
+
 function isLikelyContentLine(line: string): boolean {
   if (line.length < 8 || line.length > 180) return false;
+  if (isTocLine(line)) return false;
   if (/^[•*-]\s+/.test(line)) return true;
   if (/^\d+[).]\s+/.test(line)) return true;
   return false;
+}
+
+function isLikelyUnbulletedContent(line: string): boolean {
+  if (line.length < 20 || line.length > 250) return false;
+  if (isTocLine(line)) return false;
+  if (isLikelyPageArtifactLine(line)) return false;
+  if (isLikelySectionHeading(line)) return false;
+  if (isLikelyUnitHeading(line)) return false;
+  if (isBibliographyHeading(line)) return false;
+  if (!/[a-záéíóúñ]{4,}/i.test(line)) return false;
+  if (/^(pág|página|\d+$)/i.test(line.trim())) return false;
+  return true;
+}
+
+function startsWithLowercase(line: string): boolean {
+  return /^[a-záéíóúñ]/.test(line);
 }
 
 function isBibliographyHeading(line: string): boolean {
