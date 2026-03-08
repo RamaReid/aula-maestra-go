@@ -857,7 +857,7 @@ export default function CourseNew() {
                           onChange={(event) =>
                             setState((prev) => ({ ...prev, speciality: event.target.value }))
                           }
-                          placeholder="Ej: TÃ©cnico en InformÃ¡tica Personal y Profesional..."
+                          placeholder="Ej: Técnico en Informática Personal y Profesional..."
                         />
                         <datalist id="speciality-options">
                           {TECH_SPECIALITY_SUGGESTIONS.map((speciality) => (
