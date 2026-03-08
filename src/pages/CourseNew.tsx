@@ -844,7 +844,7 @@ export default function CourseNew() {
                           ))}
                         </datalist>
                         <p className="text-xs text-muted-foreground">
-                          PodÃ©s elegir una sugerencia oficial o escribir una variante local.
+                          Podés elegir una sugerencia oficial o escribir una variante local.
                         </p>
                       </div>
                     )}
