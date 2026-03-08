@@ -400,10 +400,33 @@ function isLikelyAuthorityLine(line: string): boolean {
 }
 
 function extractCurriculumNodes(rawText: string): DraftNode[] {
-  const lines = rawText
+  const rawLines = rawText
     .split("\n")
     .map((line) => collapseSpacedWords(line.trim()))
     .filter(Boolean);
+
+  // Detect and skip the TOC section: from "ÍNDICE" heading until a real section heading appears
+  let inToc = false;
+  const lines: string[] = [];
+  for (const line of rawLines) {
+    const normalized = normalizeText(line);
+    if (/^[ií]ndice$/i.test(normalized) || normalized === "indice") {
+      inToc = true;
+      continue;
+    }
+    if (inToc) {
+      // Exit TOC when we hit a real section heading (not a TOC entry)
+      if (!isTocLine(line) && isLikelySectionHeading(line) && line.length > 5) {
+        inToc = false;
+        lines.push(line);
+      }
+      // Skip all TOC lines
+      continue;
+    }
+    // Always skip TOC-style lines even outside the TOC block
+    if (isTocLine(line)) continue;
+    lines.push(line);
+  }
 
   const nodes: Array<DraftNode & { fingerprint: string }> = [];
   let currentEje: (DraftNode & { fingerprint: string }) | null = null;
