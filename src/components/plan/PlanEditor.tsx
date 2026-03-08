@@ -201,6 +201,7 @@ export default function PlanEditor({
   const [expandedField, setExpandedField] = useState<ExpandableField | null>(null);
   const [bibliographyNodes, setBibliographyNodes] = useState<BibNode[]>([]);
   const [groupedContent, setGroupedContent] = useState<GroupedContent[]>([]);
+  const [contentFromFallback, setContentFromFallback] = useState(false);
   const [currentStatus, setCurrentStatus] = useState(planStatus);
   const [hasEditedAfterValidation, setHasEditedAfterValidation] = useState(false);
   const [exportOrder, setExportOrder] = useState<PlanExportSectionKey[]>(DEFAULT_PLAN_EXPORT_ORDER);
@@ -234,6 +235,20 @@ export default function PlanEditor({
         .order("order_index");
       contentNodes = ((nodes || []) as MappedCurriculumNode[]).filter((n) => !isAuthorityOrNoiseNode(n.name) && !isLikelyBibliographyNode(n.name));
     }
+
+    // Fallback: if no mappings but curriculum document exists, load nodes directly
+    let usingFallback = false;
+    if (contentNodes.length === 0 && curriculumDocumentId) {
+      const { data: docNodes } = await supabase
+        .from("curriculum_nodes")
+        .select("id, name, node_type, parent_id, order_index")
+        .eq("curriculum_document_id", curriculumDocumentId)
+        .in("node_type", ["UNIDAD", "BLOQUE", "CONTENIDO"])
+        .order("order_index");
+      contentNodes = ((docNodes || []) as MappedCurriculumNode[]).filter((n) => !isAuthorityOrNoiseNode(n.name) && !isLikelyBibliographyNode(n.name));
+      usingFallback = contentNodes.length > 0;
+    }
+    setContentFromFallback(usingFallback);
 
     const parentIds = Array.from(new Set(contentNodes.map((n) => n.parent_id).filter(Boolean))) as string[];
     let parentMap = new Map<string, { name: string; node_type: string }>();
@@ -825,8 +840,16 @@ export default function PlanEditor({
               </p>
             </div>
             <div className="rounded-md border p-4">
+              {contentFromFallback && (
+                <div className="rounded-md bg-warning/10 border border-warning/30 p-3 mb-3">
+                  <p className="text-sm text-warning font-medium">Contenidos cargados desde el programa oficial</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Estos contenidos provienen directamente del documento curricular. Para vincularlos al plan y a cada clase, use el botón "Rearmar borrador curricular".
+                  </p>
+                </div>
+              )}
               <p className="text-sm text-muted-foreground mb-3">
-                {allContentNodes.length} contenidos mapeados desde el programa curricular.
+                {allContentNodes.length} contenidos del programa curricular.
               </p>
               <div className="max-h-80 space-y-4 overflow-y-auto pr-1">
                 {groupedContent.length > 0 ? (
