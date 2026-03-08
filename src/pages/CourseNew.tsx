@@ -561,7 +561,7 @@ export default function CourseNew() {
     if (!selectedCurriculumId) {
       toast({
         title: "Falta programa oficial",
-        description: "ResolvÃ© y confirmÃ¡ primero el programa oficial del curso.",
+        description: "Resolvé y confirmá primero el programa oficial del curso.",
         variant: "destructive",
       });
       return;
