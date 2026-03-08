@@ -1643,7 +1643,16 @@ REGLAS OBLIGATORIAS:
                 role: "user",
                 content: `Escribí el texto de lectura sobre "${planLesson.theme}".${retryHint}`,
               },
-            ]
+            ],
+            undefined,
+            undefined,
+            {
+              adminClient,
+              userId,
+              courseId: lesson.course_id,
+              lessonId,
+              feature: "reading",
+            }
           );
 
           readingHtml = cleanMarkdownArtifacts(readingResult.choices[0].message.content || "");
