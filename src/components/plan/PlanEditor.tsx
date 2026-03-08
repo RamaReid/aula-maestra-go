@@ -201,6 +201,7 @@ export default function PlanEditor({
   const [expandedField, setExpandedField] = useState<ExpandableField | null>(null);
   const [bibliographyNodes, setBibliographyNodes] = useState<BibNode[]>([]);
   const [groupedContent, setGroupedContent] = useState<GroupedContent[]>([]);
+  const [contentFromFallback, setContentFromFallback] = useState(false);
   const [currentStatus, setCurrentStatus] = useState(planStatus);
   const [hasEditedAfterValidation, setHasEditedAfterValidation] = useState(false);
   const [exportOrder, setExportOrder] = useState<PlanExportSectionKey[]>(DEFAULT_PLAN_EXPORT_ORDER);
