@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { repairCurriculumDocumentNodes } from "../_shared/curriculumImport.ts";
 
 // deno-lint-ignore no-explicit-any
 type SupabaseClientLike = any;
@@ -1011,6 +1012,21 @@ serve(async (req) => {
       throw new Error("Documento curricular no encontrado");
     }
 
+    // Repair curriculum nodes if the document has raw_text but few/no nodes
+    const { data: preCheckNodes } = await adminClient
+      .from("curriculum_nodes")
+      .select("id", { count: "exact", head: true })
+      .eq("curriculum_document_id", body.curriculum_document_id);
+    const preCheckCount = (preCheckNodes as unknown as number) || 0;
+    const hasRawText = (curriculumDocument.raw_text || "").trim().length >= 500;
+    if (hasRawText && preCheckCount < 5) {
+      try {
+        await repairCurriculumDocumentNodes(adminClient, body.curriculum_document_id!);
+      } catch {
+        // Non-fatal: continue with whatever nodes exist
+      }
+    }
+
     const { nodes, synthetic: syntheticNodesCreated } = await ensureCurriculumNodes(
       adminClient,
       body.curriculum_document_id,
@@ -1038,7 +1054,7 @@ serve(async (req) => {
 
     const nodeNames = nodePools.nodesForPrompt.map((node) => `[${node.node_type}] ${node.name}`);
     const bibliographyNodeNames = nodePools.bibliographyNodes.map((node) => node.name);
-    const truncatedRawText = (curriculumDocument.raw_text || "").slice(0, 12000);
+    const truncatedRawText = (curriculumDocument.raw_text || "").slice(0, 24000);
     const subjectCanonNote = isFyHctSubject(courseRecord.subject)
       ? [
           "Canon disciplinar obligatorio para FyHyCyT:",
@@ -1171,11 +1187,6 @@ ${bibliographyNodeNames.length > 0 ? bibliographyNodeNames.join("\n") : "No se d
       planLessons.length
     );
 
-    // Seed bibliografia_curso from detected curriculum bibliography nodes
-    const bibliografiaCursoText = nodePools.bibliographyNodes.length > 0
-      ? nodePools.bibliographyNodes.map((node, idx) => `${idx + 1}. ${node.name}`).join("\n")
-      : "";
-
     await adminClient
       .from("plans")
       .update({
@@ -1185,7 +1196,6 @@ ${bibliographyNodeNames.length > 0 ? bibliographyNodeNames.join("\n") : "No se d
         estrategias_practicas: normalized.estrategias_practicas,
         evaluacion_marco: normalized.evaluacion_marco,
         resources: normalized.resources,
-        bibliografia_curso: bibliografiaCursoText,
       })
       .eq("id", body.plan_id);
 

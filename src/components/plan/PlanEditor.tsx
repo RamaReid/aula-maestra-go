@@ -207,6 +207,47 @@ export default function PlanEditor({ planId, courseId, curriculumDocumentId, pla
     transitioningRef.current = false;
   }, [currentStatus, planId, readOnly]);
 
+  // Refresh individual integrity counts after sub-editor mutations
+  const refreshContentBlockCount = useCallback(async () => {
+    const { count } = await supabase.from("plan_content_blocks").select("id", { count: "exact", head: true }).eq("plan_id", planId);
+    setContentBlockCount(count || 0);
+  }, [planId]);
+
+  const refreshRubricCount = useCallback(async () => {
+    const { count } = await supabase.from("plan_rubrics").select("id", { count: "exact", head: true }).eq("plan_id", planId);
+    setRubricCount(count || 0);
+  }, [planId]);
+
+  const refreshObjectiveCount = useCallback(async () => {
+    const { count } = await supabase.from("plan_objectives").select("id", { count: "exact", head: true }).eq("plan_id", planId);
+    setObjectiveCount(count || 0);
+  }, [planId]);
+
+  const refreshTeacherBibCount = useCallback(async () => {
+    const { count } = await supabase.from("plan_teacher_bibliography_entries").select("id", { count: "exact", head: true }).eq("plan_id", planId);
+    setTeacherBibCount(count || 0);
+  }, [planId]);
+
+  const onContentBlocksDirty = useCallback(async () => {
+    await transitionToEdited();
+    await refreshContentBlockCount();
+  }, [transitionToEdited, refreshContentBlockCount]);
+
+  const onRubricsDirty = useCallback(async () => {
+    await transitionToEdited();
+    await refreshRubricCount();
+  }, [transitionToEdited, refreshRubricCount]);
+
+  const onObjectivesDirty = useCallback(async () => {
+    await transitionToEdited();
+    await refreshObjectiveCount();
+  }, [transitionToEdited, refreshObjectiveCount]);
+
+  const onTeacherBibDirty = useCallback(async () => {
+    await transitionToEdited();
+    await refreshTeacherBibCount();
+  }, [transitionToEdited, refreshTeacherBibCount]);
+
   const saveField = useCallback((field: keyof PlanData, value: string | string[]) => {
     if (readOnly) return;
     setValidationErrors([]);
@@ -257,7 +298,7 @@ export default function PlanEditor({ planId, courseId, curriculumDocumentId, pla
       if (data?.error) throw new Error(data.error);
       const { data: refreshedPlan } = await supabase.from("plans").select("fundamentacion, estrategias_marco, estrategias_practicas, evaluacion_marco, resources").eq("id", planId).single();
       if (refreshedPlan) setPlan(refreshedPlan);
-      await Promise.all([fetchMappedNodes(), fetchCurriculumBibliography()]);
+      await Promise.all([fetchMappedNodes(), fetchCurriculumBibliography(), refreshContentBlockCount(), refreshRubricCount(), refreshObjectiveCount(), refreshTeacherBibCount()]);
       const nextStatus = data?.plan_status === "EDITED" || data?.plan_status === "VALIDATED" ? data.plan_status : "INCOMPLETE";
       setCurrentStatus(nextStatus);
       setHasEditedAfterValidation(nextStatus === "EDITED");
@@ -436,18 +477,18 @@ export default function PlanEditor({ planId, courseId, curriculumDocumentId, pla
           <TabsContent value="fundamentacion" className="space-y-4">
             <Card className="border-muted"><CardContent className="space-y-4 pt-5"><div className="flex items-center justify-between gap-3"><Label>Lectura de la fundamentación</Label><Button type="button" variant="ghost" size="sm" onClick={() => setExpandedField("fundamentacion")}><Maximize2 className="mr-2 h-4 w-4" />Expandir</Button></div><div className="rounded-2xl border bg-background p-5">{(splitParagraphs(plan.fundamentacion).length > 0 ? splitParagraphs(plan.fundamentacion) : ["Todavía no hay fundamentación cargada."]).map((paragraph, index) => <p key={`${paragraph}-${index}`} className="text-sm leading-7 text-foreground indent-6 [&:not(:first-child)]:mt-5">{paragraph}</p>)}</div><Textarea value={plan.fundamentacion} onChange={(event) => updateField("fundamentacion", event.target.value)} rows={10} disabled={readOnly} placeholder="Desarrolla la fundamentación anual con varios párrafos y lenguaje académico-docente claro." /></CardContent></Card>
           </TabsContent>
-          <TabsContent value="propositos"><PlanObjectivesEditor planId={planId} readOnly={readOnly} onDirty={transitionToEdited} /></TabsContent>
+          <TabsContent value="propositos"><PlanObjectivesEditor planId={planId} readOnly={readOnly} onDirty={onObjectivesDirty} /></TabsContent>
           <TabsContent value="estrategias" className="space-y-4">
             <Card><CardContent className="space-y-4 pt-5"><div className="flex items-center justify-between gap-3"><Label>Estrategia marco</Label><Button type="button" variant="ghost" size="sm" onClick={() => setExpandedField("estrategias_marco")}><Maximize2 className="mr-2 h-4 w-4" />Expandir</Button></div><Textarea value={plan.estrategias_marco} onChange={(event) => updateField("estrategias_marco", event.target.value)} rows={5} disabled={readOnly} placeholder="Explica el enfoque metodológico general del curso." /></CardContent></Card>
             <StructuredListEditor items={plan.estrategias_practicas.map((strategy, index) => ({ id: String(index), value: strategy }))} label="Estrategias prácticas" itemLabel="Estrategia práctica" helper="Las estrategias prácticas deben verse y gestionarse con la misma lógica clara y editable que los objetivos." addLabel="Agregar estrategia" emptyLabel="Todavía no hay estrategias prácticas definidas." readOnly={readOnly} minItems={1} maxItems={8} onAdd={addStrategy} onDelete={(id) => removeStrategy(Number(id))} onChange={(id, value) => updateStrategy(Number(id), value)} onBlur={(id, value) => updateStrategy(Number(id), value)} />
           </TabsContent>
           <TabsContent value="contenidos" className="space-y-4">
-            <PlanContentBlocksEditor planId={planId} readOnly={readOnly} onDirty={transitionToEdited} />
+            <PlanContentBlocksEditor planId={planId} readOnly={readOnly} onDirty={onContentBlocksDirty} />
             <Card><CardContent className="space-y-3 pt-5"><div><p className="text-sm font-medium text-foreground">Anclaje curricular mapeado</p><p className="text-xs text-muted-foreground">Estos nodos sostienen la trazabilidad curricular del plan, pero no reemplazan la organización anual en bloques.</p></div><div className="space-y-2">{visibleMappedNodes.length > 0 ? visibleMappedNodes.map((node) => <p key={node.id} className="text-sm text-foreground">{node.name}</p>) : <p className="text-sm text-muted-foreground">No hay contenidos curriculares mapeados. Revisa el programa oficial y reconstruye el borrador anual.</p>}</div></CardContent></Card>
           </TabsContent>
           <TabsContent value="evaluacion" className="space-y-4">
             <Card><CardContent className="space-y-4 pt-5"><div className="flex items-center justify-between gap-3"><Label>Criterios de evaluación</Label><Button type="button" variant="ghost" size="sm" onClick={() => setExpandedField("evaluacion_marco")}><Maximize2 className="mr-2 h-4 w-4" />Expandir</Button></div><Textarea value={plan.evaluacion_marco} onChange={(event) => updateField("evaluacion_marco", event.target.value)} rows={6} disabled={readOnly} placeholder="Explica los criterios generales de evaluación del curso." /></CardContent></Card>
-            <PlanRubricsEditor planId={planId} readOnly={readOnly} onDirty={transitionToEdited} />
+            <PlanRubricsEditor planId={planId} readOnly={readOnly} onDirty={onRubricsDirty} />
           </TabsContent>
           <TabsContent value="clases"><PlanLessonsEditor planId={planId} courseId={courseId} readOnly={readOnly} onDirty={transitionToEdited} /></TabsContent>
           <TabsContent value="recursos" className="space-y-4">
@@ -496,7 +537,7 @@ export default function PlanEditor({ planId, courseId, curriculumDocumentId, pla
                 </div>
               </CardContent>
             </Card>
-            <PlanTeacherBibliographyEditor planId={planId} readOnly={readOnly} onDirty={transitionToEdited} />
+            <PlanTeacherBibliographyEditor planId={planId} readOnly={readOnly} onDirty={onTeacherBibDirty} />
           </TabsContent>
         </Tabs>
         {!readOnly && currentStatus !== "VALIDATED" ? <Button onClick={handleValidate} disabled={validating} className="w-full"><ShieldCheck className="mr-2 h-4 w-4" />{validating ? "Validando..." : currentStatus === "EDITED" ? "Validar cambios" : "Validar plan"}</Button> : null}
