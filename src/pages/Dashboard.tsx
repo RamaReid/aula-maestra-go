@@ -343,7 +343,7 @@ export default function Dashboard() {
                       </DropdownMenu>
                     </div>
                   </CardHeader>
-                  <CardContent className="space-y-3">
+                  <CardContent className="mt-auto space-y-3">
                     <p className="text-sm text-muted-foreground">
                       {course.school?.official_name ?? "Sin escuela"} · {course.year_level}° año · {course.academic_year}
                     </p>
