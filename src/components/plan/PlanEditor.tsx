@@ -797,14 +797,21 @@ export default function PlanEditor({
             <div className="rounded-md border p-3">
               <p className="text-sm font-medium">Contenidos curriculares del plan</p>
               <p className="text-xs text-muted-foreground">
-                {curricularNodes.length} contenidos mapeados para vinculacion de clases.
+                {allContentNodes.length} contenidos mapeados para vinculacion de clases.
               </p>
-              <div className="mt-3 max-h-56 space-y-2 overflow-y-auto pr-1">
-                {curricularNodes.length > 0 ? (
-                  curricularNodes.map((node) => (
-                    <p key={node.id} className="text-sm">
-                      <span className="font-medium text-muted-foreground">[{node.node_type}]</span> {node.name}
-                    </p>
+              <div className="mt-3 max-h-64 space-y-3 overflow-y-auto pr-1">
+                {groupedContent.length > 0 ? (
+                  groupedContent.map((group) => (
+                    <div key={group.groupLabel} className="space-y-1">
+                      <p className="text-sm font-semibold text-foreground">
+                        <span className="text-muted-foreground">[{group.groupType}]</span> {group.groupLabel}
+                      </p>
+                      {group.children.map((node) => (
+                        <p key={node.id} className="pl-4 text-sm">
+                          <span className="font-medium text-muted-foreground">[{node.node_type}]</span> {node.name}
+                        </p>
+                      ))}
+                    </div>
                   ))
                 ) : (
                   <p className="text-sm text-muted-foreground">
