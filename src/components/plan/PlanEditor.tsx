@@ -412,6 +412,22 @@ export default function PlanEditor({ planId, courseId, curriculumDocumentId, pla
       </CardHeader>
       <CardContent className="space-y-5 pt-6">
         <InlineValidationSummary errors={validationErrors} />
+        {integrityChecks.length > 0 && (
+          <div className="rounded-xl border bg-muted/20 p-4 space-y-3">
+            <p className="text-sm font-medium text-foreground">Estado de la planificación anual</p>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3 md:grid-cols-5">
+              {integrityChecks.map((check) => (
+                <div key={check.label} className="flex items-center gap-2">
+                  <div className={`h-2 w-2 shrink-0 rounded-full ${check.ok ? "bg-emerald-500" : "bg-destructive"}`} />
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-foreground truncate">{check.label}</p>
+                    <p className="text-[11px] text-muted-foreground truncate">{check.detail}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         {repairGuidance.length > 0 ? <div className="rounded-xl border border-warning/30 bg-warning/10 p-4"><p className="text-sm font-medium text-warning">Ajustes sugeridos para validar la anual</p><div className="mt-2 space-y-1 text-sm text-foreground">{repairGuidance.map((step, index) => <p key={`${step}-${index}`}>{step}</p>)}</div></div> : null}
         <Tabs defaultValue="fundamentacion" className="space-y-5">
           <TabsList className="grid h-auto w-full grid-cols-4 gap-2 rounded-2xl bg-muted/40 p-2">
