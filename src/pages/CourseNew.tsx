@@ -53,10 +53,10 @@ interface SupportedProgram {
 const ORIENTATION_SUGGESTIONS = [
   "Ciencias Sociales",
   "Ciencias Naturales",
-  "EconomÃ­a y AdministraciÃ³n",
+  "Economía y Administración",
   "Arte",
-  "ComunicaciÃ³n",
-  "EducaciÃ³n FÃ­sica",
+  "Comunicación",
+  "Educación Física",
   "Lenguas Extranjeras",
 ];
 
