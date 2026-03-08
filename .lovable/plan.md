@@ -1,89 +1,56 @@
-# Plan: Validación Hard-Stop + Cierre de Evidencia
-
-## Estado actual (verificado ahora)
-
-**Tracking E2E: FUNCIONAL** — 4 filas en `ai_usage_logs`:
 
 
-| #   | Feature  | Model            | Tokens | Cost USD  | Duration |
-| --- | -------- | ---------------- | ------ | --------- | -------- |
-| 1   | teaching | gemini-2.5-flash | 1,871  | $0.000666 | 6,223ms  |
-| 2   | reading  | gemini-2.5-pro   | 5,977  | $0.050311 | 43,795ms |
-| 3   | reading  | gemini-2.5-pro   | 5,004  | $0.040153 | 37,020ms |
-| 4   | reading  | gemini-2.5-pro   | 7,018  | $0.060161 | 53,109ms |
+# Plan: Mostrar Unidad curricular real en cada clase
 
+## Hallazgo clave de los datos
 
-**Total: 19,870 tokens / $0.151291 / 4 llamadas**
+Cada clase ya esta vinculada via `plan_lesson_content_links` a nodos de tipo `UNIDAD` y `CONTENIDO`. Por ejemplo:
+- Clase 1 → **Unidad 1: Las teorias cientificas** + contenido "Observacion, hipotesis y contrastacion empirica" → tema: "La ciencia en el imaginario popular"
+- Clase 7 → **Unidad 4: Sucesion de teorias** + contenido "Instrumentos cientificos..." → tema: "Introduccion a las Controversias Cientificas"
 
-Lesson `b1b122c0` estado: `PLANNED`, `is_generating=false`.
-Teaching: `INVALIDATED`. Reading: `INVALIDATED` (1449 palabras, fuera de rango 1000-1300).
+La relacion es: cada clase pertenece a una **Unidad** (bloque/modulo curricular) y tiene un **Tema** propio. El campo `justification` es otra cosa (justificacion pedagogica de la clase), no tiene nada que ver con la unidad.
 
-**Baseline para hard-stop:** count=4, max(created_at)=`2026-03-08 01:26:20.466031+00`
+## Cambios en `PlanLessonsEditor.tsx`
 
----
+### 1. Fetch de unidades vinculadas
+Al cargar las lecciones, hacer un query adicional:
+```
+plan_lesson_content_links (plan_lesson_id IN lesson_ids)
+  → plan_content_mappings (id)
+    → curriculum_nodes (filtrar node_type = 'UNIDAD')
+```
+Construir un `Map<lessonId, string>` con el nombre de la unidad para cada clase.
 
-## Pasos a ejecutar
+### 2. Trigger del Accordion — mostrar Unidad + Tema
+Cambiar el trigger de cada clase para mostrar:
+- **Clase N** | Badge cuatrimestre | **Unidad: Las teorias cientificas** | Tema: La ciencia en el imaginario popular
 
-### Paso 1 — Configurar presupuesto bloqueante
+### 3. Renombrar labels
+- "Foco de la clase" → **"Tema de la clase"**
+- "Justificacion" queda como campo interno pero NO se muestra en el trigger (no es la unidad)
+- El placeholder de justificacion se ajusta a: "Fundamentacion pedagogica de esta clase en la progresion anual"
 
-Usar `add_secret` para crear `AI_DAILY_BUDGET_USD = 0.0001`.
-El gasto actual del día ($0.151291) ya supera este límite, por lo que el hard-stop debe activarse.
+### 4. Dentro del AccordionContent — estructura visible
+Orden de campos:
+1. **Unidad** (solo lectura, mostrado como texto muted, viene del curriculum)
+2. **Tema de la clase** (editable, campo `theme`)
+3. **Justificacion pedagogica** (editable, campo `justification`)
+4. **Resultado de aprendizaje** (editable, campo `learning_outcome`)
+5. **Operacion y evidencia minima** (editable, campo `activities_summary`)
 
-### Paso 2 — Invocar generate-materials
+### 5. Agrupar por cuatrimestre
+Separar las clases en dos bloques: "Primer cuatrimestre" y "Segundo cuatrimestre" segun `term`.
 
-Llamar vía `curl_edge_functions` a `/generate-materials` con `lesson_id=b1b122c0-4161-414c-9e5a-3ffd97913ea8`.
-Resultado esperado: error `"Presupuesto diario de IA agotado"`.
+## Cambios en `PlanEditor.tsx` (PDF export)
+En el imprimible, cada clase muestra solo: `Clase X — Unidad: Y — Tema: Z` (sin justificacion, sin evidencia).
 
-### Paso 3 — Verificar no inserción
-
-Ejecutar dos queries:
-
-- `SELECT count(*) FROM ai_usage_logs WHERE lesson_id = '<ID>'` — debe seguir en 4
-- `SELECT max(created_at) FROM ai_usage_logs WHERE lesson_id = '<ID>'` — debe ser idéntico al baseline
-
-### Paso 4 — Restaurar presupuesto
-
-Usar `add_secret` para setear `AI_DAILY_BUDGET_USD = 2.0`.
-
-### Paso 5 — Actualizar 4 archivos de evidencia
-
-`**docs/evidence/sql_outputs.txt**` — Agregar queries 1-5 con resultados reales:
-
-- Query 1: ai_usage_logs (4 filas con datos completos)
-- Query 2: lessons status/is_generating
-- Query 3: teaching_materials status
-- Query 4: reading_materials status + validation_reasons
-- Query 5: count/max antes y después del bloqueo
-
-`**docs/evidence/logs_extract.txt**` — Agregar logs de generate-materials:
-
-- 4 líneas AI_TRACKED (1 teaching + 3 reading)
-- Mensaje de bloqueo por presupuesto agotado
-
-`**docs/evidence/e2e_run_ids.txt**` — Agregar sección de validación tracking:
-
-- user_id, course_id, lesson_id
-- Resumen de resultados (4 calls, $0.151291)
-- Hard-stop verificado
-
-`**docs/CONTEXT_EVIDENCE_REPORT.md**` — Agregar 2 secciones:
-
-- "Tracking IA validado" con tabla de costos
-- "Budget hard-stop validado" con evidencia de bloqueo y no-inserción
-
----
+## No requiere migracion de base de datos
+Todos los datos ya existen en `plan_lesson_content_links` + `curriculum_nodes`.
 
 ## Archivos a modificar
 
+| Archivo | Cambio |
+|---|---|
+| `src/components/plan/PlanLessonsEditor.tsx` | Fetch unidades via content links, agrupar por cuatrimestre, renombrar labels, mostrar unidad en trigger |
+| `src/components/plan/PlanEditor.tsx` | Ajustar PDF export para incluir unidad real por clase |
 
-| Archivo                           | Acción                                |
-| --------------------------------- | ------------------------------------- |
-| `docs/evidence/sql_outputs.txt`   | Agregar queries 1-5 + resultados      |
-| `docs/evidence/logs_extract.txt`  | Agregar logs tracking + hard-stop     |
-| `docs/evidence/e2e_run_ids.txt`   | Agregar IDs + resumen validación      |
-| `docs/CONTEXT_EVIDENCE_REPORT.md` | Secciones tracking + budget validados |
-
-
-No se modifican archivos de código. Solo evidencia y secreto temporal.
-
-- confirmar explícitamente que AI_DAILY_BUDGET_USD quedó restaurado a 2.0 al terminar.
