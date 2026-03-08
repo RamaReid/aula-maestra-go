@@ -586,8 +586,8 @@ export default function CourseNew() {
 
       if (!limitData.can_create) {
         toast({
-          title: "LÃ­mite alcanzado",
-          description: `Alcanzaste el lÃ­mite de cursos (${limitData.current}/${limitData.max})`,
+          title: "Límite alcanzado",
+          description: `Alcanzaste el límite de cursos (${limitData.current}/${limitData.max})`,
           variant: "destructive",
         });
         return;
