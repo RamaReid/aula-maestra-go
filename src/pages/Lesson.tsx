@@ -58,7 +58,7 @@ type TeachingDifferentiation = {
   description: string;
 };
 
-const AUTHORIZED_SOURCES_TABLE = "authorized_sources" as never;
+const AUTHORIZED_SOURCES_TABLE = "authorized_sources" as const;
 
 function extractCanonSummary(activitiesSummary?: string | null, fallbackTheme?: string | null) {
   const summary = (activitiesSummary || "").trim();
