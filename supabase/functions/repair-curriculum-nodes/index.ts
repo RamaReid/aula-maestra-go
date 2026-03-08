@@ -82,8 +82,15 @@ function parseModulesFromRawText(rawText: string): ParsedModule[] {
     if (bulletMatch) {
       const content = bulletMatch[1].trim();
       if (content.length > 5 && !isTocLine(content)) {
-        currentModule.children.push(content);
-        lastChildWasBullet = true;
+        // Si empieza con minúscula → es continuación del bullet anterior (PDF cortó la línea)
+        const startsLowercase = /^[a-záéíóúñ]/.test(content);
+        if (startsLowercase && lastChildWasBullet && currentModule.children.length > 0) {
+          const lastIdx = currentModule.children.length - 1;
+          currentModule.children[lastIdx] += " " + content;
+        } else {
+          currentModule.children.push(content);
+          lastChildWasBullet = true;
+        }
       }
       continue;
     }

@@ -306,11 +306,18 @@ function extractCurriculumNodes(rawText) {
     }
 
     if (isLikelyContentLine(line) && (currentBloque || currentUnidad || currentEje)) {
-      pushNode(
-        "CONTENIDO",
-        line.replace(/^[•*-]\s+/, "").replace(/^\d+[\).]\s+/, ""),
-        currentBloque?.tempId || currentUnidad?.tempId || currentEje?.tempId || null
-      );
+      const cleanContent = line.replace(/^[•*-]\s+/, "").replace(/^\d+[\).]\s+/, "");
+      // Si empieza con minúscula → continuación del nodo CONTENIDO anterior (PDF cortó la línea)
+      const startsLowercase = /^[a-záéíóúñ]/.test(cleanContent);
+      if (startsLowercase && nodes.length > 0 && nodes[nodes.length - 1].nodeType === "CONTENIDO") {
+        nodes[nodes.length - 1].name += " " + cleanContent;
+      } else {
+        pushNode(
+          "CONTENIDO",
+          cleanContent,
+          currentBloque?.tempId || currentUnidad?.tempId || currentEje?.tempId || null
+        );
+      }
     }
   }
 
