@@ -209,6 +209,7 @@ export default function PlanEditor({
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [rubricItems, setRubricItems] = useState<{ id: string; unit_label: string; criteria: string; order_index: number }[]>([]);
   const [rubricLoading, setRubricLoading] = useState(false);
+  const [repairingNodes, setRepairingNodes] = useState(false);
   const transitioningRef = useRef(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
