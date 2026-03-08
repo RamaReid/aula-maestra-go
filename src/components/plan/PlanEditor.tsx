@@ -936,7 +936,55 @@ export default function PlanEditor({
               disabled={readOnly}
               onDoubleClick={() => setExpandedField("evaluacion_marco")}
               className="leading-relaxed"
-            />
+             />
+
+            {/* Rúbrica por módulo/unidad */}
+            <div className="space-y-3 pt-4 border-t">
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-base font-semibold">Rúbrica por módulo / unidad</Label>
+                {!readOnly && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={initRubricFromContent}
+                    disabled={rubricLoading}
+                  >
+                    <RotateCcw className="mr-1 h-3.5 w-3.5" />
+                    {rubricLoading ? "Generando..." : rubricItems.length > 0 ? "Regenerar desde contenidos" : "Inicializar desde contenidos"}
+                  </Button>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Criterios de evaluación específicos por cada módulo o unidad de contenido. Inicialice desde los contenidos curriculares y complete cada criterio.
+              </p>
+              {rubricItems.length > 0 ? (
+                <div className="space-y-3">
+                  {rubricItems.map((item, idx) => (
+                    <div key={item.id} className="space-y-1">
+                      <Label className="text-sm font-medium">{item.unit_label || `Módulo ${idx + 1}`}</Label>
+                      <Textarea
+                        value={item.criteria}
+                        onChange={(e) => {
+                          const updated = [...rubricItems];
+                          updated[idx] = { ...updated[idx], criteria: e.target.value };
+                          setRubricItems(updated);
+                        }}
+                        onBlur={() => saveRubricItem(item.id, item.criteria)}
+                        placeholder="Criterios de evaluación para este módulo..."
+                        rows={3}
+                        disabled={readOnly}
+                        className="leading-relaxed"
+                      />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground italic">
+                  No hay rúbrica definida. Presione "Inicializar desde contenidos" para crear criterios por cada módulo.
+                </p>
+              )}
+            </div>
           </TabsContent>
 
           {/* 6. CLASES */}
