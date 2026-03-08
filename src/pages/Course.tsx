@@ -292,7 +292,7 @@ export default function Course() {
       }
       if (current.length >= maxSelectableLessons) {
         toast({
-          title: "LÃ­mite de sesiÃ³n",
+          title: "Límite de sesión",
           description: isFreePlan
             ? `En Free podÃ©s preparar exactamente ${requiredFreeSelectionCount} clases por sesiÃ³n.`
             : `PodÃ©s seleccionar hasta ${maxSelectableLessons} clases, que son las clases disponibles en este curso.`,
