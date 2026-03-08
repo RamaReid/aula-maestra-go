@@ -565,7 +565,7 @@ export default function Course() {
                           <CardContent className="flex flex-col gap-4 pt-6 md:flex-row md:items-center md:justify-between">
                             <div className="space-y-1">
                               <p className="text-sm font-medium text-foreground">
-                                ElegÃ­ una clase o una secuencia para preparar
+                                Elegí una clase o una secuencia para preparar
                               </p>
                               <p className="text-sm text-muted-foreground">
                                 {isFreePlan
