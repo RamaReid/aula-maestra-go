@@ -16,6 +16,7 @@ import { InlineValidationSummary } from "@/components/ui/InlineValidationSummary
 import type { Tables } from "@/integrations/supabase/types";
 import { formatErrorMessage } from "@/lib/errors";
 import { downloadStructuredPdf } from "@/lib/pdfExport";
+import { extractBibliographyProtocolNodes, type BibliographyProtocolNode } from "@/lib/bibliographyProtocol";
 
 interface PlanData {
   fundamentacion: string;
@@ -29,7 +30,19 @@ interface MappedCurriculumNode {
   id: string;
   name: string;
   node_type: string;
+  parent_id?: string | null;
   order_index?: number | null;
+}
+
+interface BibNode extends BibliographyProtocolNode {
+  parent_id: string | null;
+  order_index?: number;
+}
+
+interface GroupedContent {
+  groupLabel: string;
+  groupType: string;
+  children: MappedCurriculumNode[];
 }
 
 type PlanExportSectionKey =
@@ -184,7 +197,8 @@ export default function PlanEditor({
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [newStrategy, setNewStrategy] = useState("");
   const [expandedField, setExpandedField] = useState<ExpandableField | null>(null);
-  const [mappedNodes, setMappedNodes] = useState<MappedCurriculumNode[]>([]);
+  const [bibliographyNodes, setBibliographyNodes] = useState<BibNode[]>([]);
+  const [groupedContent, setGroupedContent] = useState<GroupedContent[]>([]);
   const [currentStatus, setCurrentStatus] = useState(planStatus);
   const [hasEditedAfterValidation, setHasEditedAfterValidation] = useState(false);
   const [exportOrder, setExportOrder] = useState<PlanExportSectionKey[]>(DEFAULT_PLAN_EXPORT_ORDER);
@@ -201,25 +215,62 @@ export default function PlanEditor({
   }, [planStatus]);
 
   const fetchMappedNodes = useCallback(async () => {
+    // 1. Fetch mapped content nodes with parent info
     const { data: mappings } = await supabase
       .from("plan_content_mappings")
       .select("curriculum_node_id")
       .eq("plan_id", planId);
 
     const nodeIds = Array.from(new Set((mappings || []).map((mapping) => mapping.curriculum_node_id)));
-    if (nodeIds.length === 0) {
-      setMappedNodes([]);
-      return;
+
+    let contentNodes: MappedCurriculumNode[] = [];
+    if (nodeIds.length > 0) {
+      const { data: nodes } = await supabase
+        .from("curriculum_nodes")
+        .select("id, name, node_type, parent_id, order_index")
+        .in("id", nodeIds)
+        .order("order_index");
+      contentNodes = ((nodes || []) as MappedCurriculumNode[]).filter((n) => !isAuthorityOrNoiseNode(n.name) && !isLikelyBibliographyNode(n.name));
     }
 
-    const { data: nodes } = await supabase
-      .from("curriculum_nodes")
-      .select("id, name, node_type, order_index")
-      .in("id", nodeIds)
-      .order("order_index");
+    // Build grouped content by fetching parent nodes
+    const parentIds = Array.from(new Set(contentNodes.map((n) => n.parent_id).filter(Boolean))) as string[];
+    let parentMap = new Map<string, { name: string; node_type: string }>();
+    if (parentIds.length > 0) {
+      const { data: parents } = await supabase
+        .from("curriculum_nodes")
+        .select("id, name, node_type")
+        .in("id", parentIds);
+      (parents || []).forEach((p) => parentMap.set(p.id, { name: p.name, node_type: p.node_type }));
+    }
 
-    setMappedNodes((nodes || []) as MappedCurriculumNode[]);
-  }, [planId]);
+    const groups = new Map<string, GroupedContent>();
+    contentNodes.forEach((node) => {
+      const parentKey = node.parent_id || "__root__";
+      if (!groups.has(parentKey)) {
+        const parent = node.parent_id ? parentMap.get(node.parent_id) : null;
+        groups.set(parentKey, {
+          groupLabel: parent?.name || "Otros contenidos",
+          groupType: parent?.node_type || "",
+          children: [],
+        });
+      }
+      groups.get(parentKey)!.children.push(node);
+    });
+    setGroupedContent(Array.from(groups.values()));
+
+    // 2. Fetch bibliography directly from curriculum_nodes of the document
+    if (curriculumDocumentId) {
+      const { data: allDocNodes } = await supabase
+        .from("curriculum_nodes")
+        .select("id, name, node_type, parent_id, order_index")
+        .eq("curriculum_document_id", curriculumDocumentId)
+        .order("order_index");
+      setBibliographyNodes(extractBibliographyProtocolNodes((allDocNodes || []) as BibNode[]));
+    } else {
+      setBibliographyNodes([]);
+    }
+  }, [planId, curriculumDocumentId]);
 
   useEffect(() => {
     const fetch = async () => {
@@ -402,9 +453,7 @@ export default function PlanEditor({
     }
   };
 
-  const visibleMappedNodes = mappedNodes.filter((node) => !isAuthorityOrNoiseNode(node.name));
-  const bibliographyNodes = visibleMappedNodes.filter((node) => isLikelyBibliographyNode(node.name));
-  const curricularNodes = visibleMappedNodes.filter((node) => !isLikelyBibliographyNode(node.name));
+  const allContentNodes = groupedContent.flatMap((g) => g.children);
 
   const handleExportPlanPdf = async () => {
     setExportingPdf(true);
@@ -488,8 +537,11 @@ export default function PlanEditor({
         contenidos: {
           title: "Contenidos",
           body:
-            curricularNodes.length > 0
-              ? curricularNodes.map((node, index) => `${index + 1}. [${node.node_type}] ${node.name}`)
+            allContentNodes.length > 0
+              ? groupedContent.flatMap((g) => [
+                  `[${g.groupType}] ${g.groupLabel}`,
+                  ...g.children.map((node) => `  - [${node.node_type}] ${node.name}`),
+                ])
               : ["Sin contenidos curriculares mapeados."],
         },
       };
@@ -745,14 +797,21 @@ export default function PlanEditor({
             <div className="rounded-md border p-3">
               <p className="text-sm font-medium">Contenidos curriculares del plan</p>
               <p className="text-xs text-muted-foreground">
-                {curricularNodes.length} contenidos mapeados para vinculacion de clases.
+                {allContentNodes.length} contenidos mapeados para vinculacion de clases.
               </p>
-              <div className="mt-3 max-h-56 space-y-2 overflow-y-auto pr-1">
-                {curricularNodes.length > 0 ? (
-                  curricularNodes.map((node) => (
-                    <p key={node.id} className="text-sm">
-                      <span className="font-medium text-muted-foreground">[{node.node_type}]</span> {node.name}
-                    </p>
+              <div className="mt-3 max-h-64 space-y-3 overflow-y-auto pr-1">
+                {groupedContent.length > 0 ? (
+                  groupedContent.map((group) => (
+                    <div key={group.groupLabel} className="space-y-1">
+                      <p className="text-sm font-semibold text-foreground">
+                        <span className="text-muted-foreground">[{group.groupType}]</span> {group.groupLabel}
+                      </p>
+                      {group.children.map((node) => (
+                        <p key={node.id} className="pl-4 text-sm">
+                          <span className="font-medium text-muted-foreground">[{node.node_type}]</span> {node.name}
+                        </p>
+                      ))}
+                    </div>
                   ))
                 ) : (
                   <p className="text-sm text-muted-foreground">
