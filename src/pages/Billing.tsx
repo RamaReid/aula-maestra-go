@@ -309,7 +309,7 @@ export default function Billing() {
         tax_id: taxId.trim() || null,
         notes: notes.trim() || null,
       };
-      const { error } = await supabase.from(MANUAL_PAYMENT_REQUESTS_TABLE).insert(payload);
+      const { error } = await supabase.from(MANUAL_PAYMENT_REQUESTS_TABLE).insert(payload as any);
 
       if (error) throw error;
 
