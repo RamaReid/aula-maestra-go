@@ -102,6 +102,7 @@ export default function PlanEditor({ planId, courseId, curriculumDocumentId, pla
   const [expandedField, setExpandedField] = useState<ExpandableField | null>(null);
   const [mappedNodes, setMappedNodes] = useState<MappedCurriculumNode[]>([]);
   const [curriculumBibliographyNodes, setCurriculumBibliographyNodes] = useState<MappedCurriculumNode[]>([]);
+  const [bibliographyRepairStatus, setBibliographyRepairStatus] = useState<"idle" | "repairing" | "failed">("idle");
   const [currentStatus, setCurrentStatus] = useState(planStatus);
   const [hasEditedAfterValidation, setHasEditedAfterValidation] = useState(planStatus === "EDITED");
   const [exportingPdf, setExportingPdf] = useState(false);
