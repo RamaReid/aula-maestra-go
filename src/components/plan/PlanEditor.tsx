@@ -537,7 +537,7 @@ export default function PlanEditor({ planId, courseId, curriculumDocumentId, pla
                 </div>
               </CardContent>
             </Card>
-            <PlanTeacherBibliographyEditor planId={planId} readOnly={readOnly} onDirty={transitionToEdited} />
+            <PlanTeacherBibliographyEditor planId={planId} readOnly={readOnly} onDirty={onTeacherBibDirty} />
           </TabsContent>
         </Tabs>
         {!readOnly && currentStatus !== "VALIDATED" ? <Button onClick={handleValidate} disabled={validating} className="w-full"><ShieldCheck className="mr-2 h-4 w-4" />{validating ? "Validando..." : currentStatus === "EDITED" ? "Validar cambios" : "Validar plan"}</Button> : null}
