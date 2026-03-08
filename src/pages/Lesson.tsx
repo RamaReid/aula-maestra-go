@@ -438,7 +438,7 @@ export default function Lesson() {
   if (!lesson) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen gap-4">
-        <p className="text-muted-foreground">LecciÃ³n no encontrada</p>
+        <p className="text-muted-foreground">Lección no encontrada</p>
         <Button asChild>
           <Link to="/dashboard">Volver al dashboard</Link>
         </Button>
