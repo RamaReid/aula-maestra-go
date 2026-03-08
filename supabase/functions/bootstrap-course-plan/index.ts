@@ -1171,6 +1171,11 @@ ${bibliographyNodeNames.length > 0 ? bibliographyNodeNames.join("\n") : "No se d
       planLessons.length
     );
 
+    // Seed bibliografia_curso from detected curriculum bibliography nodes
+    const bibliografiaCursoText = nodePools.bibliographyNodes.length > 0
+      ? nodePools.bibliographyNodes.map((node, idx) => `${idx + 1}. ${node.name}`).join("\n")
+      : "";
+
     await adminClient
       .from("plans")
       .update({
@@ -1180,6 +1185,7 @@ ${bibliographyNodeNames.length > 0 ? bibliographyNodeNames.join("\n") : "No se d
         estrategias_practicas: normalized.estrategias_practicas,
         evaluacion_marco: normalized.evaluacion_marco,
         resources: normalized.resources,
+        bibliografia_curso: bibliografiaCursoText,
       })
       .eq("id", body.plan_id);
 
