@@ -763,7 +763,7 @@ export default function CourseNew() {
                       speciality: "",
                     }))
                   }
-                  placeholder="Ej: FilosofÃ­a, Historia, MatemÃ¡tica..."
+                  placeholder="Ej: Filosofía, Historia, Matemática..."
                 />
               </div>
             )}
