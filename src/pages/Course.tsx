@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import PlanEditor from "@/components/plan/PlanEditor";
 import AgendaView from "@/components/plan/AgendaView";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { LoadingState } from "@/components/ui/LoadingState";
 import { SkeletonList } from "@/components/ui/SkeletonList";
 import { StatusBadge, briefLabel, briefTone, lessonStatusLabel, lessonStatusTone } from "@/components/ui/StatusBadge";
 import { useEntitlements } from "@/hooks/useEntitlements";
