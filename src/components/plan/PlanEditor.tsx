@@ -21,6 +21,12 @@ import PlanRubricsEditor from "./PlanRubricsEditor";
 import PlanTeacherBibliographyEditor from "./PlanTeacherBibliographyEditor";
 import { StructuredListEditor } from "./StructuredListEditor";
 
+// Refresh helper: re-fetch a single count from the database
+async function fetchCount(table: string, planId: string): Promise<number> {
+  const { count } = await supabase.from(table).select("id", { count: "exact", head: true }).eq("plan_id", planId);
+  return count || 0;
+}
+
 interface PlanData {
   fundamentacion: string;
   estrategias_marco: string;
