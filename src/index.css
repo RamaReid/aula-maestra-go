@@ -331,6 +331,19 @@ All colors MUST be HSL.
   }
 }
 
+/* ── Fundamentación academic preview ── */
+.fundamentacion-preview p {
+  text-indent: 2rem;
+  margin-bottom: 0.75rem;
+  line-height: 1.8;
+  font-size: 0.95rem;
+  color: hsl(var(--foreground));
+}
+
+.fundamentacion-preview p:last-child {
+  margin-bottom: 0;
+}
+
 @keyframes curriculum-book-float {
   0%,
   100% {

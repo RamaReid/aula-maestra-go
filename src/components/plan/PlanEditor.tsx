@@ -8,7 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { X, Plus, RotateCcw, ShieldCheck, Maximize2, Download, ArrowUp, ArrowDown, AlertTriangle } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { X, Plus, RotateCcw, ShieldCheck, Maximize2, Download, ArrowUp, ArrowDown, AlertTriangle, Pencil } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import PlanObjectivesEditor from "./PlanObjectivesEditor";
 import PlanLessonsEditor, { fetchLessonUnitMap } from "./PlanLessonsEditor";
@@ -20,6 +21,8 @@ import { cn } from "@/lib/utils";
 import { ThinkingBook } from "@/components/ui/ThinkingBook";
 import { downloadStructuredPdf } from "@/lib/pdfExport";
 import { extractBibliographyProtocolNodes, type BibliographyProtocolNode } from "@/lib/bibliographyProtocol";
+
+// ── Types ──
 
 interface PlanData {
   fundamentacion: string;
@@ -60,14 +63,8 @@ type PlanExportSectionKey =
   | "bibliografia";
 
 const DEFAULT_PLAN_EXPORT_ORDER: PlanExportSectionKey[] = [
-  "fundamentacion",
-  "objetivos",
-  "estrategias",
-  "contenidos",
-  "evaluacion",
-  "clases",
-  "recursos",
-  "bibliografia",
+  "fundamentacion", "objetivos", "estrategias", "contenidos",
+  "evaluacion", "clases", "recursos", "bibliografia",
 ];
 
 const PLAN_EXPORT_LABELS: Record<PlanExportSectionKey, string> = {
@@ -90,6 +87,52 @@ const fieldTitles: Record<ExpandableField, string> = {
   resources: "Recursos",
   bibliografia_curso: "Bibliografía del curso",
 };
+
+// ── Resource sub-blocks ──
+
+const RESOURCE_SECTIONS = [
+  { key: "infraestructura", label: "Infraestructura disponible", placeholder: "Aula, laboratorio, biblioteca, pizarras, conectividad, mobiliario..." },
+  { key: "materiales", label: "Materiales y soportes", placeholder: "Textos impresos, fotocopias, presentaciones digitales, videos, recursos web..." },
+  { key: "casos", label: "Casos y situaciones", placeholder: "Estudios de caso, problemas reales, dilemas éticos, situaciones contextualizadas..." },
+  { key: "aportes", label: "Aportes y alternativas low-tech", placeholder: "Estrategias sin tecnología, recursos analógicos, actividades de campo..." },
+] as const;
+
+const RESOURCE_SEPARATOR = "\n===";
+
+function parseResourceBlocks(raw: string): Record<string, string> {
+  const result: Record<string, string> = {
+    infraestructura: "", materiales: "", casos: "", aportes: "",
+  };
+  if (!raw || !raw.includes(RESOURCE_SEPARATOR)) {
+    // Legacy: put everything in infraestructura
+    result.infraestructura = raw || "";
+    return result;
+  }
+  for (const section of RESOURCE_SECTIONS) {
+    const marker = `===${section.key.toUpperCase()}===`;
+    const nextMarkers = RESOURCE_SECTIONS
+      .filter((s) => s.key !== section.key)
+      .map((s) => `===${s.key.toUpperCase()}===`);
+    const startIdx = raw.indexOf(marker);
+    if (startIdx === -1) continue;
+    const contentStart = startIdx + marker.length;
+    let contentEnd = raw.length;
+    for (const nm of nextMarkers) {
+      const idx = raw.indexOf(nm, contentStart);
+      if (idx !== -1 && idx < contentEnd) contentEnd = idx;
+    }
+    result[section.key] = raw.slice(contentStart, contentEnd).trim();
+  }
+  return result;
+}
+
+function serializeResourceBlocks(blocks: Record<string, string>): string {
+  return RESOURCE_SECTIONS
+    .map((s) => `===${s.key.toUpperCase()}===\n${blocks[s.key] || ""}`)
+    .join("\n");
+}
+
+// ── Helpers ──
 
 interface Props {
   planId: string;
@@ -162,30 +205,57 @@ function isLikelyBibliographyNode(name: string): boolean {
   const hasAuthorPrefix = /^[A-ZÁÉÍÓÚÑ][^,]{1,90},/.test(trimmed);
   const hasYear = /\b(1[89]\d{2}|20\d{2})\b/.test(trimmed);
   const hasEditionFallback = /\bvarias\s+ediciones\b/i.test(trimmed);
-
   return hasAuthorPrefix && commaCount >= 2 && (hasYear || hasEditionFallback || commaCount >= 3);
 }
 
 function isAuthorityOrNoiseNode(name: string): boolean {
-  const normalized = name
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/\s+/g, "");
-
+  const normalized = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, "");
   return (
-    normalized.includes("isbn") ||
-    normalized.includes("cdd") ||
-    normalized.includes("disenocurricular") ||
-    normalized.includes("educacionsecundaria") ||
-    normalized.includes("directorageneral") ||
-    normalized.includes("presidentadelconsejo") ||
-    normalized.includes("subsecretariadeeducacion") ||
-    normalized.includes("directoraprovincial") ||
-    normalized.includes("equipodeespecialistas") ||
-    normalized.includes("autoridades")
+    normalized.includes("isbn") || normalized.includes("cdd") ||
+    normalized.includes("disenocurricular") || normalized.includes("educacionsecundaria") ||
+    normalized.includes("directorageneral") || normalized.includes("presidentadelconsejo") ||
+    normalized.includes("subsecretariadeeducacion") || normalized.includes("directoraprovincial") ||
+    normalized.includes("equipodeespecialistas") || normalized.includes("autoridades")
   );
 }
+
+// ── Fundamentación Preview Component ──
+
+function FundamentacionPreview({
+  text,
+  onEdit,
+  readOnly,
+}: {
+  text: string;
+  onEdit: () => void;
+  readOnly: boolean;
+}) {
+  const paragraphs = text.split(/\n\n+/).filter((p) => p.trim());
+  if (paragraphs.length === 0) {
+    return (
+      <div
+        className={cn("fundamentacion-preview rounded-md border border-input bg-background px-3 py-3 min-h-[160px] cursor-pointer", readOnly && "cursor-default")}
+        onClick={() => !readOnly && onEdit()}
+      >
+        <p className="text-sm text-muted-foreground italic">
+          Click para escribir la fundamentación del plan anual...
+        </p>
+      </div>
+    );
+  }
+  return (
+    <div
+      className={cn("fundamentacion-preview rounded-md border border-input bg-background px-4 py-3 min-h-[160px] cursor-pointer", readOnly && "cursor-default")}
+      onClick={() => !readOnly && onEdit()}
+    >
+      {paragraphs.map((p, i) => (
+        <p key={i}>{p.trim()}</p>
+      ))}
+    </div>
+  );
+}
+
+// ── Main Component ──
 
 export default function PlanEditor({
   planId,
@@ -213,11 +283,21 @@ export default function PlanEditor({
   const [rubricItems, setRubricItems] = useState<{ id: string; unit_label: string; criteria: string; order_index: number }[]>([]);
   const [rubricLoading, setRubricLoading] = useState(false);
   const [repairingNodes, setRepairingNodes] = useState(false);
+  const [editingFundamentacion, setEditingFundamentacion] = useState(false);
+  const [resourceBlocks, setResourceBlocks] = useState<Record<string, string>>({ infraestructura: "", materiales: "", casos: "", aportes: "" });
   const transitioningRef = useRef(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fundamentacionRef = useRef<HTMLTextAreaElement>(null);
 
   const readOnly = !!courseArchived;
   const repairGuidance = buildRepairGuidance(validationErrors);
+
+  // ── needsRebuild logic ──
+  const needsRebuild = currentStatus === "INCOMPLETE" ||
+    groupedContent.length === 0 ||
+    !plan?.fundamentacion?.trim();
+  const rebuildDisabled = bootstrapping || !curriculumDocumentId ||
+    (!needsRebuild && (currentStatus === "VALIDATED" || currentStatus === "EDITED"));
 
   useEffect(() => {
     setCurrentStatus(planStatus);
@@ -242,7 +322,6 @@ export default function PlanEditor({
       contentNodes = ((nodes || []) as MappedCurriculumNode[]).filter((n) => !isAuthorityOrNoiseNode(n.name) && !isLikelyBibliographyNode(n.name));
     }
 
-    // Fallback: if no mappings but curriculum document exists, load nodes directly
     let usingFallback = false;
     if (contentNodes.length === 0 && curriculumDocumentId) {
       const { data: docNodes } = await supabase
@@ -259,10 +338,7 @@ export default function PlanEditor({
     const parentIds = Array.from(new Set(contentNodes.map((n) => n.parent_id).filter(Boolean))) as string[];
     let parentMap = new Map<string, { name: string; node_type: string }>();
     if (parentIds.length > 0) {
-      const { data: parents } = await supabase
-        .from("curriculum_nodes")
-        .select("id, name, node_type")
-        .in("id", parentIds);
+      const { data: parents } = await supabase.from("curriculum_nodes").select("id, name, node_type").in("id", parentIds);
       (parents || []).forEach((p) => parentMap.set(p.id, { name: p.name, node_type: p.node_type }));
     }
 
@@ -302,8 +378,6 @@ export default function PlanEditor({
     setRubricItems((data as typeof rubricItems) || []);
   }, [planId]);
 
-  // saveRubricItem and initRubricFromContent are defined after transitionToEdited below
-
   useEffect(() => {
     const fetch = async () => {
       const { data } = await supabase
@@ -312,19 +386,20 @@ export default function PlanEditor({
         .eq("id", planId)
         .single();
 
-      if (data) setPlan(data as PlanData);
+      if (data) {
+        setPlan(data as PlanData);
+        setResourceBlocks(parseResourceBlocks((data as PlanData).resources));
+      }
       await fetchMappedNodes();
       await fetchRubricItems();
       setLoading(false);
     };
-
     fetch();
   }, [planId, fetchMappedNodes, fetchRubricItems]);
 
   const transitionToEdited = useCallback(async () => {
     if (transitioningRef.current || readOnly) return;
     if (currentStatus !== "VALIDATED") return;
-
     transitioningRef.current = true;
     await supabase.from("plans").update({ status: "EDITED" as PlanStatus }).eq("id", planId);
     setCurrentStatus("EDITED");
@@ -338,13 +413,23 @@ export default function PlanEditor({
     await supabase.from("plan_rubric_items").update({ criteria }).eq("id", itemId);
   }, [readOnly, currentStatus, transitionToEdited]);
 
+  // ── Rubric init: deduplicated, 1:1 with modules ──
+  const rubricAligned = rubricItems.length > 0 && rubricItems.length === groupedContent.length;
+
   const initRubricFromContent = useCallback(async () => {
     if (readOnly) return;
     setRubricLoading(true);
     try {
       await supabase.from("plan_rubric_items").delete().eq("plan_id", planId);
+      const seen = new Set<string>();
       const groups = groupedContent.length > 0
-        ? groupedContent.map((g, i) => ({ unit_label: g.groupLabel, order_index: i }))
+        ? groupedContent
+            .filter((g) => {
+              if (seen.has(g.groupLabel)) return false;
+              seen.add(g.groupLabel);
+              return true;
+            })
+            .map((g, i) => ({ unit_label: g.groupLabel, order_index: i }))
         : [{ unit_label: "General", order_index: 0 }];
       const inserts = groups.map((g) => ({
         plan_id: planId,
@@ -363,15 +448,10 @@ export default function PlanEditor({
   const saveField = useCallback(
     (field: keyof PlanData, value: string | string[]) => {
       if (readOnly) return;
-
       setValidationErrors([]);
       if (saveTimer.current) clearTimeout(saveTimer.current);
-
       saveTimer.current = setTimeout(async () => {
-        if (currentStatus === "VALIDATED") {
-          await transitionToEdited();
-        }
-
+        if (currentStatus === "VALIDATED") await transitionToEdited();
         await supabase.from("plans").update({ [field]: value }).eq("id", planId);
       }, 500);
     },
@@ -381,6 +461,14 @@ export default function PlanEditor({
   const updateField = (field: keyof PlanData, value: string) => {
     setPlan((prev) => (prev ? { ...prev, [field]: value } : prev));
     saveField(field, value);
+  };
+
+  const updateResourceBlock = (key: string, value: string) => {
+    const updated = { ...resourceBlocks, [key]: value };
+    setResourceBlocks(updated);
+    const serialized = serializeResourceBlocks(updated);
+    setPlan((prev) => (prev ? { ...prev, resources: serialized } : prev));
+    saveField("resources", serialized);
   };
 
   const addStrategy = () => {
@@ -400,26 +488,15 @@ export default function PlanEditor({
 
   const handleRebuildPlan = async () => {
     if (!curriculumDocumentId) {
-      toast({
-        title: "Falta base curricular",
-        description: "Este curso no tiene un documento curricular persistido para rearmar el borrador.",
-        variant: "destructive",
-      });
+      toast({ title: "Falta base curricular", description: "Este curso no tiene un documento curricular persistido para rearmar el borrador.", variant: "destructive" });
       return;
     }
-
     setBootstrapping(true);
     setValidationErrors([]);
-
     try {
       const { data, error } = await supabase.functions.invoke("bootstrap-course-plan", {
-        body: {
-          course_id: courseId,
-          plan_id: planId,
-          curriculum_document_id: curriculumDocumentId,
-        },
+        body: { course_id: courseId, plan_id: planId, curriculum_document_id: curriculumDocumentId },
       });
-
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
@@ -429,11 +506,13 @@ export default function PlanEditor({
         .eq("id", planId)
         .single();
 
-      if (refreshedPlan) setPlan(refreshedPlan as PlanData);
+      if (refreshedPlan) {
+        setPlan(refreshedPlan as PlanData);
+        setResourceBlocks(parseResourceBlocks((refreshedPlan as PlanData).resources));
+      }
       await fetchMappedNodes();
 
-      const nextStatus =
-        data?.plan_status === "EDITED" || data?.plan_status === "VALIDATED" ? data.plan_status : "INCOMPLETE";
+      const nextStatus = data?.plan_status === "EDITED" || data?.plan_status === "VALIDATED" ? data.plan_status : "INCOMPLETE";
       setCurrentStatus(nextStatus);
       setHasEditedAfterValidation(nextStatus === "EDITED");
 
@@ -445,11 +524,7 @@ export default function PlanEditor({
       });
       onValidated();
     } catch (err: unknown) {
-      toast({
-        title: "No se pudo reconstruir el borrador",
-        description: formatErrorMessage(err),
-        variant: "destructive",
-      });
+      toast({ title: "No se pudo reconstruir el borrador", description: formatErrorMessage(err), variant: "destructive" });
     } finally {
       setBootstrapping(false);
     }
@@ -457,30 +532,20 @@ export default function PlanEditor({
 
   const handleValidate = async () => {
     if (!plan) return;
-
     setValidating(true);
     setValidationErrors([]);
-
     try {
       const { data, error } = await supabase.rpc("validate_plan", { p_plan_id: planId });
       if (error) throw error;
-
       const result = data as unknown as { success: boolean; errors: string[] };
       if (!result.success) {
         setValidationErrors(result.errors);
-        toast({
-          title: "Validación fallida",
-          description: result.errors.join(". "),
-          variant: "destructive",
-        });
+        toast({ title: "Validación fallida", description: result.errors.join(". "), variant: "destructive" });
         return;
       }
-
       toast({
         title: hasEditedAfterValidation ? "Plan revalidado" : "Plan validado",
-        description: hasEditedAfterValidation
-          ? "Los cambios fueron validados correctamente."
-          : "Se crearon las lecciones del curso.",
+        description: hasEditedAfterValidation ? "Los cambios fueron validados correctamente." : "Se crearon las lecciones del curso.",
       });
       onValidated();
     } catch (err: unknown) {
@@ -518,123 +583,52 @@ export default function PlanEditor({
 
   const handleExportPlanPdf = async () => {
     setExportingPdf(true);
-
     try {
       const [{ data: objectives, error: objectivesError }, { data: planLessons, error: lessonsError }, lessonUnits] =
         await Promise.all([
-          supabase
-            .from("plan_objectives")
-            .select("description, order_index")
-            .eq("plan_id", planId)
-            .order("order_index"),
-          supabase
-            .from("plan_lessons")
-            .select("id, lesson_number, term, theme, justification, learning_outcome, activities_summary")
-            .eq("plan_id", planId)
-            .order("lesson_number"),
+          supabase.from("plan_objectives").select("description, order_index").eq("plan_id", planId).order("order_index"),
+          supabase.from("plan_lessons").select("id, lesson_number, term, theme, justification, learning_outcome, activities_summary").eq("plan_id", planId).order("lesson_number"),
           fetchLessonUnitMap(planId),
         ]);
-
       if (objectivesError) throw objectivesError;
       if (lessonsError) throw lessonsError;
 
-      const objectiveLines =
-        (objectives || [])
-          .map((objective, index) => objective.description?.trim() ? `${index + 1}. ${objective.description.trim()}` : "")
-          .filter(Boolean) || [];
-
+      const objectiveLines = (objectives || []).map((o, i) => o.description?.trim() ? `${i + 1}. ${o.description.trim()}` : "").filter(Boolean);
       const strategiesLines = [
-        plan.estrategias_marco?.trim() ? `Marco: ${plan.estrategias_marco.trim()}` : "",
-        ...(plan.estrategias_practicas || [])
-          .map((strategy, index) => strategy.trim() ? `Estrategia práctica ${index + 1}: ${strategy.trim()}` : "")
-          .filter(Boolean),
+        plan!.estrategias_marco?.trim() ? `Marco: ${plan!.estrategias_marco.trim()}` : "",
+        ...(plan!.estrategias_practicas || []).map((s, i) => s.trim() ? `Estrategia práctica ${i + 1}: ${s.trim()}` : "").filter(Boolean),
       ].filter(Boolean);
-
-      const classesLines =
-        (planLessons || [])
-          .map((lesson) => {
-            const unitName = lessonUnits.get(lesson.id);
-            const chunks = [
-              `Clase ${lesson.lesson_number}.`,
-              unitName ? `Unidad: ${unitName}.` : "",
-              lesson.theme?.trim() ? `Tema: ${lesson.theme.trim()}.` : "",
-            ].filter(Boolean);
-            return chunks.join(" ");
-          })
-          .filter(Boolean) || [];
-
+      const classesLines = (planLessons || []).map((l) => {
+        const unitName = lessonUnits.get(l.id);
+        return [`Clase ${l.lesson_number}.`, unitName ? `Unidad: ${unitName}.` : "", l.theme?.trim() ? `Tema: ${l.theme.trim()}.` : ""].filter(Boolean).join(" ");
+      }).filter(Boolean);
       const bibliografiaLines = [
-        ...(bibliographyNodes.length > 0
-          ? ["Bibliografía curricular:", ...bibliographyNodes.map((node, index) => `  ${index + 1}. ${node.name}`)]
-          : ["Sin bibliografía curricular detectada."]),
+        ...(bibliographyNodes.length > 0 ? ["Bibliografía curricular:", ...bibliographyNodes.map((n, i) => `  ${i + 1}. ${n.name}`)] : ["Sin bibliografía curricular detectada."]),
         "",
-        ...(plan.bibliografia_curso?.trim()
-          ? ["Bibliografía del curso:", plan.bibliografia_curso.trim()]
-          : ["Sin bibliografía del curso cargada."]),
+        ...(plan!.bibliografia_curso?.trim() ? ["Bibliografía del curso:", plan!.bibliografia_curso.trim()] : ["Sin bibliografía del curso cargada."]),
       ];
 
       const sectionContent: Record<PlanExportSectionKey, { title: string; body: string[] }> = {
-        fundamentacion: {
-          title: "Fundamentación",
-          body: [plan.fundamentacion?.trim() || "Sin fundamentación cargada."],
-        },
-        objetivos: {
-          title: "Objetivos",
-          body: objectiveLines.length > 0 ? objectiveLines : ["Sin objetivos cargados."],
-        },
-        estrategias: {
-          title: "Estrategias",
-          body: strategiesLines.length > 0 ? strategiesLines : ["Sin estrategias cargadas."],
-        },
-        contenidos: {
-          title: "Contenidos",
-          body:
-            allContentNodes.length > 0
-              ? groupedContent.flatMap((g) => [
-                  g.groupLabel,
-                  ...g.children.map((node) => `  • ${node.name}`),
-                ])
-              : ["Sin contenidos curriculares mapeados."],
-        },
-        evaluacion: {
-          title: "Evaluación",
-          body: [plan.evaluacion_marco?.trim() || "Sin criterios de evaluación cargados."],
-        },
-        clases: {
-          title: "Clases",
-          body: classesLines.length > 0 ? classesLines : ["Sin clases cargadas."],
-        },
-        recursos: {
-          title: "Recursos",
-          body: [plan.resources?.trim() || "Sin recursos cargados."],
-        },
-        bibliografia: {
-          title: "Bibliografía",
-          body: bibliografiaLines,
-        },
+        fundamentacion: { title: "Fundamentación", body: [plan!.fundamentacion?.trim() || "Sin fundamentación cargada."] },
+        objetivos: { title: "Objetivos", body: objectiveLines.length > 0 ? objectiveLines : ["Sin objetivos cargados."] },
+        estrategias: { title: "Estrategias", body: strategiesLines.length > 0 ? strategiesLines : ["Sin estrategias cargadas."] },
+        contenidos: { title: "Contenidos", body: allContentNodes.length > 0 ? groupedContent.flatMap((g) => [g.groupLabel, ...g.children.map((n) => `  • ${n.name}`)]) : ["Sin contenidos curriculares mapeados."] },
+        evaluacion: { title: "Evaluación", body: [plan!.evaluacion_marco?.trim() || "Sin criterios de evaluación cargados."] },
+        clases: { title: "Clases", body: classesLines.length > 0 ? classesLines : ["Sin clases cargadas."] },
+        recursos: { title: "Recursos", body: [plan!.resources?.trim() || "Sin recursos cargados."] },
+        bibliografia: { title: "Bibliografía", body: bibliografiaLines },
       };
 
       downloadStructuredPdf({
         title: "Planificación anual",
         subtitle: "Documento de trabajo anual con fundamento, objetivos, estrategias, contenidos y recorrido de clases.",
         filename: `planificacion-anual-${planId.slice(0, 8)}.pdf`,
-        generatedAt: new Intl.DateTimeFormat("es-AR", {
-          day: "2-digit",
-          month: "long",
-          year: "numeric",
-        }).format(new Date()),
-        meta: [
-          { label: "Documento", value: "Planificación anual" },
-          { label: "Plan", value: planId.slice(0, 8).toUpperCase() },
-        ],
-        sections: exportOrder.map((sectionKey) => sectionContent[sectionKey]),
+        generatedAt: new Intl.DateTimeFormat("es-AR", { day: "2-digit", month: "long", year: "numeric" }).format(new Date()),
+        meta: [{ label: "Documento", value: "Planificación anual" }, { label: "Plan", value: planId.slice(0, 8).toUpperCase() }],
+        sections: exportOrder.map((k) => sectionContent[k]),
       });
     } catch (err: unknown) {
-      toast({
-        title: "No se pudo exportar el imprimible",
-        description: formatErrorMessage(err),
-        variant: "destructive",
-      });
+      toast({ title: "No se pudo exportar el imprimible", description: formatErrorMessage(err), variant: "destructive" });
     } finally {
       setExportingPdf(false);
     }
@@ -647,13 +641,7 @@ export default function PlanEditor({
     return (
       <Card>
         <CardContent>
-          <LoadingState
-            tips={[
-              "Cargando tu planificación...",
-              "Organizando contenidos y objetivos...",
-              "Preparando el editor...",
-            ]}
-          />
+          <LoadingState tips={["Cargando tu planificación...", "Organizando contenidos y objetivos...", "Preparando el editor..."]} />
         </CardContent>
       </Card>
     );
@@ -681,17 +669,33 @@ export default function PlanEditor({
           </div>
         )}
 
+        {/* ── Action bar ── */}
         <div className="flex flex-wrap gap-2">
           {!readOnly && (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleRebuildPlan}
-              disabled={bootstrapping || !curriculumDocumentId}
-            >
-              <RotateCcw className={cn("mr-2 h-4 w-4", bootstrapping && "animate-spin")} />
-              {bootstrapping ? "Reconstruyendo..." : "Rearmar borrador curricular"}
-            </Button>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleRebuildPlan}
+                      disabled={rebuildDisabled}
+                    >
+                      <RotateCcw className={cn("mr-2 h-4 w-4", bootstrapping && "animate-spin")} />
+                      {bootstrapping ? "Reconstruyendo..." : "Rearmar borrador curricular"}
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                {rebuildDisabled && !bootstrapping && (
+                  <TooltipContent>
+                    {!curriculumDocumentId
+                      ? "No hay documento curricular vinculado"
+                      : "El borrador ya está construido. Cambie los contenidos curriculares para habilitarlo."}
+                  </TooltipContent>
+                )}
+              </Tooltip>
+            </TooltipProvider>
           )}
           <Button type="button" variant="outline" onClick={() => setShowExportDialog(true)} disabled={exportingPdf}>
             <Download className="mr-2 h-4 w-4" />
@@ -707,39 +711,20 @@ export default function PlanEditor({
           </div>
         )}
 
+        {/* ── Export dialog ── */}
         <Dialog open={showExportDialog} onOpenChange={setShowExportDialog}>
           <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>Exportar imprimible anual</DialogTitle>
-            </DialogHeader>
-            <p className="text-sm text-muted-foreground">
-              Ordená las secciones del PDF antes de exportar. Este orden no modifica la planificación.
-            </p>
+            <DialogHeader><DialogTitle>Exportar imprimible anual</DialogTitle></DialogHeader>
+            <p className="text-sm text-muted-foreground">Ordená las secciones del PDF antes de exportar.</p>
             <div className="space-y-1">
               {exportOrder.map((sectionKey, index) => (
                 <div key={sectionKey} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
-                  <span>
-                    {index + 1}. {PLAN_EXPORT_LABELS[sectionKey]}
-                  </span>
+                  <span>{index + 1}. {PLAN_EXPORT_LABELS[sectionKey]}</span>
                   <div className="flex items-center gap-1">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={() => moveExportSection(index, -1)}
-                      disabled={index === 0}
-                    >
+                    <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => moveExportSection(index, -1)} disabled={index === 0}>
                       <ArrowUp className="h-3.5 w-3.5" />
                     </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={() => moveExportSection(index, 1)}
-                      disabled={index === exportOrder.length - 1}
-                    >
+                    <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => moveExportSection(index, 1)} disabled={index === exportOrder.length - 1}>
                       <ArrowDown className="h-3.5 w-3.5" />
                     </Button>
                   </div>
@@ -747,29 +732,17 @@ export default function PlanEditor({
               ))}
             </div>
             <div className="flex items-center justify-between pt-2">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="text-xs"
-                onClick={() => setExportOrder(DEFAULT_PLAN_EXPORT_ORDER)}
-              >
-                <RotateCcw className="mr-1 h-3 w-3" />
-                Restablecer orden
+              <Button type="button" variant="ghost" size="sm" className="text-xs" onClick={() => setExportOrder(DEFAULT_PLAN_EXPORT_ORDER)}>
+                <RotateCcw className="mr-1 h-3 w-3" /> Restablecer orden
               </Button>
-              <Button
-                type="button"
-                onClick={() => { setShowExportDialog(false); handleExportPlanPdf(); }}
-                disabled={exportingPdf}
-              >
-                <Download className="mr-2 h-4 w-4" />
-                Exportar PDF
+              <Button type="button" onClick={() => { setShowExportDialog(false); handleExportPlanPdf(); }} disabled={exportingPdf}>
+                <Download className="mr-2 h-4 w-4" /> Exportar PDF
               </Button>
             </div>
           </DialogContent>
         </Dialog>
 
-        {/* ========= NAVEGACIÓN 2×4 ========= */}
+        {/* ========= TABS 2×4 ========= */}
         <Tabs defaultValue="fundamentacion">
           <div className="rounded-lg bg-muted p-1.5 space-y-1">
             <TabsList className="grid w-full grid-cols-4 bg-transparent h-auto p-0">
@@ -790,23 +763,38 @@ export default function PlanEditor({
           <TabsContent value="fundamentacion" className="space-y-2 pt-4">
             <div className="flex items-center justify-between gap-2">
               <Label className="text-base font-semibold">Fundamentación</Label>
-              <Button type="button" variant="ghost" size="sm" onClick={() => setExpandedField("fundamentacion")}>
-                <Maximize2 className="mr-2 h-4 w-4" />
-                Expandir editar
-              </Button>
+              <div className="flex gap-1">
+                {!readOnly && !editingFundamentacion && (
+                  <Button type="button" variant="ghost" size="sm" onClick={() => { setEditingFundamentacion(true); setTimeout(() => fundamentacionRef.current?.focus(), 50); }}>
+                    <Pencil className="mr-2 h-4 w-4" /> Editar
+                  </Button>
+                )}
+                <Button type="button" variant="ghost" size="sm" onClick={() => setExpandedField("fundamentacion")}>
+                  <Maximize2 className="mr-2 h-4 w-4" /> Expandir
+                </Button>
+              </div>
             </div>
             <p className="text-xs text-muted-foreground">
-              Texto académico-docente que sostiene el enfoque del curso. Cada párrafo debe arrancar con sangría y mantener interlineado formal.
+              Texto académico-docente que sostiene el enfoque del curso. Cada párrafo tiene sangría en su primera línea.
             </p>
-            <Textarea
-              value={plan.fundamentacion}
-              onChange={(e) => updateField("fundamentacion", e.target.value)}
-              placeholder="Escribir la fundamentación del plan anual..."
-              rows={10}
-              disabled={readOnly}
-              onDoubleClick={() => setExpandedField("fundamentacion")}
-              className="indent-8 leading-relaxed whitespace-pre-wrap"
-            />
+            {editingFundamentacion ? (
+              <Textarea
+                ref={fundamentacionRef}
+                value={plan.fundamentacion}
+                onChange={(e) => updateField("fundamentacion", e.target.value)}
+                placeholder="Escribir la fundamentación del plan anual..."
+                rows={12}
+                disabled={readOnly}
+                onBlur={() => setEditingFundamentacion(false)}
+                className="leading-relaxed whitespace-pre-wrap"
+              />
+            ) : (
+              <FundamentacionPreview
+                text={plan.fundamentacion}
+                onEdit={() => { setEditingFundamentacion(true); setTimeout(() => fundamentacionRef.current?.focus(), 50); }}
+                readOnly={readOnly}
+              />
+            )}
             <p className="text-xs text-muted-foreground">{plan.fundamentacion.length} caracteres</p>
           </TabsContent>
 
@@ -829,12 +817,11 @@ export default function PlanEditor({
               <div className="flex items-center justify-between gap-2">
                 <Label className="text-base font-semibold">Estrategia marco</Label>
                 <Button type="button" variant="ghost" size="sm" onClick={() => setExpandedField("estrategias_marco")}>
-                  <Maximize2 className="mr-2 h-4 w-4" />
-                  Expandir editar
+                  <Maximize2 className="mr-2 h-4 w-4" /> Expandir editar
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">
-                Enfoque general que organiza la enseñanza durante el año. Describe la lógica didáctica que atraviesa todo el curso.
+                Enfoque general que organiza la enseñanza durante el año.
               </p>
               <Textarea
                 value={plan.estrategias_marco}
@@ -843,15 +830,12 @@ export default function PlanEditor({
                 rows={4}
                 disabled={readOnly}
                 onDoubleClick={() => setExpandedField("estrategias_marco")}
-                className="indent-8 leading-relaxed"
+                className="leading-relaxed"
               />
             </div>
-
             <div className="space-y-3">
               <Label className="text-base font-semibold">Estrategias prácticas</Label>
-              <p className="text-xs text-muted-foreground">
-                Estrategias concretas que se aplicarán en las clases. Agregue y quite según necesidad.
-              </p>
+              <p className="text-xs text-muted-foreground">Estrategias concretas que se aplicarán en las clases.</p>
               <div className="space-y-2">
                 {plan.estrategias_practicas.map((strategy, index) => (
                   <div key={index} className="flex items-center gap-2">
@@ -896,11 +880,10 @@ export default function PlanEditor({
             <div className="space-y-2">
               <Label className="text-base font-semibold">Contenidos curriculares del plan</Label>
               <p className="text-xs text-muted-foreground">
-                Estructura anual del contenido organizada por bloques, unidades o ejes. Estos temas son la base que luego se desarrollará en las clases.
+                Estructura anual del contenido organizada por bloques, unidades o ejes.
               </p>
             </div>
             <div className="rounded-md border p-4">
-              {/* Detect index noise: nodes containing "..." patterns */}
               {(() => {
                 const hasIndexNoise = allContentNodes.some((n) => /\.{3,}\s*\d+/.test(n.name));
                 if (!hasIndexNoise) return null;
@@ -911,7 +894,7 @@ export default function PlanEditor({
                       <p className="text-sm text-destructive font-medium">Los contenidos parecen ser del índice del PDF</p>
                     </div>
                     <p className="text-xs text-muted-foreground mb-2">
-                      Se detectaron entradas con puntos suspendidos y números de página, típicas de un índice. Podés corregir esto automáticamente extrayendo los módulos reales del documento.
+                      Se detectaron entradas con puntos suspendidos y números de página, típicas de un índice.
                     </p>
                     {!readOnly && curriculumDocumentId && (
                       <Button
@@ -931,10 +914,7 @@ export default function PlanEditor({
                               toast({ title: "No se pudieron corregir", description: data.error || "No se encontraron módulos reales.", variant: "destructive" });
                               return;
                             }
-                            toast({
-                              title: "Contenidos corregidos",
-                              description: `Se encontraron ${data.modules_found} módulos reales con ${data.total_nodes_created} nodos. Recargando...`,
-                            });
+                            toast({ title: "Contenidos corregidos", description: `Se encontraron ${data.modules_found} módulos reales con ${data.total_nodes_created} nodos.` });
                             await fetchMappedNodes();
                           } catch (err: unknown) {
                             toast({ title: "Error al corregir contenidos", description: formatErrorMessage(err), variant: "destructive" });
@@ -954,31 +934,23 @@ export default function PlanEditor({
                 <div className="rounded-md bg-warning/10 border border-warning/30 p-3 mb-3">
                   <p className="text-sm text-warning font-medium">Contenidos cargados desde el programa oficial</p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Estos contenidos provienen directamente del documento curricular. Para vincularlos al plan y a cada clase, use el botón "Rearmar borrador curricular".
+                    Estos contenidos provienen directamente del documento curricular. Para vincularlos al plan use "Rearmar borrador curricular".
                   </p>
                 </div>
               )}
-              <p className="text-sm text-muted-foreground mb-3">
-                {allContentNodes.length} contenidos del programa curricular.
-              </p>
+              <p className="text-sm text-muted-foreground mb-3">{allContentNodes.length} contenidos del programa curricular.</p>
               <div className="max-h-80 space-y-4 overflow-y-auto pr-1">
                 {groupedContent.length > 0 ? (
                   groupedContent.map((group) => (
                     <div key={group.groupLabel} className="space-y-1.5">
-                      <p className="text-sm font-semibold text-foreground">
-                        {group.groupLabel}
-                      </p>
+                      <p className="text-sm font-semibold text-foreground">{group.groupLabel}</p>
                       {group.children.map((node) => (
-                        <p key={node.id} className="pl-4 text-sm text-muted-foreground">
-                          • {node.name}
-                        </p>
+                        <p key={node.id} className="pl-4 text-sm text-muted-foreground">• {node.name}</p>
                       ))}
                     </div>
                   ))
                 ) : (
-                  <p className="text-sm text-muted-foreground">
-                    No hay contenidos curriculares mapeados. Revisá el programa oficial y volvé a rearmar el borrador.
-                  </p>
+                  <p className="text-sm text-muted-foreground">No hay contenidos curriculares mapeados.</p>
                 )}
               </div>
             </div>
@@ -989,12 +961,11 @@ export default function PlanEditor({
             <div className="flex items-center justify-between gap-2">
               <Label className="text-base font-semibold">Evaluación</Label>
               <Button type="button" variant="ghost" size="sm" onClick={() => setExpandedField("evaluacion_marco")}>
-                <Maximize2 className="mr-2 h-4 w-4" />
-                Expandir editar
+                <Maximize2 className="mr-2 h-4 w-4" /> Expandir editar
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Criterios de evaluación y rúbrica articulada con las unidades de contenido. Explicite cómo se seguirá, evaluará y recuperará el trabajo del curso.
+              Criterios de evaluación y rúbrica articulada con las unidades de contenido.
             </p>
             <Textarea
               value={plan.evaluacion_marco}
@@ -1004,48 +975,65 @@ export default function PlanEditor({
               disabled={readOnly}
               onDoubleClick={() => setExpandedField("evaluacion_marco")}
               className="leading-relaxed"
-             />
+            />
 
             {/* Rúbrica por módulo/unidad */}
             <div className="space-y-3 pt-4 border-t">
               <div className="flex items-center justify-between gap-2">
                 <Label className="text-base font-semibold">Rúbrica por módulo / unidad</Label>
                 {!readOnly && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={initRubricFromContent}
-                    disabled={rubricLoading}
-                  >
-                    <RotateCcw className="mr-1 h-3.5 w-3.5" />
-                    {rubricLoading ? "Generando..." : rubricItems.length > 0 ? "Regenerar desde contenidos" : "Inicializar desde contenidos"}
-                  </Button>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={initRubricFromContent}
+                            disabled={rubricLoading || rubricAligned}
+                          >
+                            <RotateCcw className="mr-1 h-3.5 w-3.5" />
+                            {rubricLoading ? "Generando..." : rubricAligned ? "Rúbrica alineada" : rubricItems.length > 0 ? "Regenerar desde contenidos" : "Inicializar desde contenidos"}
+                          </Button>
+                        </span>
+                      </TooltipTrigger>
+                      {rubricAligned && (
+                        <TooltipContent>La rúbrica ya está alineada con los {groupedContent.length} módulos.</TooltipContent>
+                      )}
+                    </Tooltip>
+                  </TooltipProvider>
                 )}
               </div>
               <p className="text-xs text-muted-foreground">
-                Criterios de evaluación específicos por cada módulo o unidad de contenido. Inicialice desde los contenidos curriculares y complete cada criterio.
+                Criterios de evaluación específicos por cada módulo o unidad de contenido.
               </p>
               {rubricItems.length > 0 ? (
                 <div className="space-y-3">
-                  {rubricItems.map((item, idx) => (
-                    <div key={item.id} className="space-y-1">
-                      <Label className="text-sm font-medium">{item.unit_label || `Módulo ${idx + 1}`}</Label>
-                      <Textarea
-                        value={item.criteria}
-                        onChange={(e) => {
-                          const updated = [...rubricItems];
-                          updated[idx] = { ...updated[idx], criteria: e.target.value };
-                          setRubricItems(updated);
-                        }}
-                        onBlur={() => saveRubricItem(item.id, item.criteria)}
-                        placeholder="Criterios de evaluación para este módulo..."
-                        rows={3}
-                        disabled={readOnly}
-                        className="leading-relaxed"
-                      />
-                    </div>
-                  ))}
+                  {rubricItems.map((item, idx) => {
+                    const moduleGroup = groupedContent[idx];
+                    const placeholder = moduleGroup
+                      ? `Criterios para evaluar comprensión de ${moduleGroup.groupLabel}. Considere los ${moduleGroup.children.length} contenidos de este módulo.`
+                      : "Criterios de evaluación para este módulo...";
+                    return (
+                      <div key={item.id} className="space-y-1">
+                        <Label className="text-sm font-medium">{item.unit_label || `Módulo ${idx + 1}`}</Label>
+                        <Textarea
+                          value={item.criteria}
+                          onChange={(e) => {
+                            const updated = [...rubricItems];
+                            updated[idx] = { ...updated[idx], criteria: e.target.value };
+                            setRubricItems(updated);
+                          }}
+                          onBlur={() => saveRubricItem(item.id, item.criteria)}
+                          placeholder={placeholder}
+                          rows={3}
+                          disabled={readOnly}
+                          className="leading-relaxed"
+                        />
+                      </div>
+                    );
+                  })}
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground italic">
@@ -1060,43 +1048,43 @@ export default function PlanEditor({
             <div className="space-y-2 mb-3">
               <Label className="text-base font-semibold">Clases del año</Label>
               <p className="text-xs text-muted-foreground">
-                Las 28 clases del curso organizadas por cuatrimestre. Cada clase pertenece a una unidad curricular y tiene su propio tema.
+                Vista compacta de las 28 clases. Haga click en el tema para editarlo. Los demás campos se completan en la vista individual de cada clase post-validación.
               </p>
             </div>
             <PlanLessonsEditor planId={planId} readOnly={readOnly} onDirty={transitionToEdited} />
           </TabsContent>
 
-          {/* 7. RECURSOS */}
-          <TabsContent value="recursos" className="space-y-2 pt-4">
+          {/* 7. RECURSOS — 4 sub-bloques */}
+          <TabsContent value="recursos" className="space-y-4 pt-4">
             <div className="flex items-center justify-between gap-2">
               <Label className="text-base font-semibold">Recursos</Label>
               <Button type="button" variant="ghost" size="sm" onClick={() => setExpandedField("resources")}>
-                <Maximize2 className="mr-2 h-4 w-4" />
-                Expandir editar
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Sección metodológica-instrumental: qué recursos se utilizarán, cómo se aprovechará la bibliografía, el programa y la orientación. Incluya herramientas, soportes y formas de trabajo.
+                <Maximize2 className="mr-2 h-4 w-4" /> Expandir
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Sección metodológica-instrumental organizada en 4 sub-bloques según el canon de forma.
             </p>
-            <Textarea
-              value={plan.resources}
-              onChange={(e) => updateField("resources", e.target.value)}
-              placeholder="Describir qué recursos se utilizarán para transmitir conocimientos, cómo se aprovechará la bibliografía y el programa, qué herramientas y soportes se emplearán, y cómo se articula con la orientación del curso..."
-              rows={8}
-              disabled={readOnly}
-              onDoubleClick={() => setExpandedField("resources")}
-              className="leading-relaxed"
-            />
+            {RESOURCE_SECTIONS.map((section) => (
+              <div key={section.key} className="space-y-1">
+                <Label className="text-sm font-medium">{section.label}</Label>
+                <Textarea
+                  value={resourceBlocks[section.key] || ""}
+                  onChange={(e) => updateResourceBlock(section.key, e.target.value)}
+                  placeholder={section.placeholder}
+                  rows={3}
+                  disabled={readOnly}
+                  className="leading-relaxed"
+                />
+              </div>
+            ))}
           </TabsContent>
 
           {/* 8. BIBLIOGRAFÍA */}
           <TabsContent value="bibliografia" className="space-y-6 pt-4">
-            {/* Bibliografía curricular */}
             <div className="space-y-2">
               <Label className="text-base font-semibold">Bibliografía curricular</Label>
-              <p className="text-xs text-muted-foreground">
-                Bibliografía que surge del diseño curricular oficial de la materia.
-              </p>
+              <p className="text-xs text-muted-foreground">Bibliografía que surge del diseño curricular oficial.</p>
               <div className="rounded-md border p-4">
                 <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
                   {bibliographyNodes.length > 0 ? (
@@ -1106,26 +1094,19 @@ export default function PlanEditor({
                       </p>
                     ))
                   ) : (
-                    <p className="text-sm text-muted-foreground">
-                      No se detectó bibliografía curricular en el programa importado. Reimportá el programa y rearmá el borrador.
-                    </p>
+                    <p className="text-sm text-muted-foreground">No se detectó bibliografía curricular en el programa importado.</p>
                   )}
                 </div>
               </div>
             </div>
-
-            {/* Bibliografía del curso */}
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-2">
                 <Label className="text-base font-semibold">Bibliografía del curso</Label>
                 <Button type="button" variant="ghost" size="sm" onClick={() => setExpandedField("bibliografia_curso")}>
-                  <Maximize2 className="mr-2 h-4 w-4" />
-                  Expandir editar
+                  <Maximize2 className="mr-2 h-4 w-4" /> Expandir editar
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Bibliografía propuesta por el docente para este curso en particular.
-              </p>
+              <p className="text-xs text-muted-foreground">Bibliografía propuesta por el docente para este curso.</p>
               <Textarea
                 value={plan.bibliografia_curso}
                 onChange={(e) => updateField("bibliografia_curso", e.target.value)}
@@ -1146,12 +1127,42 @@ export default function PlanEditor({
           </Button>
         )}
 
+        {/* ── Expanded field dialog ── */}
         <Dialog open={!!expandedField} onOpenChange={(open) => !open && setExpandedField(null)}>
           <DialogContent className="max-w-5xl">
             <DialogHeader>
               <DialogTitle>{expandedField ? fieldTitles[expandedField] : "Editor"}</DialogTitle>
             </DialogHeader>
-            {expandedField && (
+            {expandedField && expandedField === "fundamentacion" && (
+              <div className="space-y-2">
+                <Textarea
+                  value={plan.fundamentacion}
+                  onChange={(e) => updateField("fundamentacion", e.target.value)}
+                  rows={24}
+                  disabled={readOnly}
+                  className="max-h-[70vh] min-h-[60vh] leading-relaxed"
+                />
+                <p className="text-xs text-muted-foreground">{plan.fundamentacion.length} caracteres</p>
+              </div>
+            )}
+            {expandedField && expandedField === "resources" && (
+              <div className="space-y-4 max-h-[70vh] overflow-y-auto">
+                {RESOURCE_SECTIONS.map((section) => (
+                  <div key={section.key} className="space-y-1">
+                    <Label className="text-sm font-medium">{section.label}</Label>
+                    <Textarea
+                      value={resourceBlocks[section.key] || ""}
+                      onChange={(e) => updateResourceBlock(section.key, e.target.value)}
+                      placeholder={section.placeholder}
+                      rows={5}
+                      disabled={readOnly}
+                      className="leading-relaxed"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+            {expandedField && expandedField !== "fundamentacion" && expandedField !== "resources" && (
               <div className="space-y-2">
                 <Textarea
                   value={(plan as unknown as Record<string, string>)[expandedField] ?? ""}
