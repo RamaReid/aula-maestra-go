@@ -625,63 +625,73 @@ export default function PlanEditor({
               {bootstrapping ? "Reconstruyendo..." : "Rearmar borrador curricular"}
             </Button>
           )}
-          <Button type="button" variant="outline" onClick={handleExportPlanPdf} disabled={exportingPdf}>
+          <Button type="button" variant="outline" onClick={() => setShowExportDialog(true)} disabled={exportingPdf}>
             <Download className="mr-2 h-4 w-4" />
             {exportingPdf ? "Exportando..." : "Exportar imprimible"}
           </Button>
         </div>
 
-        <div className="rounded-md border p-3 space-y-2">
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-sm font-medium">Orden del imprimible anual</p>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="text-xs"
-              onClick={() => setExportOrder(DEFAULT_PLAN_EXPORT_ORDER)}
-            >
-              <RotateCcw className="mr-1 h-3 w-3" />
-              Restablecer
-            </Button>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Cambia solo el orden de salida del PDF. No modifica lo elaborado en la planificación.
-          </p>
-          <div className="space-y-1">
-            {exportOrder.map((sectionKey, index) => (
-              <div key={sectionKey} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
-                <span>
-                  {index + 1}. {PLAN_EXPORT_LABELS[sectionKey]}
-                </span>
-                <div className="flex items-center gap-1">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7"
-                    onClick={() => moveExportSection(index, -1)}
-                    disabled={index === 0}
-                    aria-label={`Subir ${PLAN_EXPORT_LABELS[sectionKey]}`}
-                  >
-                    <ArrowUp className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7"
-                    onClick={() => moveExportSection(index, 1)}
-                    disabled={index === exportOrder.length - 1}
-                    aria-label={`Bajar ${PLAN_EXPORT_LABELS[sectionKey]}`}
-                  >
-                    <ArrowDown className="h-3.5 w-3.5" />
-                  </Button>
+        <Dialog open={showExportDialog} onOpenChange={setShowExportDialog}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Exportar imprimible anual</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              Ordená las secciones del PDF antes de exportar. Este orden no modifica la planificación.
+            </p>
+            <div className="space-y-1">
+              {exportOrder.map((sectionKey, index) => (
+                <div key={sectionKey} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
+                  <span>
+                    {index + 1}. {PLAN_EXPORT_LABELS[sectionKey]}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={() => moveExportSection(index, -1)}
+                      disabled={index === 0}
+                    >
+                      <ArrowUp className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={() => moveExportSection(index, 1)}
+                      disabled={index === exportOrder.length - 1}
+                    >
+                      <ArrowDown className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        </div>
+              ))}
+            </div>
+            <div className="flex items-center justify-between pt-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-xs"
+                onClick={() => setExportOrder(DEFAULT_PLAN_EXPORT_ORDER)}
+              >
+                <RotateCcw className="mr-1 h-3 w-3" />
+                Restablecer orden
+              </Button>
+              <Button
+                type="button"
+                onClick={() => { setShowExportDialog(false); handleExportPlanPdf(); }}
+                disabled={exportingPdf}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Exportar PDF
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* ========= NAVEGACIÓN 2×4 ========= */}
         <Tabs defaultValue="fundamentacion">
