@@ -257,7 +257,7 @@ export default function PlanEditor({ planId, courseId, curriculumDocumentId, pla
     return <Badge variant="secondary">Incompleto</Badge>;
   };
 
-  const visibleMappedNodes = useMemo(() => mappedNodes.filter((node) => !isLikelyBibliographyNode(node.name)), [mappedNodes]);
+  const visibleMappedNodes = useMemo(() => mappedNodes.filter((node) => !shouldHideBibliographyNode(node.name)), [mappedNodes]);
 
   const handleExportPlanPdf = async () => {
     if (!plan) return;
