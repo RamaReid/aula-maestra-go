@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, ArrowRight, Check, ExternalLink, Loader2, Trash2 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
@@ -53,44 +53,44 @@ interface SupportedProgram {
 const ORIENTATION_SUGGESTIONS = [
   "Ciencias Sociales",
   "Ciencias Naturales",
-  "EconomÃ­a y AdministraciÃ³n",
+  "Econom\u00eda y Administraci\u00f3n",
   "Arte",
-  "ComunicaciÃ³n",
-  "EducaciÃ³n FÃ­sica",
+  "Comunicaci\u00f3n",
+  "Educaci\u00f3n F\u00edsica",
   "Lenguas Extranjeras",
 ];
 
 const TECH_SPECIALITY_SUGGESTIONS = [
-  "TÃ©cnico en AeronÃ¡utica",
-  "TÃ©cnico en Automotores",
-  "TÃ©cnico en AviÃ³nica",
-  "TÃ©cnico en ComputaciÃ³n",
-  "TÃ©cnico en ElectromecÃ¡nica",
-  "TÃ©cnico en ElectrÃ³nica",
-  "TÃ©cnico en Maestro Mayor de Obras",
-  "TÃ©cnico en Multimedios",
-  "TÃ©cnico en Naval",
-  "TÃ©cnico en QuÃ­mica",
-  "TÃ©cnico en Servicios TurÃ­sticos",
-  "TÃ©cnico en InformÃ¡tica Personal y Profesional",
-  "TÃ©cnico en AdministraciÃ³n de las Organizaciones",
-  "TÃ©cnico en ProducciÃ³n Agropecuaria con OrientaciÃ³n en Agroalimentos",
-  "InformÃ¡tica",
-  "ProgramaciÃ³n",
+  "T\u00e9cnico en Aeron\u00e1utica",
+  "T\u00e9cnico en Automotores",
+  "T\u00e9cnico en Avi\u00f3nica",
+  "T\u00e9cnico en Computaci\u00f3n",
+  "T\u00e9cnico en Electromec\u00e1nica",
+  "T\u00e9cnico en Electr\u00f3nica",
+  "T\u00e9cnico en Maestro Mayor de Obras",
+  "T\u00e9cnico en Multimedios",
+  "T\u00e9cnico en Naval",
+  "T\u00e9cnico en Qu\u00edmica",
+  "T\u00e9cnico en Servicios Tur\u00edsticos",
+  "T\u00e9cnico en Inform\u00e1tica Personal y Profesional",
+  "T\u00e9cnico en Administraci\u00f3n de las Organizaciones",
+  "T\u00e9cnico en Producci\u00f3n Agropecuaria con Orientaci\u00f3n en Agroalimentos",
+  "Inform\u00e1tica",
+  "Programaci\u00f3n",
   "Alimentos",
-  "AdministraciÃ³n agropecuaria",
+  "Administraci\u00f3n agropecuaria",
 ];
 
 const SPECIALITY_ALIAS_TO_CANON: Record<string, string> = {
-  informatica: "TÃ©cnico en InformÃ¡tica Personal y Profesional",
-  programacion: "TÃ©cnico en InformÃ¡tica Personal y Profesional",
-  alimentos: "TÃ©cnico en ProducciÃ³n Agropecuaria con OrientaciÃ³n en Agroalimentos",
-  "administracion agropecuaria": "TÃ©cnico en ProducciÃ³n Agropecuaria con OrientaciÃ³n en Agroalimentos",
+  informatica: "T\u00e9cnico en Inform\u00e1tica Personal y Profesional",
+  programacion: "T\u00e9cnico en Inform\u00e1tica Personal y Profesional",
+  alimentos: "T\u00e9cnico en Producci\u00f3n Agropecuaria con Orientaci\u00f3n en Agroalimentos",
+  "administracion agropecuaria": "T\u00e9cnico en Producci\u00f3n Agropecuaria con Orientaci\u00f3n en Agroalimentos",
 };
 
 function candidateScopeLabel(candidate: Pick<CurriculumCandidate, "school_type" | "orientation" | "speciality">): string {
   const parts = [
-    candidate.school_type || "GenÃ©rico",
+    candidate.school_type || "Gen\u00e9rico",
     candidate.orientation || null,
     candidate.speciality || null,
   ].filter(Boolean);
@@ -181,7 +181,7 @@ interface WizardState {
 const WEEKDAY_OPTIONS = [
   { value: "1", label: "Lunes" },
   { value: "2", label: "Martes" },
-  { value: "3", label: "MiÃ©rcoles" },
+  { value: "3", label: "Mi\u00e9rcoles" },
   { value: "4", label: "Jueves" },
   { value: "5", label: "Viernes" },
 ];
@@ -195,7 +195,7 @@ function contextModeLabel(value: CourseContextMode): string {
 function formatScheduleSlotSummary(slot: WizardState["scheduleSlots"][number]): string {
   const dayLabel = WEEKDAY_OPTIONS.find((option) => option.value === slot.day_of_week)?.label || "D\u00eda";
   const modulesLabel = slot.module_count === "1" ? "1 m\u00f3dulo" : `${slot.module_count} m\u00f3dulos`;
-  return `${dayLabel} · ${slot.start_time} a ${slot.end_time} · ${modulesLabel}`;
+  return `${dayLabel} \u00b7 ${slot.start_time} a ${slot.end_time} \u00b7 ${modulesLabel}`;
 }
 
 export default function CourseNew() {
@@ -429,7 +429,7 @@ export default function CourseNew() {
         setCurriculumCandidates([]);
         setSelectedCurriculumId("");
         setResolutionStatus("not_found");
-        setResolutionError(data?.reason || "No se encontrÃ³ un programa disponible para esa combinaciÃ³n.");
+        setResolutionError(data?.reason || "No se encontr\u00f3 un programa disponible para esa combinaci\u00f3n.");
       };
 
     resolveCurriculum();
@@ -561,7 +561,7 @@ export default function CourseNew() {
     if (!selectedCurriculumId) {
       toast({
         title: "Falta programa oficial",
-        description: "ResolvÃ© y confirmÃ¡ primero el programa oficial del curso.",
+        description: "Resolv\u00e9 y confirm\u00e1 primero el programa oficial del curso.",
         variant: "destructive",
       });
       return;
@@ -586,8 +586,8 @@ export default function CourseNew() {
 
       if (!limitData.can_create) {
         toast({
-          title: "LÃ­mite alcanzado",
-          description: `Alcanzaste el lÃ­mite de cursos (${limitData.current}/${limitData.max})`,
+          title: "L\u00edmite alcanzado",
+          description: `Alcanzaste el l\u00edmite de cursos (${limitData.current}/${limitData.max})`,
           variant: "destructive",
         });
         return;
@@ -675,7 +675,7 @@ export default function CourseNew() {
       if (bootstrapError) {
         toast({
           title: "Curso creado con bootstrap pendiente",
-          description: "El curso se creÃ³, pero el borrador inicial del plan no pudo completarse automÃ¡ticamente.",
+          description: "El curso se cre\u00f3, pero el borrador inicial del plan no pudo completarse autom\u00e1ticamente.",
           variant: "destructive",
         });
         navigate(courseDetailUrl(course!.id));
@@ -687,11 +687,11 @@ export default function CourseNew() {
           ? {
               title: "Curso creado con compatibilidad",
               description:
-                "El curso se creÃ³ en una base sin curriculum_document_id. El backend de Lovable Cloud sigue desactualizado.",
+                "El curso se cre\u00f3 en una base sin curriculum_document_id. El backend de Lovable Cloud sigue desactualizado.",
             }
           : {
               title: "Curso creado",
-              description: "El curso quedÃ³ vinculado a su programa oficial y recibiÃ³ un borrador inicial del plan.",
+              description: "El curso qued\u00f3 vinculado a su programa oficial y recibi\u00f3 un borrador inicial del plan.",
             }
       );
       navigate(courseDetailUrl(course!.id));
@@ -714,8 +714,7 @@ export default function CourseNew() {
           <div>
             <h1 className="text-lg font-semibold text-foreground">Nuevo curso</h1>
             <p className="text-sm text-muted-foreground">
-              Paso {wizardSteps.findIndex((item) => item.num === step) + 1} de {wizardSteps.length} â€”{" "}
-              {wizardSteps.find((item) => item.num === step)?.label}
+              Paso {wizardSteps.findIndex((item) => item.num === step) + 1} de {wizardSteps.length} {"\u2014"} {wizardSteps.find((item) => item.num === step)?.label}
             </p>
           </div>
         </div>
@@ -763,7 +762,7 @@ export default function CourseNew() {
                       speciality: "",
                     }))
                   }
-                  placeholder="Ej: FilosofÃ­a, Historia, MatemÃ¡tica..."
+                  placeholder="Ej: Filosof\u00eda, Historia, Matem\u00e1tica..."
                 />
               </div>
             )}
@@ -786,7 +785,7 @@ export default function CourseNew() {
                         }}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="ElegÃ­ una escuela..." />
+                          <SelectValue placeholder="Eleg\u00ed una escuela..." />
                         </SelectTrigger>
                         <SelectContent>
                           {schools.map((school) => (
@@ -819,24 +818,24 @@ export default function CourseNew() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="NINGUNA">Ninguna / Normal</SelectItem>
-                          <SelectItem value="ORIENTACION">OrientaciÃ³n</SelectItem>
+                          <SelectItem value="ORIENTACION">Orientaci\u00f3n</SelectItem>
                           <SelectItem value="TECNICATURA">Tecnicatura</SelectItem>
                         </SelectContent>
                       </Select>
                       <p className="text-xs text-muted-foreground">
-                        DefinÃ­ si este curso usa orientaciÃ³n, tecnicatura o ninguna modalidad extra.
+                        Defin\u00ed si este curso usa orientaci\u00f3n, tecnicatura o ninguna modalidad extra.
                       </p>
                     </div>
                     {state.contextMode === "ORIENTACION" && (
                       <div className="space-y-2">
-                        <Label>OrientaciÃ³n</Label>
+                        <Label>Orientaci\u00f3n</Label>
                         <Input
                           list="orientation-options"
                           value={state.orientation}
                           onChange={(event) =>
                             setState((prev) => ({ ...prev, orientation: event.target.value }))
                           }
-                          placeholder="Ej: Ciencias Sociales, EconomÃ­a y AdministraciÃ³n..."
+                          placeholder="Ej: Ciencias Sociales, Econom\u00eda y Administraci\u00f3n..."
                         />
                         <datalist id="orientation-options">
                           {ORIENTATION_SUGGESTIONS.map((orientation) => (
@@ -844,7 +843,7 @@ export default function CourseNew() {
                           ))}
                         </datalist>
                         <p className="text-xs text-muted-foreground">
-                          PodÃ©s elegir una sugerencia oficial o escribir una variante local.
+                          Pod\u00e9s elegir una sugerencia oficial o escribir una variante local.
                         </p>
                       </div>
                     )}
@@ -857,7 +856,7 @@ export default function CourseNew() {
                           onChange={(event) =>
                             setState((prev) => ({ ...prev, speciality: event.target.value }))
                           }
-                          placeholder="Ej: TÃ©cnico en InformÃ¡tica Personal y Profesional..."
+                          placeholder="Ej: T\u00e9cnico en Inform\u00e1tica Personal y Profesional..."
                         />
                         <datalist id="speciality-options">
                           {TECH_SPECIALITY_SUGGESTIONS.map((speciality) => (
@@ -865,7 +864,7 @@ export default function CourseNew() {
                           ))}
                         </datalist>
                         <p className="text-xs text-muted-foreground">
-                          Alias locales como â€œInformÃ¡ticaâ€ o â€œProgramaciÃ³nâ€ se normalizan al nombre canÃ³nico.
+                          Alias locales como \u201CInform\u00e1tica\u201D o \u201CProgramaci\u00f3n\u201D se normalizan al nombre can\u00f3nico.
                         </p>
                       </div>
                     )}
@@ -922,8 +921,8 @@ export default function CourseNew() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="COMUN">ComÃºn</SelectItem>
-                          <SelectItem value="TECNICA">TÃ©cnica</SelectItem>
+                          <SelectItem value="COMUN">Com\u00fan</SelectItem>
+                          <SelectItem value="TECNICA">T\u00e9cnica</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -965,11 +964,11 @@ export default function CourseNew() {
                   }
                 >
                   <SelectTrigger>
-                        <SelectValue placeholder="ElegÃ­ ciclo..." />
+                        <SelectValue placeholder="Eleg\u00ed ciclo..." />
                       </SelectTrigger>
                       <SelectContent>
                         {availableCycles.includes("BASIC") && (
-                          <SelectItem value="BASIC">Ciclo BÃ¡sico (1 a 3)</SelectItem>
+                          <SelectItem value="BASIC">Ciclo B\u00e1sico (1 a 3)</SelectItem>
                         )}
                         {availableCycles.includes("UPPER") && (
                           <SelectItem value="UPPER">Ciclo Superior (4 a 6)</SelectItem>
@@ -977,7 +976,7 @@ export default function CourseNew() {
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground">
-                      SeleccionÃ¡ el ciclo para ayudar a resolver el programa oficial correcto.
+                      Seleccion\u00e1 el ciclo para ayudar a resolver el programa oficial correcto.
                     </p>
               </div>
             )}
@@ -1284,5 +1283,3 @@ export default function CourseNew() {
     </div>
   );
 }
-
-
