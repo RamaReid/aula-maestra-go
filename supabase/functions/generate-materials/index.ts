@@ -775,7 +775,7 @@ serve(async (req) => {
 
       if (planType === "FREE" && mode === "full_session" && lessonIds.length !== 3) {
         return new Response(
-          JSON.stringify({ error: "El plan Free requiere exactamente 3 clases por sesiÃ³n" }),
+          JSON.stringify({ error: "El plan Free requiere exactamente 3 clases por sesión" }),
           { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }

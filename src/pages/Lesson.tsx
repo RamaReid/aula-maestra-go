@@ -661,7 +661,7 @@ export default function Lesson() {
             <section id="materials-section">
               <StepHeader
                 stepNumber={2}
-                title="GeneraciÃ³n"
+                title="Generación"
                 status={materialLabel(hasMaterials ? (readingMaterial?.status || teachingMaterial?.status) : null)}
                 statusTone={materialTone(hasMaterials ? (readingMaterial?.status || teachingMaterial?.status) : null)}
               />

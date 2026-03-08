@@ -627,7 +627,7 @@ export default function Course() {
                                       preparingSelection ||
                                       (!selectedLessonIds.includes(lesson.id) && selectionLimitReached)
                                     }
-                                    aria-label={`Seleccionar lecciÃ³n ${lesson.lesson_number}`}
+                                    aria-label={`Seleccionar lección ${lesson.lesson_number}`}
                                   />
                                   <div className="space-y-1">
                                     <CardTitle className="text-base">
