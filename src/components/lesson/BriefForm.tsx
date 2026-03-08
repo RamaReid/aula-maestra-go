@@ -680,7 +680,7 @@ export default function BriefForm({
         };
       const { error: requestUpdateError } = await supabase
         .from(PREMIUM_QUERY_REQUESTS_TABLE)
-        .update(requestUpdatePayload)
+        .update(requestUpdatePayload as any)
         .eq("id", premiumRequestId);
 
       if (requestUpdateError) {
