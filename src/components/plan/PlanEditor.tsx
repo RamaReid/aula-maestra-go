@@ -88,19 +88,6 @@ function buildRepairGuidance(errors: string[]) {
   return Array.from(new Set(steps));
 }
 
-function isLikelyBibliographyNode(name: string) {
-  const trimmed = name.trim();
-  const commaCount = (trimmed.match(/,/g) || []).length;
-  const hasAuthorPrefix = /^[A-ZÁÉÍÓÚÑ][^,]{1,90},/.test(trimmed);
-  const hasYear = /\b(1[89]\d{2}|20\d{2})\b/.test(trimmed);
-  const hasEditionFallback = /\bvarias\s+ediciones\b/i.test(trimmed);
-  return hasAuthorPrefix && commaCount >= 2 && (hasYear || hasEditionFallback || commaCount >= 3);
-}
-
-function isAuthorityOrNoiseNode(name: string) {
-  const normalized = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, "");
-  return normalized.includes("isbn") || normalized.includes("cdd") || normalized.includes("disenocurricular") || normalized.includes("educacionsecundaria") || normalized.includes("directorageneral") || normalized.includes("presidentadelconsejo") || normalized.includes("subsecretariadeeducacion") || normalized.includes("directoraprovincial") || normalized.includes("equipodeespecialistas") || normalized.includes("autoridades");
-}
 
 function splitParagraphs(value: string) {
   return value.split(/\n\s*\n/).map((paragraph) => paragraph.trim()).filter(Boolean);
