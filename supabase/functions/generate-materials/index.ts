@@ -941,7 +941,7 @@ serve(async (req) => {
           });
         }
 
-        course = { ...legacyCourse, curriculum_document_id: null };
+        course = { ...(legacyCourse as any), curriculum_document_id: null };
       } else if (courseWithCurriculumError) {
         await adminClient.from("lessons").update({ is_generating: false }).eq("id", lessonId);
         return new Response(JSON.stringify({ error: courseWithCurriculumError.message }), {
