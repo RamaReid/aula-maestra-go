@@ -594,7 +594,7 @@ export default function Course() {
                                 onClick={() => setSelectedLessonIds([])}
                                 disabled={selectedLessonIds.length === 0 || preparingSelection}
                               >
-                                Limpiar selecciÃ³n
+                                Limpiar selección
                               </Button>
                               <Button
                                 onClick={handlePrepareSelection}
