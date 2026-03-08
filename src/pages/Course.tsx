@@ -317,7 +317,7 @@ export default function Course() {
     if (isFreePlan && !hasExactFreeSelection) {
       toast({
         title: "El plan Free prepara 3 clases",
-        description: "En Free tenÃ©s que elegir exactamente 3 clases del mismo curso.",
+        description: "En Free tenés que elegir exactamente 3 clases del mismo curso.",
         variant: "destructive",
       });
       return;
