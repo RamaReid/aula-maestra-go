@@ -300,6 +300,62 @@ export default function PlanEditor({ planId, courseId, curriculumDocumentId, pla
 
   const visibleMappedNodes = useMemo(() => mappedNodes.filter((node) => !shouldHideBibliographyNode(node.name)), [mappedNodes]);
 
+  const integrityChecks = useMemo((): PlanIntegrityCheck[] => {
+    if (!plan) return [];
+    return [
+      {
+        label: "Contenidos",
+        ok: contentBlockCount >= 3,
+        detail: contentBlockCount === 0 ? "Sin bloques de contenido" : `${contentBlockCount} bloques definidos`,
+      },
+      {
+        label: "Anclaje curricular",
+        ok: visibleMappedNodes.length >= 1,
+        detail: visibleMappedNodes.length === 0 ? "Sin nodos curriculares mapeados" : `${visibleMappedNodes.length} nodos mapeados`,
+      },
+      {
+        label: "Bibliografía curricular",
+        ok: curriculumBibliographyNodes.length >= 1,
+        detail: curriculumBibliographyNodes.length === 0 ? "No detectada en el documento" : `${curriculumBibliographyNodes.length} referencias`,
+      },
+      {
+        label: "Bibliografía docente",
+        ok: teacherBibCount >= 1,
+        detail: teacherBibCount === 0 ? "Sin bibliografía propia cargada" : `${teacherBibCount} referencias`,
+      },
+      {
+        label: "Rúbrica",
+        ok: rubricCount >= 1,
+        detail: rubricCount === 0 ? "Sin filas de rúbrica" : `${rubricCount} filas articuladas`,
+      },
+      {
+        label: "Objetivos",
+        ok: objectiveCount >= 6 && objectiveCount <= 8,
+        detail: objectiveCount === 0 ? "Sin objetivos definidos" : `${objectiveCount}/8 objetivos`,
+      },
+      {
+        label: "Fundamentación",
+        ok: (plan.fundamentacion || "").trim().length >= 100,
+        detail: (plan.fundamentacion || "").trim().length < 100 ? "Insuficiente o vacía" : "Presente",
+      },
+      {
+        label: "Estrategias",
+        ok: (plan.estrategias_marco || "").trim().length > 0 && (plan.estrategias_practicas || []).filter(Boolean).length >= 1,
+        detail: (plan.estrategias_marco || "").trim().length === 0 ? "Falta estrategia marco" : `Marco + ${(plan.estrategias_practicas || []).filter(Boolean).length} prácticas`,
+      },
+      {
+        label: "Evaluación",
+        ok: (plan.evaluacion_marco || "").trim().length > 0,
+        detail: (plan.evaluacion_marco || "").trim().length === 0 ? "Falta criterio de evaluación" : "Presente",
+      },
+      {
+        label: "Recursos",
+        ok: (plan.resources || "").trim().length > 0,
+        detail: (plan.resources || "").trim().length === 0 ? "Sin recursos cargados" : "Presente",
+      },
+    ];
+  }, [plan, contentBlockCount, rubricCount, objectiveCount, teacherBibCount, visibleMappedNodes, curriculumBibliographyNodes]);
+
   const handleExportPlanPdf = async () => {
     if (!plan) return;
     setExportingPdf(true);
