@@ -836,7 +836,7 @@ export default function CourseNew() {
                           onChange={(event) =>
                             setState((prev) => ({ ...prev, orientation: event.target.value }))
                           }
-                          placeholder="Ej: Ciencias Sociales, EconomÃ­a y AdministraciÃ³n..."
+                          placeholder="Ej: Ciencias Sociales, Economía y Administración..."
                         />
                         <datalist id="orientation-options">
                           {ORIENTATION_SUGGESTIONS.map((orientation) => (
