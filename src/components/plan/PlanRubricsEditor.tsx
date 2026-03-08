@@ -40,7 +40,7 @@ export default function PlanRubricsEditor({ planId, readOnly, onDirty }: Props) 
   const [loading, setLoading] = useState(true);
 
   const fetchData = useCallback(async () => {
-    const [{ data: contentBlocks }, { data: rubricRows }] = await Promise.all([
+    const [{ data: contentBlocks }, { data: rubricRows }, { data: mappedNodes }] = await Promise.all([
       supabase
         .from("plan_content_blocks")
         .select("id, title, term, order_index")
@@ -53,9 +53,31 @@ export default function PlanRubricsEditor({ planId, readOnly, onDirty }: Props) 
         )
         .eq("plan_id", planId)
         .order("order_index"),
+      supabase
+        .from("plan_content_mappings")
+        .select("id, curriculum_node_id, order_index, curriculum_nodes(name, node_type)")
+        .eq("plan_id", planId)
+        .order("order_index"),
     ]);
 
-    setBlocks(contentBlocks || []);
+    // Use plan_content_blocks if available, otherwise synthesize from mapped curriculum nodes
+    let resolvedBlocks: ContentBlock[] = contentBlocks || [];
+    if (resolvedBlocks.length === 0 && mappedNodes && mappedNodes.length > 0) {
+      const unitNodes = mappedNodes.filter((m: any) => {
+        const nt = (m.curriculum_nodes as any)?.node_type;
+        return nt === "EJE" || nt === "UNIDAD" || nt === "BLOQUE";
+      });
+      if (unitNodes.length > 0) {
+        resolvedBlocks = unitNodes.map((m: any, idx: number) => ({
+          id: m.id,
+          title: (m.curriculum_nodes as any)?.name || `Bloque ${idx + 1}`,
+          term: null,
+          order_index: m.order_index ?? idx,
+        }));
+      }
+    }
+
+    setBlocks(resolvedBlocks);
     setRows(rubricRows || []);
     setLoading(false);
   }, [planId]);
