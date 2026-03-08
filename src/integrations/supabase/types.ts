@@ -772,6 +772,7 @@ export type Database = {
       }
       plans: {
         Row: {
+          bibliografia_curso: string
           course_id: string
           created_at: string
           estrategias_marco: string
@@ -785,6 +786,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          bibliografia_curso?: string
           course_id: string
           created_at?: string
           estrategias_marco?: string
@@ -798,6 +800,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          bibliografia_curso?: string
           course_id?: string
           created_at?: string
           estrategias_marco?: string
