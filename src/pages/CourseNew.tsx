@@ -824,7 +824,7 @@ export default function CourseNew() {
                         </SelectContent>
                       </Select>
                       <p className="text-xs text-muted-foreground">
-                        DefinÃ­ si este curso usa orientaciÃ³n, tecnicatura o ninguna modalidad extra.
+                        Definí si este curso usa orientación, tecnicatura o ninguna modalidad extra.
                       </p>
                     </div>
                     {state.contextMode === "ORIENTACION" && (
