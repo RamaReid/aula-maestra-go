@@ -207,6 +207,8 @@ export default function PlanEditor({
   const [exportOrder, setExportOrder] = useState<PlanExportSectionKey[]>(DEFAULT_PLAN_EXPORT_ORDER);
   const [exportingPdf, setExportingPdf] = useState(false);
   const [showExportDialog, setShowExportDialog] = useState(false);
+  const [rubricItems, setRubricItems] = useState<{ id: string; unit_label: string; criteria: string; order_index: number }[]>([]);
+  const [rubricLoading, setRubricLoading] = useState(false);
   const transitioningRef = useRef(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
