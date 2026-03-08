@@ -1,10 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { cn } from "@/lib/utils";
 
 interface PlanLesson {
   id: string;
@@ -24,35 +22,21 @@ interface Props {
   onDirty?: () => Promise<void> | void;
 }
 
-type EditableField = "theme" | "justification" | "learning_outcome" | "activities_summary";
-
-function extractCanonParts(summary: string, theme: string) {
-  const raw = summary.trim();
-  if (!raw) {
-    return {
-      operation: "",
-      evidence: "",
-      fallbackOperation: `Desarrollo guiado sobre ${theme || "la clase"}.`,
-      fallbackEvidence: `Produccion breve verificable alineada con ${theme || "la clase"}.`,
-    };
-  }
-
-  const operationMatch = raw.match(/operacion\s*:\s*([\s\S]*?)(?=evidencia minima\s*:|$)/i);
-  const evidenceMatch = raw.match(/evidencia minima\s*:\s*([\s\S]*)$/i);
-
-  return {
-    operation: (operationMatch?.[1] || "").replace(/\s+/g, " ").trim(),
-    evidence: (evidenceMatch?.[1] || "").replace(/\s+/g, " ").trim(),
-    fallbackOperation: raw.replace(/\s+/g, " ").trim(),
-    fallbackEvidence: "",
-  };
+function isLessonComplete(lesson: PlanLesson): boolean {
+  return (
+    lesson.theme.trim().length > 0 &&
+    lesson.justification.trim().length > 0 &&
+    lesson.learning_outcome.trim().length > 0 &&
+    lesson.activities_summary.trim().length > 0
+  );
 }
 
 export default function PlanLessonsEditor({ planId, readOnly, onDirty }: Props) {
   const [lessons, setLessons] = useState<PlanLesson[]>([]);
   const [loading, setLoading] = useState(true);
-  const [savingKey, setSavingKey] = useState<string | null>(null);
   const [unitMap, setUnitMap] = useState<Map<string, string>>(new Map());
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const fetchLessons = useCallback(async () => {
     const { data } = await supabase
@@ -66,10 +50,8 @@ export default function PlanLessonsEditor({ planId, readOnly, onDirty }: Props) 
     const lessonsData = data || [];
     setLessons(lessonsData);
 
-    // Fetch curriculum units linked to each lesson
     if (lessonsData.length > 0) {
       const lessonIds = lessonsData.map((l) => l.id);
-
       const { data: links } = await supabase
         .from("plan_lesson_content_links")
         .select("plan_lesson_id, plan_content_mapping_id")
@@ -77,7 +59,6 @@ export default function PlanLessonsEditor({ planId, readOnly, onDirty }: Props) 
 
       if (links && links.length > 0) {
         const mappingIds = [...new Set(links.map((l) => l.plan_content_mapping_id))];
-
         const { data: mappings } = await supabase
           .from("plan_content_mappings")
           .select("id, curriculum_node_id")
@@ -85,22 +66,17 @@ export default function PlanLessonsEditor({ planId, readOnly, onDirty }: Props) 
 
         if (mappings && mappings.length > 0) {
           const nodeIds = [...new Set(mappings.map((m) => m.curriculum_node_id))];
-
           const { data: nodes } = await supabase
             .from("curriculum_nodes")
             .select("id, name, node_type, parent_id")
             .in("id", nodeIds);
 
-          // Build nodeId -> node map
           const nodeMap = new Map((nodes || []).map((n) => [n.id, n]));
-
-          // Build mappingId -> nodeId map
           const mappingToNode = new Map(mappings.map((m) => [m.id, m.curriculum_node_id]));
 
-          // For each lesson, find the linked UNIDAD (or parent UNIDAD of linked CONTENIDO)
           const parentIdsToFetch = new Set<string>();
           for (const node of nodes || []) {
-            if (node.node_type !== "UNIDAD" && node.parent_id) {
+            if (node.node_type !== "UNIDAD" && node.node_type !== "EJE" && node.node_type !== "BLOQUE" && node.parent_id) {
               parentIdsToFetch.add(node.parent_id);
             }
           }
@@ -115,20 +91,16 @@ export default function PlanLessonsEditor({ planId, readOnly, onDirty }: Props) 
           }
 
           const newUnitMap = new Map<string, string>();
-
           for (const link of links) {
             const nodeId = mappingToNode.get(link.plan_content_mapping_id);
             if (!nodeId) continue;
             const node = nodeMap.get(nodeId);
             if (!node) continue;
-
-            // If this node IS a UNIDAD, use it directly
             if (node.node_type === "UNIDAD" || node.node_type === "EJE" || node.node_type === "BLOQUE") {
               if (!newUnitMap.has(link.plan_lesson_id)) {
                 newUnitMap.set(link.plan_lesson_id, node.name);
               }
             } else if (node.parent_id) {
-              // Look up parent
               const parent = parentNodes.get(node.parent_id) || nodeMap.get(node.parent_id);
               if (parent && (parent.node_type === "UNIDAD" || parent.node_type === "EJE" || parent.node_type === "BLOQUE")) {
                 if (!newUnitMap.has(link.plan_lesson_id)) {
@@ -137,12 +109,10 @@ export default function PlanLessonsEditor({ planId, readOnly, onDirty }: Props) 
               }
             }
           }
-
           setUnitMap(newUnitMap);
         }
       }
     }
-
     setLoading(false);
   }, [planId]);
 
@@ -150,193 +120,130 @@ export default function PlanLessonsEditor({ planId, readOnly, onDirty }: Props) 
     fetchLessons();
   }, [fetchLessons]);
 
-  const updateLocalLesson = (lessonId: string, field: EditableField, value: string) => {
-    setLessons((prev) =>
-      prev.map((lesson) => (lesson.id === lessonId ? { ...lesson, [field]: value } : lesson))
-    );
-  };
+  useEffect(() => {
+    if (editingId && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [editingId]);
 
-  const persistField = async (lessonId: string, field: EditableField, value: string) => {
+  const persistTheme = async (lessonId: string, value: string) => {
     if (readOnly) return;
-
-    setSavingKey(`${lessonId}:${field}`);
     await onDirty?.();
-    await supabase.from("plan_lessons").update({ [field]: value }).eq("id", lessonId);
-    setSavingKey(null);
+    await supabase.from("plan_lessons").update({ theme: value }).eq("id", lessonId);
+    setEditingId(null);
   };
 
   if (loading) {
     return <p className="text-sm text-muted-foreground">Cargando clases del plan...</p>;
   }
 
-  const completeLessons = lessons.filter((lesson) => {
-    const canon = extractCanonParts(lesson.activities_summary, lesson.theme);
-    return (
-      lesson.theme.trim().length > 0 &&
-      lesson.justification.trim().length > 0 &&
-      lesson.learning_outcome.trim().length > 0 &&
-      lesson.activities_summary.trim().length > 0 &&
-      (canon.operation.length > 0 || canon.fallbackOperation.length > 0) &&
-      canon.evidence.length > 0
-    );
-  }).length;
-
-  const lessonsWithOperation = lessons.filter((lesson) => {
-    const canon = extractCanonParts(lesson.activities_summary, lesson.theme);
-    return canon.operation.length > 0 || canon.fallbackOperation.length > 0;
-  }).length;
-
-  const lessonsWithEvidence = lessons.filter((lesson) => {
-    const canon = extractCanonParts(lesson.activities_summary, lesson.theme);
-    return canon.evidence.length > 0;
-  }).length;
-
+  const completeLessons = lessons.filter(isLessonComplete).length;
   const term1 = lessons.filter((l) => l.term === 1);
   const term2 = lessons.filter((l) => l.term === 2);
 
-  const renderLesson = (lesson: PlanLesson) => {
-    const canon = extractCanonParts(lesson.activities_summary, lesson.theme);
-    const missingTheme = !lesson.theme.trim();
-    const missingJustification = !lesson.justification.trim();
-    const missingOutcome = !lesson.learning_outcome.trim();
-    const missingOperation = !(canon.operation.length > 0 || canon.fallbackOperation.length > 0);
-    const missingEvidence = canon.evidence.length === 0;
-    const hasMissingFields =
-      missingTheme || missingJustification || missingOutcome || !lesson.activities_summary.trim() || missingOperation || missingEvidence;
-
+  const renderRow = (lesson: PlanLesson) => {
+    const complete = isLessonComplete(lesson);
     const unitName = unitMap.get(lesson.id);
+    const isEditing = editingId === lesson.id;
 
     return (
-      <AccordionItem key={lesson.id} value={lesson.id}>
-        <AccordionTrigger>
-          <div className="flex flex-1 flex-wrap items-center gap-2 text-left">
-            <span className="font-medium">Clase {lesson.lesson_number}</span>
-            <Badge variant="outline">T{lesson.term}</Badge>
-            {lesson.is_integrative_evaluation && <Badge variant="secondary">Integradora</Badge>}
-            {lesson.is_recovery && <Badge variant="secondary">Recuperación</Badge>}
-            {hasMissingFields ? (
-              <Badge variant="destructive">Incompleta</Badge>
-            ) : (
-              <Badge variant="default">Completa</Badge>
-            )}
-            {unitName && (
-              <span className="text-xs text-muted-foreground">
-                Unidad: {unitName}
-              </span>
-            )}
-            {lesson.theme && (
-              <span className="line-clamp-1 text-sm font-normal text-muted-foreground">
-                — {lesson.theme}
-              </span>
-            )}
-          </div>
-        </AccordionTrigger>
-        <AccordionContent className="space-y-4 pb-4">
-          {unitName && (
-            <div className="rounded-md bg-muted/50 px-3 py-2">
-              <p className="text-sm text-muted-foreground">
-                <span className="font-medium">Unidad curricular:</span> {unitName}
-              </p>
-            </div>
-          )}
-
-          <div className="space-y-2">
-            <Label>Tema de la clase</Label>
+      <div
+        key={lesson.id}
+        className={cn(
+          "grid grid-cols-[2.5rem_2rem_1fr_auto] sm:grid-cols-[2.5rem_2rem_minmax(8rem,1fr)_minmax(6rem,1fr)_auto] items-center gap-2 rounded-lg px-3 py-2 text-sm",
+          complete ? "bg-background/60" : "bg-destructive/5 border border-destructive/20"
+        )}
+      >
+        {/* Nro */}
+        <span className="font-medium text-foreground">{lesson.lesson_number}</span>
+        {/* Cuatrimestre */}
+        <span className="text-muted-foreground text-xs">T{lesson.term}</span>
+        {/* Tema (editable inline) */}
+        <div className="min-w-0">
+          {isEditing && !readOnly ? (
             <Input
+              ref={inputRef}
               value={lesson.theme}
-              disabled={readOnly}
-              onChange={(event) => updateLocalLesson(lesson.id, "theme", event.target.value)}
-              onBlur={(event) => persistField(lesson.id, "theme", event.target.value)}
-              placeholder="Tema o recorte central de la clase"
+              onChange={(e) =>
+                setLessons((prev) =>
+                  prev.map((l) => (l.id === lesson.id ? { ...l, theme: e.target.value } : l))
+                )
+              }
+              onBlur={(e) => persistTheme(lesson.id, e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") persistTheme(lesson.id, lesson.theme);
+                if (e.key === "Escape") setEditingId(null);
+              }}
+              className="h-7 text-sm"
+              placeholder="Tema de la clase..."
             />
-          </div>
-
-          <div className="space-y-2">
-            <Label>Justificación pedagógica</Label>
-            <Textarea
-              value={lesson.justification}
-              disabled={readOnly}
-              rows={3}
-              onChange={(event) => updateLocalLesson(lesson.id, "justification", event.target.value)}
-              onBlur={(event) => persistField(lesson.id, "justification", event.target.value)}
-              placeholder="Fundamentación pedagógica de esta clase en la progresión anual"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label>Resultado de aprendizaje</Label>
-            <Textarea
-              value={lesson.learning_outcome}
-              disabled={readOnly}
-              rows={3}
-              onChange={(event) => updateLocalLesson(lesson.id, "learning_outcome", event.target.value)}
-              onBlur={(event) => persistField(lesson.id, "learning_outcome", event.target.value)}
-              placeholder="Qué debería poder hacer o explicar el estudiantado al cierre"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label>Operación y evidencia mínima</Label>
-            <Textarea
-              value={lesson.activities_summary}
-              disabled={readOnly}
-              rows={4}
-              onChange={(event) => updateLocalLesson(lesson.id, "activities_summary", event.target.value)}
-              onBlur={(event) => persistField(lesson.id, "activities_summary", event.target.value)}
-              placeholder='Usa el formato: "Operación: ... Evidencia mínima: ..."'
-            />
-            <div className="space-y-1 text-xs text-muted-foreground">
-              <p>
-                Operación detectada:{" "}
-                <span className={canon.operation ? "text-foreground" : "text-destructive"}>
-                  {canon.operation || "Falta escribir la operación principal de la clase."}
-                </span>
-              </p>
-              <p>
-                Evidencia mínima detectada:{" "}
-                <span className={canon.evidence ? "text-foreground" : "text-destructive"}>
-                  {canon.evidence || "Falta explicitar la evidencia mínima que deja la clase."}
-                </span>
-              </p>
-            </div>
-          </div>
-
-          {savingKey?.startsWith(lesson.id) && (
-            <p className="text-xs text-muted-foreground">Guardando cambios...</p>
+          ) : (
+            <span
+              className={cn(
+                "block truncate cursor-pointer hover:text-primary transition-colors",
+                lesson.theme.trim() ? "text-foreground" : "text-muted-foreground italic"
+              )}
+              onClick={() => !readOnly && setEditingId(lesson.id)}
+              title={lesson.theme || "Click para editar tema"}
+            >
+              {lesson.theme.trim() || "Sin tema"}
+            </span>
           )}
-        </AccordionContent>
-      </AccordionItem>
+        </div>
+        {/* Unidad (hidden on mobile) */}
+        <span className="hidden sm:block truncate text-xs text-muted-foreground" title={unitName}>
+          {unitName || "—"}
+        </span>
+        {/* Badges */}
+        <div className="flex items-center gap-1 shrink-0">
+          {lesson.is_integrative_evaluation && <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Integ.</Badge>}
+          {lesson.is_recovery && <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Recup.</Badge>}
+          {complete ? (
+            <Badge variant="default" className="text-[10px] px-1.5 py-0">✓</Badge>
+          ) : (
+            <Badge variant="destructive" className="text-[10px] px-1.5 py-0">—</Badge>
+          )}
+        </div>
+      </div>
     );
   };
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
-          <span>{completeLessons}/{lessons.length} clases completas</span>
-          <span>{lessonsWithOperation}/{lessons.length} con operación visible</span>
-          <span>{lessonsWithEvidence}/{lessons.length} con evidencia mínima visible</span>
-        </div>
+        <span className="text-sm text-muted-foreground">
+          {completeLessons}/{lessons.length} clases completas
+        </span>
         <p className="text-xs text-muted-foreground">
-          Edite tema, justificación, resultado y el bloque de operación más evidencia mínima para cerrar la anual.
+          Click en el tema para editar. Los demás campos se completan en la vista individual de cada clase post-validación.
         </p>
       </div>
 
+      {/* Header row */}
+      <div className="grid grid-cols-[2.5rem_2rem_1fr_auto] sm:grid-cols-[2.5rem_2rem_minmax(8rem,1fr)_minmax(6rem,1fr)_auto] gap-2 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <span>#</span>
+        <span>T</span>
+        <span>Tema</span>
+        <span className="hidden sm:block">Unidad</span>
+        <span>Estado</span>
+      </div>
+
       {term1.length > 0 && (
-        <div className="space-y-2">
-          <h3 className="text-sm font-semibold text-foreground">Primer cuatrimestre</h3>
-          <Accordion type="multiple" className="w-full rounded-md border px-4">
-            {term1.map(renderLesson)}
-          </Accordion>
+        <div className="space-y-1">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-3">1er cuatrimestre</h3>
+          <div className="space-y-0.5">
+            {term1.map(renderRow)}
+          </div>
         </div>
       )}
 
       {term2.length > 0 && (
-        <div className="space-y-2">
-          <h3 className="text-sm font-semibold text-foreground">Segundo cuatrimestre</h3>
-          <Accordion type="multiple" className="w-full rounded-md border px-4">
-            {term2.map(renderLesson)}
-          </Accordion>
+        <div className="space-y-1">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-3">2do cuatrimestre</h3>
+          <div className="space-y-0.5">
+            {term2.map(renderRow)}
+          </div>
         </div>
       )}
     </div>

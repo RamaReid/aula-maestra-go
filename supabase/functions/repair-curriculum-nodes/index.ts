@@ -21,27 +21,34 @@ interface ParsedModule {
  * Parse real modules from raw_text.
  * Looks for patterns like "Módulo N", "MÓDULO N", "Módulo N:" followed by content lines.
  * Also handles "Unidad N" patterns.
+ * Continuation lines (no bullet, following a bullet) are merged into the previous child.
  */
 function parseModulesFromRawText(rawText: string): ParsedModule[] {
   const lines = rawText.split(/\n/);
   const modules: ParsedModule[] = [];
   let currentModule: ParsedModule | null = null;
   let inToc = false;
+  let lastChildWasBullet = false;
 
   for (const rawLine of lines) {
     const line = rawLine.trim();
-    if (!line) continue;
+    if (!line) {
+      lastChildWasBullet = false;
+      continue;
+    }
 
     // Detect TOC section start
     const upperLine = line.toUpperCase();
     if (upperLine === "ÍNDICE" || upperLine === "INDICE" || upperLine === "TABLA DE CONTENIDOS") {
       inToc = true;
+      lastChildWasBullet = false;
       continue;
     }
 
     // Skip TOC lines
     if (isTocLine(line)) {
       inToc = true;
+      lastChildWasBullet = false;
       continue;
     }
 
@@ -49,6 +56,7 @@ function parseModulesFromRawText(rawText: string): ParsedModule[] {
     const moduleMatch = line.match(/^(M[OÓ]DULO|UNIDAD|BLOQUE)\s+(\d+)\s*[:.–\-]?\s*(.*)/i);
     if (moduleMatch) {
       inToc = false;
+      lastChildWasBullet = false;
       const label = `${moduleMatch[1]} ${moduleMatch[2]}`;
       const subtitle = moduleMatch[3]?.trim() || "";
       const fullName = subtitle ? `${label}: ${subtitle}` : label;
@@ -58,10 +66,14 @@ function parseModulesFromRawText(rawText: string): ParsedModule[] {
     }
 
     // If we're in TOC or haven't found any module yet, skip
-    if (inToc || !currentModule) continue;
+    if (inToc || !currentModule) {
+      lastChildWasBullet = false;
+      continue;
+    }
 
     // Skip section headers that aren't content
     if (/^(PRESENTACI[OÓ]N|INTRODUCCI[OÓ]N|BIBLIOGRAF[IÍ]A|CRITERIOS DE EVALUACI[OÓ]N|EXPECTATIVAS DE LOGRO)/i.test(line)) {
+      lastChildWasBullet = false;
       continue;
     }
 
@@ -71,6 +83,7 @@ function parseModulesFromRawText(rawText: string): ParsedModule[] {
       const content = bulletMatch[1].trim();
       if (content.length > 5 && !isTocLine(content)) {
         currentModule.children.push(content);
+        lastChildWasBullet = true;
       }
       continue;
     }
@@ -81,16 +94,23 @@ function parseModulesFromRawText(rawText: string): ParsedModule[] {
       const content = numberedMatch[1].trim();
       if (content.length > 5 && !isTocLine(content)) {
         currentModule.children.push(content);
+        lastChildWasBullet = true;
       }
+      continue;
+    }
+
+    // Continuation line: no bullet, follows a bullet child — merge into last child
+    if (lastChildWasBullet && currentModule.children.length > 0 && line.length > 3 && !isTocLine(line) && /[a-záéíóúñ]{3,}/i.test(line)) {
+      const lastIdx = currentModule.children.length - 1;
+      currentModule.children[lastIdx] += " " + line;
       continue;
     }
 
     // Longer lines that look like content descriptions (not short noise)
     if (line.length > 20 && !isTocLine(line) && !/^(pág|página|\d+$)/i.test(line)) {
-      // Could be a content topic written as plain text under a module
-      // Only add if it looks like educational content (contains certain patterns)
       if (/[a-záéíóúñ]{4,}/i.test(line)) {
         currentModule.children.push(line);
+        lastChildWasBullet = false;
       }
     }
   }
