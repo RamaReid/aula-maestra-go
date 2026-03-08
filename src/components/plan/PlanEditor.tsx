@@ -488,7 +488,7 @@ export default function PlanEditor({ planId, courseId, curriculumDocumentId, pla
           </TabsContent>
           <TabsContent value="evaluacion" className="space-y-4">
             <Card><CardContent className="space-y-4 pt-5"><div className="flex items-center justify-between gap-3"><Label>Criterios de evaluación</Label><Button type="button" variant="ghost" size="sm" onClick={() => setExpandedField("evaluacion_marco")}><Maximize2 className="mr-2 h-4 w-4" />Expandir</Button></div><Textarea value={plan.evaluacion_marco} onChange={(event) => updateField("evaluacion_marco", event.target.value)} rows={6} disabled={readOnly} placeholder="Explica los criterios generales de evaluación del curso." /></CardContent></Card>
-            <PlanRubricsEditor planId={planId} readOnly={readOnly} onDirty={transitionToEdited} />
+            <PlanRubricsEditor planId={planId} readOnly={readOnly} onDirty={onRubricsDirty} />
           </TabsContent>
           <TabsContent value="clases"><PlanLessonsEditor planId={planId} courseId={courseId} readOnly={readOnly} onDirty={transitionToEdited} /></TabsContent>
           <TabsContent value="recursos" className="space-y-4">
