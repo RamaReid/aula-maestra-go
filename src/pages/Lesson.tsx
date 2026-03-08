@@ -484,8 +484,8 @@ export default function Lesson() {
           </Button>
           <div className="flex-1">
             <h1 className="text-lg font-semibold text-foreground">
-              LecciÃ³n {lesson.lesson_number}
-              {planLesson?.theme ? ` â€” ${planLesson.theme}` : ""}
+              Lección {lesson.lesson_number}
+              {planLesson?.theme ? ` — ${planLesson.theme}` : ""}
             </h1>
             <div className="flex gap-2 mt-1">
               <StatusBadge tone={lessonStatusTone(lesson.status)} label={lessonStatusLabel(lesson.status)} />
