@@ -687,7 +687,7 @@ export default function PlanEditor({
               onClick={handleRebuildPlan}
               disabled={bootstrapping || !curriculumDocumentId}
             >
-              <RotateCcw className="mr-2 h-4 w-4" />
+              <RotateCcw className={cn("mr-2 h-4 w-4", bootstrapping && "animate-spin")} />
               {bootstrapping ? "Reconstruyendo..." : "Rearmar borrador curricular"}
             </Button>
           )}
@@ -696,6 +696,14 @@ export default function PlanEditor({
             {exportingPdf ? "Exportando..." : "Exportar imprimible"}
           </Button>
         </div>
+        {bootstrapping && (
+          <div className="rounded-2xl border border-border/70 bg-card/80 p-4">
+            <ThinkingBook
+              title="Reconstruyendo el borrador del plan"
+              detail="Estamos analizando el programa y armando la estructura. Puede tardar unos segundos."
+            />
+          </div>
+        )}
 
         <Dialog open={showExportDialog} onOpenChange={setShowExportDialog}>
           <DialogContent className="max-w-md">
