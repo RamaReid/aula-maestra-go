@@ -378,7 +378,7 @@ export default function Course() {
         description:
           orderedLessonIds.length > 1
             ? `Se prepararon ${orderedLessonIds.length} clases de la secuencia seleccionada.`
-            : "La clase seleccionada quedÃ³ preparada.",
+            : "La clase seleccionada quedó preparada.",
       });
       setSelectedLessonIds([]);
       await fetchData();
