@@ -968,7 +968,7 @@ export default function PlanEditor({
                   disabled={readOnly}
                   className="max-h-[70vh] min-h-[60vh] leading-relaxed"
                 />
-                <p className="text-xs text-muted-foreground">{((plan as Record<string, string>)[expandedField] ?? "").length} caracteres</p>
+                <p className="text-xs text-muted-foreground">{((plan as unknown as Record<string, string>)[expandedField] ?? "").length} caracteres</p>
               </div>
             )}
           </DialogContent>

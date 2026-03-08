@@ -804,7 +804,7 @@ export default function BriefForm({
           <Input
             value={premiumQuery}
             onChange={(event) => setPremiumQuery(event.target.value)}
-            placeholder="Ej: video de Dario Sztajnszrajber sobre filosofia antigua para 4to ano"
+            placeholder="Ej: video de Darío Sztajnszrajber sobre filosofía antigua para 4to año"
             disabled={resolvingPremium || saving || uploading}
           />
           <div className="grid gap-2 md:grid-cols-[1fr_auto]">
