@@ -205,6 +205,7 @@ export default function PlanEditor({
   const [hasEditedAfterValidation, setHasEditedAfterValidation] = useState(false);
   const [exportOrder, setExportOrder] = useState<PlanExportSectionKey[]>(DEFAULT_PLAN_EXPORT_ORDER);
   const [exportingPdf, setExportingPdf] = useState(false);
+  const [showExportDialog, setShowExportDialog] = useState(false);
   const transitioningRef = useRef(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
