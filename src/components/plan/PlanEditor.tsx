@@ -235,6 +235,17 @@ export default function PlanEditor({
       contentNodes = ((nodes || []) as MappedCurriculumNode[]).filter((n) => !isAuthorityOrNoiseNode(n.name) && !isLikelyBibliographyNode(n.name));
     }
 
+    // Fallback: if no mappings but curriculum document exists, load nodes directly
+    if (contentNodes.length === 0 && curriculumDocumentId) {
+      const { data: docNodes } = await supabase
+        .from("curriculum_nodes")
+        .select("id, name, node_type, parent_id, order_index")
+        .eq("curriculum_document_id", curriculumDocumentId)
+        .in("node_type", ["UNIDAD", "BLOQUE", "CONTENIDO"])
+        .order("order_index");
+      contentNodes = ((docNodes || []) as MappedCurriculumNode[]).filter((n) => !isAuthorityOrNoiseNode(n.name) && !isLikelyBibliographyNode(n.name));
+    }
+
     const parentIds = Array.from(new Set(contentNodes.map((n) => n.parent_id).filter(Boolean))) as string[];
     let parentMap = new Map<string, { name: string; node_type: string }>();
     if (parentIds.length > 0) {
