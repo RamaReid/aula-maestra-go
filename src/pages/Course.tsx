@@ -575,7 +575,7 @@ export default function Course() {
                               {selectedLessons.length > 0 && (
                                 <p className="text-xs text-muted-foreground">
                                   {isFreePlan && !hasExactFreeSelection
-                                    ? `LlevÃ¡s ${selectedLessons.length}/3 clases seleccionadas.`
+                                    ? `Llevás ${selectedLessons.length}/3 clases seleccionadas.`
                                     : isFreePlan && hasSequenceSelection
                                       ? `Secuencia seleccionada: clases ${selectedLessonNumbers[0]} a ${selectedLessonNumbers[selectedLessonNumbers.length - 1]}.`
                                       : isFreePlan
