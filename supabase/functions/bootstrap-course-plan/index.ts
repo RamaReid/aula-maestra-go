@@ -1180,11 +1180,14 @@ ${nodeNames.join("\n")}
 Bibliografia curricular detectada (${bibliographyNodeNames.length} referencias):
 ${bibliographyNodeNames.length > 0 ? bibliographyNodeNames.join("\n") : "No se detecto bibliografia curricular en el documento."}`;
 
+    console.log("[bootstrap] AI call starting", { promptNodes: nodeNames.length, bibNodes: bibliographyNodeNames.length, rawTextLen: truncatedRawText.length });
     let aiPayload: Partial<BootstrapPayload> | null = null;
     try {
       const aiResponse = await callAI(lovableApiKey, [{ role: "user", content: prompt }]);
       aiPayload = JSON.parse(aiResponse.choices[0].message.content || "{}");
-    } catch {
+      console.log("[bootstrap] AI response OK", { hasBlocks: Array.isArray(aiPayload?.content_blocks), blockCount: aiPayload?.content_blocks?.length, hasObjectives: Array.isArray(aiPayload?.objectives) });
+    } catch (aiError) {
+      console.log("[bootstrap] AI failed, using fallback", { error: aiError instanceof Error ? aiError.message : String(aiError) });
       aiPayload = null;
     }
 
@@ -1194,6 +1197,7 @@ ${bibliographyNodeNames.length > 0 ? bibliographyNodeNames.join("\n") : "No se d
       nodePools.nodesForPrompt.map((node) => node.name),
       planLessons.length
     );
+    console.log("[bootstrap] Normalized payload", { blocks: normalized.content_blocks.length, objectives: normalized.objectives.length, rubrics: normalized.rubrics.length, lessons: normalized.lessons.length });
 
     await adminClient
       .from("plans")
