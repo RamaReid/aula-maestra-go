@@ -1,89 +1,36 @@
-# Plan: Validación Hard-Stop + Cierre de Evidencia
-
-## Estado actual (verificado ahora)
-
-**Tracking E2E: FUNCIONAL** — 4 filas en `ai_usage_logs`:
 
 
-| #   | Feature  | Model            | Tokens | Cost USD  | Duration |
-| --- | -------- | ---------------- | ------ | --------- | -------- |
-| 1   | teaching | gemini-2.5-flash | 1,871  | $0.000666 | 6,223ms  |
-| 2   | reading  | gemini-2.5-pro   | 5,977  | $0.050311 | 43,795ms |
-| 3   | reading  | gemini-2.5-pro   | 5,004  | $0.040153 | 37,020ms |
-| 4   | reading  | gemini-2.5-pro   | 7,018  | $0.060161 | 53,109ms |
+# Plan: Limpiar nodos de índice desde la app (sin script manual)
 
+## Problema
+El script `import-curriculum-pdfs.mjs` requiere ejecución local con Node.js y acceso al service role key. Eso no es práctico para el usuario.
 
-**Total: 19,870 tokens / $0.151291 / 4 llamadas**
+## Solución
+Crear una backend function que re-procese los `curriculum_nodes` existentes directamente en la base de datos:
 
-Lesson `b1b122c0` estado: `PLANNED`, `is_generating=false`.
-Teaching: `INVALIDATED`. Reading: `INVALIDATED` (1449 palabras, fuera de rango 1000-1300).
+1. **Nueva edge function `repair-curriculum-nodes`**: 
+   - Lee el `raw_text` de cada `curriculum_document`
+   - Detecta y elimina nodos que son entradas de índice (contienen `...` + número de página)
+   - Re-extrae los módulos reales del `raw_text` (buscando patrones como `Módulo 1`, `MÓDULO 1`, seguidos de contenido real)
+   - Reemplaza los nodos viejos con los nuevos
 
-**Baseline para hard-stop:** count=4, max(created_at)=`2026-03-08 01:26:20.466031+00`
+2. **Botón en la UI** (pestaña Contenidos del PlanEditor): 
+   - Cuando los contenidos parecen ser de índice (detectando `....` en los nombres), mostrar un aviso con botón "Corregir contenidos del programa"
+   - Al hacer clic, invoca la edge function y recarga
 
----
+## Archivos a crear/modificar
 
-## Pasos a ejecutar
+| Archivo | Cambio |
+|---|---|
+| `supabase/functions/repair-curriculum-nodes/index.ts` | Nueva function que limpia nodos de índice y re-extrae módulos reales del raw_text |
+| `src/components/plan/PlanEditor.tsx` | Botón de corrección en pestaña Contenidos cuando se detectan nodos de índice |
 
-### Paso 1 — Configurar presupuesto bloqueante
+## Detección de nodos de índice
+Un nodo se considera "de índice" si su `name` contiene `\.{3,}` (3+ puntos seguidos) o el patrón `... número`.
 
-Usar `add_secret` para crear `AI_DAILY_BUDGET_USD = 0.0001`.
-El gasto actual del día ($0.151291) ya supera este límite, por lo que el hard-stop debe activarse.
+## Extracción de módulos reales
+La function buscará en `raw_text` patrones como:
+- `Módulo N` o `MÓDULO N` seguido de texto que no sea puntos suspendidos
+- Bullets (`•`, `-`) como sub-contenidos del módulo
+- Secciones hasta el siguiente módulo o fin de documento
 
-### Paso 2 — Invocar generate-materials
-
-Llamar vía `curl_edge_functions` a `/generate-materials` con `lesson_id=b1b122c0-4161-414c-9e5a-3ffd97913ea8`.
-Resultado esperado: error `"Presupuesto diario de IA agotado"`.
-
-### Paso 3 — Verificar no inserción
-
-Ejecutar dos queries:
-
-- `SELECT count(*) FROM ai_usage_logs WHERE lesson_id = '<ID>'` — debe seguir en 4
-- `SELECT max(created_at) FROM ai_usage_logs WHERE lesson_id = '<ID>'` — debe ser idéntico al baseline
-
-### Paso 4 — Restaurar presupuesto
-
-Usar `add_secret` para setear `AI_DAILY_BUDGET_USD = 2.0`.
-
-### Paso 5 — Actualizar 4 archivos de evidencia
-
-`**docs/evidence/sql_outputs.txt**` — Agregar queries 1-5 con resultados reales:
-
-- Query 1: ai_usage_logs (4 filas con datos completos)
-- Query 2: lessons status/is_generating
-- Query 3: teaching_materials status
-- Query 4: reading_materials status + validation_reasons
-- Query 5: count/max antes y después del bloqueo
-
-`**docs/evidence/logs_extract.txt**` — Agregar logs de generate-materials:
-
-- 4 líneas AI_TRACKED (1 teaching + 3 reading)
-- Mensaje de bloqueo por presupuesto agotado
-
-`**docs/evidence/e2e_run_ids.txt**` — Agregar sección de validación tracking:
-
-- user_id, course_id, lesson_id
-- Resumen de resultados (4 calls, $0.151291)
-- Hard-stop verificado
-
-`**docs/CONTEXT_EVIDENCE_REPORT.md**` — Agregar 2 secciones:
-
-- "Tracking IA validado" con tabla de costos
-- "Budget hard-stop validado" con evidencia de bloqueo y no-inserción
-
----
-
-## Archivos a modificar
-
-
-| Archivo                           | Acción                                |
-| --------------------------------- | ------------------------------------- |
-| `docs/evidence/sql_outputs.txt`   | Agregar queries 1-5 + resultados      |
-| `docs/evidence/logs_extract.txt`  | Agregar logs tracking + hard-stop     |
-| `docs/evidence/e2e_run_ids.txt`   | Agregar IDs + resumen validación      |
-| `docs/CONTEXT_EVIDENCE_REPORT.md` | Secciones tracking + budget validados |
-
-
-No se modifican archivos de código. Solo evidencia y secreto temporal.
-
-- confirmar explícitamente que AI_DAILY_BUDGET_USD quedó restaurado a 2.0 al terminar.
