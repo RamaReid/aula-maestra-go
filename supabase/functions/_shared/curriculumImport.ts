@@ -11,7 +11,8 @@ import {
 
 export type { CurriculumCycle, SchoolType } from "./curriculumCommon.ts";
 
-type SupabaseClientLike = ReturnType<typeof createClient>;
+// deno-lint-ignore no-explicit-any
+type SupabaseClientLike = any;
 
 export type CurriculumImportPayload = {
   file_name?: string | null;

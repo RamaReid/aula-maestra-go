@@ -54,7 +54,7 @@ serve(async (req) => {
       body: JSON.stringify({ status: "cancelled" }),
     });
 
-    const syncResult = await syncMercadoPagoSubscription(adminClient, accessToken, providerSubscriptionId);
+    const syncResult = await syncMercadoPagoSubscription(adminClient as any, accessToken, providerSubscriptionId);
 
     try {
       await adminClient.from("billing_events").insert({

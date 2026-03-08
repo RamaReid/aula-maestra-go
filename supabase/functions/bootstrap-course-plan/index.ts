@@ -1,7 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-type SupabaseClientLike = ReturnType<typeof createClient>;
+// deno-lint-ignore no-explicit-any
+type SupabaseClientLike = any;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -749,7 +750,7 @@ serve(async (req) => {
       .eq("id", body.course_id)
       .single();
     if (courseError || !course) throw new Error("Curso no encontrado");
-    const courseRecord = course as CourseSummary;
+    const courseRecord = course as unknown as CourseSummary;
 
     const { data: plan, error: planError } = await userClient
       .from("plans")

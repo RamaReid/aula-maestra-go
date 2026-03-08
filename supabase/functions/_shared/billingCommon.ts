@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-type SupabaseClientLike = ReturnType<typeof createClient>;
+// deno-lint-ignore no-explicit-any
+type SupabaseClientLike = any;
 
 export const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

@@ -511,6 +511,63 @@ async function applyWatermark(pdfDoc: PDFDocument): Promise<void> {
   }
 }
 
+// ── AI cost tracking ──
+
+const MODEL_PRICING: Record<string, { inputPer1M: number; outputPer1M: number }> = {
+  "google/gemini-2.5-flash": { inputPer1M: 0.15, outputPer1M: 0.60 },
+  "google/gemini-2.5-pro": { inputPer1M: 1.25, outputPer1M: 10.0 },
+};
+
+function calculateCost(model: string, promptTokens: number, completionTokens: number): number {
+  const pricing = MODEL_PRICING[model] || { inputPer1M: 1.0, outputPer1M: 3.0 };
+  return (promptTokens * pricing.inputPer1M + completionTokens * pricing.outputPer1M) / 1_000_000;
+}
+
+async function checkDailyBudget(
+  // deno-lint-ignore no-explicit-any
+  adminClient: any,
+  userId: string
+): Promise<void> {
+  const budgetStr = Deno.env.get("AI_DAILY_BUDGET_USD") || "2.0";
+  const budget = parseFloat(budgetStr);
+  if (!Number.isFinite(budget) || budget <= 0) return;
+
+  const { data, error } = await adminClient
+    .from("ai_usage_logs")
+    .select("cost_usd")
+    .eq("user_id", userId)
+    .gte("created_at", new Date(new Date().setUTCHours(0, 0, 0, 0)).toISOString());
+
+  if (error) {
+    console.error("Budget check query failed:", error.message);
+    return; // fail-open to avoid blocking on query errors
+  }
+
+  const totalSpent = (data || []).reduce(
+    (sum: number, row: { cost_usd: number | null }) => sum + (Number(row.cost_usd) || 0),
+    0
+  );
+
+  if (totalSpent >= budget) {
+    throw new Error(
+      `Presupuesto diario de IA agotado (USD ${totalSpent.toFixed(4)} / ${budget.toFixed(2)}). No se ejecutará la llamada.`
+    );
+  }
+
+  if (totalSpent >= budget * 0.7) {
+    console.warn(`AI budget warning: USD ${totalSpent.toFixed(4)} / ${budget.toFixed(2)} (${((totalSpent / budget) * 100).toFixed(0)}%)`);
+  }
+}
+
+type AITrackingContext = {
+  // deno-lint-ignore no-explicit-any
+  adminClient: any;
+  userId: string;
+  courseId: string;
+  lessonId: string;
+  feature: string;
+};
+
 // ── AI call helper ──
 
 async function callAI(
@@ -518,8 +575,14 @@ async function callAI(
   model: string,
   messages: ChatMessage[],
   tools?: ToolDefinition[],
-  toolChoice?: ToolChoice
+  toolChoice?: ToolChoice,
+  tracking?: AITrackingContext
 ): Promise<AIResponse> {
+  // Budget check before calling
+  if (tracking) {
+    await checkDailyBudget(tracking.adminClient, tracking.userId);
+  }
+
   const body: {
     model: string;
     messages: ChatMessage[];
@@ -529,6 +592,7 @@ async function callAI(
   if (tools) body.tools = tools;
   if (toolChoice) body.tool_choice = toolChoice;
 
+  const startMs = Date.now();
   const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -544,14 +608,40 @@ async function callAI(
   }
 
   const fullResponse = await resp.json();
-  try {
-    console.log("AI_USAGE_LOG", JSON.stringify({
-      model: fullResponse.model,
-      id: fullResponse.id,
-      usage: fullResponse.usage ?? null,
-      feature: "generate-materials",
-    }));
-  } catch (_) { /* best-effort logging */ }
+  const durationMs = Date.now() - startMs;
+
+  // Persist usage tracking
+  if (tracking) {
+    try {
+      const usage = fullResponse.usage || {};
+      const promptTokens = usage.prompt_tokens || 0;
+      const completionTokens = usage.completion_tokens || 0;
+      const totalTokens = usage.total_tokens || promptTokens + completionTokens;
+      const estimated = !usage.prompt_tokens;
+      const costUsd = calculateCost(model, promptTokens, completionTokens);
+
+      await tracking.adminClient.from("ai_usage_logs").insert({
+        user_id: tracking.userId,
+        course_id: tracking.courseId,
+        lesson_id: tracking.lessonId,
+        request_id: fullResponse.id || null,
+        feature: tracking.feature,
+        model: fullResponse.model || model,
+        prompt_tokens: promptTokens,
+        completion_tokens: completionTokens,
+        total_tokens: totalTokens,
+        estimated,
+        duration_ms: durationMs,
+        cost_usd: costUsd,
+      });
+
+      console.log(`AI_TRACKED: ${tracking.feature} model=${model} tokens=${totalTokens} cost=$${costUsd.toFixed(6)} duration=${durationMs}ms`);
+    } catch (trackingError) {
+      console.error("AI usage tracking insert failed:", trackingError);
+      // Non-blocking: don't fail the generation because tracking failed
+    }
+  }
+
   return fullResponse;
 }
 
@@ -836,7 +926,7 @@ serve(async (req) => {
         .single();
 
       if (!courseWithCurriculumError && courseWithCurriculum) {
-        course = courseWithCurriculum;
+        course = courseWithCurriculum as any;
       } else if (isMissingCurriculumColumnError(courseWithCurriculumError)) {
         const { data: legacyCourse, error: legacyCourseError } = await userClient
           .from("courses")
@@ -1379,6 +1469,14 @@ REGLAS:
           },
         ];
 
+        const aiTracking: AITrackingContext = {
+          adminClient,
+          userId,
+          courseId: lesson.course_id,
+          lessonId,
+          feature: "teaching",
+        };
+
         const teachingResult = await callAI(
           lovableApiKey,
           "google/gemini-2.5-flash",
@@ -1387,7 +1485,8 @@ REGLAS:
             { role: "user", content: "Generá el material didáctico completo." },
           ],
           teachingTools,
-          { type: "function", function: { name: "create_teaching_material" } }
+          { type: "function", function: { name: "create_teaching_material" } },
+          aiTracking
         );
 
         const teachingArgs = JSON.parse(
@@ -1544,7 +1643,16 @@ REGLAS OBLIGATORIAS:
                 role: "user",
                 content: `Escribí el texto de lectura sobre "${planLesson.theme}".${retryHint}`,
               },
-            ]
+            ],
+            undefined,
+            undefined,
+            {
+              adminClient,
+              userId,
+              courseId: lesson.course_id,
+              lessonId,
+              feature: "reading",
+            }
           );
 
           readingHtml = cleanMarkdownArtifacts(readingResult.choices[0].message.content || "");
