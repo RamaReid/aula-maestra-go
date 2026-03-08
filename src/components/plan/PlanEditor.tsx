@@ -459,7 +459,7 @@ export default function PlanEditor({
     setExportingPdf(true);
 
     try {
-      const [{ data: objectives, error: objectivesError }, { data: planLessons, error: lessonsError }] =
+      const [{ data: objectives, error: objectivesError }, { data: planLessons, error: lessonsError }, lessonUnits] =
         await Promise.all([
           supabase
             .from("plan_objectives")
@@ -468,9 +468,10 @@ export default function PlanEditor({
             .order("order_index"),
           supabase
             .from("plan_lessons")
-            .select("lesson_number, term, theme, justification, learning_outcome, activities_summary")
+            .select("id, lesson_number, term, theme, justification, learning_outcome, activities_summary")
             .eq("plan_id", planId)
             .order("lesson_number"),
+          fetchLessonUnitMap(planId),
         ]);
 
       if (objectivesError) throw objectivesError;
@@ -491,12 +492,11 @@ export default function PlanEditor({
       const classesLines =
         (planLessons || [])
           .map((lesson) => {
+            const unitName = lessonUnits.get(lesson.id);
             const chunks = [
-              `Clase ${lesson.lesson_number}${lesson.term ? ` (T${lesson.term})` : ""}.`,
-              lesson.theme?.trim() ? `Foco: ${lesson.theme.trim()}.` : "",
-              lesson.justification?.trim() ? `Justificacion: ${lesson.justification.trim()}.` : "",
-              lesson.learning_outcome?.trim() ? `Resultado esperado: ${lesson.learning_outcome.trim()}.` : "",
-              lesson.activities_summary?.trim() ? `Operacion y evidencia minima: ${lesson.activities_summary.trim()}.` : "",
+              `Clase ${lesson.lesson_number}.`,
+              unitName ? `Unidad: ${unitName}.` : "",
+              lesson.theme?.trim() ? `Tema: ${lesson.theme.trim()}.` : "",
             ].filter(Boolean);
             return chunks.join(" ");
           })
