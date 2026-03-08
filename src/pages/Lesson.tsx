@@ -354,7 +354,7 @@ export default function Lesson() {
         toast({ title: "Error", description: responseData.error, variant: "destructive" });
         return;
       }
-      toast({ title: "Material didÃ¡ctico regenerado" });
+      toast({ title: "Material didáctico regenerado" });
       fetchData();
     } catch (err: unknown) {
       toast({ title: "Error", description: formatErrorMessage(err), variant: "destructive" });
