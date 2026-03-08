@@ -83,7 +83,7 @@ function extractCanonSummary(activitiesSummary?: string | null, fallbackTheme?: 
 function isLikelyBibliographyEntry(name: string): boolean {
   const trimmed = name.trim();
   const commaCount = (trimmed.match(/,/g) || []).length;
-  const hasAuthorPrefix = /^[A-ZÃÃ‰ÃÃ“ÃšÃ‘][^,]{1,90},/.test(trimmed);
+  const hasAuthorPrefix = /^[A-ZÁÉÍÓÚÑ][^,]{1,90},/.test(trimmed);
   const hasYear = /\b(1[89]\d{2}|20\d{2})\b/.test(trimmed);
   const hasEditionFallback = /\bvarias\s+ediciones\b/i.test(trimmed);
 
