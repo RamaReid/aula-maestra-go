@@ -965,7 +965,7 @@ export default function CourseNew() {
                   }
                 >
                   <SelectTrigger>
-                        <SelectValue placeholder="ElegÃ­ ciclo..." />
+                        <SelectValue placeholder="Elegí ciclo..." />
                       </SelectTrigger>
                       <SelectContent>
                         {availableCycles.includes("BASIC") && (
