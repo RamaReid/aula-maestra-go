@@ -667,7 +667,7 @@ export default function BriefForm({
         target_type: "LESSON",
         lesson_id: lessonId,
       };
-      const { error: targetError } = await supabase.from(AUTHORIZED_SOURCE_TARGETS_TABLE).insert(targetPayload);
+      const { error: targetError } = await supabase.from(AUTHORIZED_SOURCE_TARGETS_TABLE).insert(targetPayload as any);
       if (targetError) {
         toast({ title: "No se pudo asociar la fuente a la clase", variant: "destructive" });
         return;
