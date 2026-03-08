@@ -207,6 +207,47 @@ export default function PlanEditor({ planId, courseId, curriculumDocumentId, pla
     transitioningRef.current = false;
   }, [currentStatus, planId, readOnly]);
 
+  // Refresh individual integrity counts after sub-editor mutations
+  const refreshContentBlockCount = useCallback(async () => {
+    const { count } = await supabase.from("plan_content_blocks").select("id", { count: "exact", head: true }).eq("plan_id", planId);
+    setContentBlockCount(count || 0);
+  }, [planId]);
+
+  const refreshRubricCount = useCallback(async () => {
+    const { count } = await supabase.from("plan_rubrics").select("id", { count: "exact", head: true }).eq("plan_id", planId);
+    setRubricCount(count || 0);
+  }, [planId]);
+
+  const refreshObjectiveCount = useCallback(async () => {
+    const { count } = await supabase.from("plan_objectives").select("id", { count: "exact", head: true }).eq("plan_id", planId);
+    setObjectiveCount(count || 0);
+  }, [planId]);
+
+  const refreshTeacherBibCount = useCallback(async () => {
+    const { count } = await supabase.from("plan_teacher_bibliography_entries").select("id", { count: "exact", head: true }).eq("plan_id", planId);
+    setTeacherBibCount(count || 0);
+  }, [planId]);
+
+  const onContentBlocksDirty = useCallback(async () => {
+    await transitionToEdited();
+    await refreshContentBlockCount();
+  }, [transitionToEdited, refreshContentBlockCount]);
+
+  const onRubricsDirty = useCallback(async () => {
+    await transitionToEdited();
+    await refreshRubricCount();
+  }, [transitionToEdited, refreshRubricCount]);
+
+  const onObjectivesDirty = useCallback(async () => {
+    await transitionToEdited();
+    await refreshObjectiveCount();
+  }, [transitionToEdited, refreshObjectiveCount]);
+
+  const onTeacherBibDirty = useCallback(async () => {
+    await transitionToEdited();
+    await refreshTeacherBibCount();
+  }, [transitionToEdited, refreshTeacherBibCount]);
+
   const saveField = useCallback((field: keyof PlanData, value: string | string[]) => {
     if (readOnly) return;
     setValidationErrors([]);
