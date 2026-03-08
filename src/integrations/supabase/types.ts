@@ -14,6 +14,57 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_usage_logs: {
+        Row: {
+          completion_tokens: number | null
+          cost_usd: number | null
+          course_id: string | null
+          created_at: string | null
+          duration_ms: number | null
+          estimated: boolean | null
+          feature: string
+          id: string
+          lesson_id: string | null
+          model: string
+          prompt_tokens: number | null
+          request_id: string | null
+          total_tokens: number | null
+          user_id: string
+        }
+        Insert: {
+          completion_tokens?: number | null
+          cost_usd?: number | null
+          course_id?: string | null
+          created_at?: string | null
+          duration_ms?: number | null
+          estimated?: boolean | null
+          feature: string
+          id?: string
+          lesson_id?: string | null
+          model: string
+          prompt_tokens?: number | null
+          request_id?: string | null
+          total_tokens?: number | null
+          user_id: string
+        }
+        Update: {
+          completion_tokens?: number | null
+          cost_usd?: number | null
+          course_id?: string | null
+          created_at?: string | null
+          duration_ms?: number | null
+          estimated?: boolean | null
+          feature?: string
+          id?: string
+          lesson_id?: string | null
+          model?: string
+          prompt_tokens?: number | null
+          request_id?: string | null
+          total_tokens?: number | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       authorized_source_targets: {
         Row: {
           created_at: string

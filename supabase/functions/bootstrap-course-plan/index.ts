@@ -750,7 +750,7 @@ serve(async (req) => {
       .eq("id", body.course_id)
       .single();
     if (courseError || !course) throw new Error("Curso no encontrado");
-    const courseRecord = course as CourseSummary;
+    const courseRecord = course as unknown as CourseSummary;
 
     const { data: plan, error: planError } = await userClient
       .from("plans")

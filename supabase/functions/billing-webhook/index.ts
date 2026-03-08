@@ -109,7 +109,7 @@ serve(async (req) => {
       return jsonResponse({ received: true, ignored: true });
     }
 
-    const { preapproval, userId } = await syncMercadoPagoSubscription(adminClient, accessToken, dataId);
+    const { preapproval, userId } = await syncMercadoPagoSubscription(adminClient as any, accessToken, dataId);
 
     await adminClient
       .from("billing_events")

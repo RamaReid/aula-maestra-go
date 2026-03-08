@@ -836,7 +836,7 @@ serve(async (req) => {
         .single();
 
       if (!courseWithCurriculumError && courseWithCurriculum) {
-        course = courseWithCurriculum;
+        course = courseWithCurriculum as any;
       } else if (isMissingCurriculumColumnError(courseWithCurriculumError)) {
         const { data: legacyCourse, error: legacyCourseError } = await userClient
           .from("courses")
