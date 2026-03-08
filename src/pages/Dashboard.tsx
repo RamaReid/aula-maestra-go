@@ -253,7 +253,7 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card">
-        <div className="mx-auto flex max-w-4xl items-center justify-center px-4 py-4">
+        <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-4">
           <div className="flex items-center gap-3">
             <div>
               <h1 className="text-lg font-semibold text-foreground">
@@ -261,7 +261,8 @@ export default function Dashboard() {
               </h1>
               <p className="text-sm text-muted-foreground">{profile?.email}</p>
             </div>
-            <PlanSwitcher planType={planType} isQaUser={isQaUser} switchingPlan={switchingPlan} onPlanSwitch={handlePlanSwitch} />
+          </div>
+          <PlanSwitcher planType={planType} isQaUser={isQaUser} switchingPlan={switchingPlan} onPlanSwitch={handlePlanSwitch} />
           </div>
           <div className="flex items-center gap-2">
             <Button asChild variant="outline" size="sm">
