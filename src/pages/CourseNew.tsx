@@ -786,7 +786,7 @@ export default function CourseNew() {
                         }}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="ElegÃ­ una escuela..." />
+                          <SelectValue placeholder="Elegí una escuela..." />
                         </SelectTrigger>
                         <SelectContent>
                           {schools.map((school) => (
