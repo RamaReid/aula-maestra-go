@@ -1,89 +1,93 @@
-# Plan: Validación Hard-Stop + Cierre de Evidencia
+Implementar exactamente este ajuste de unificación tipográfica global, sin tocar lógica ni APIs.
 
-## Estado actual (verificado ahora)
+Archivos y cambios exactos:
 
-**Tracking E2E: FUNCIONAL** — 4 filas en `ai_usage_logs`:
+1. `tailwind.config.ts`
 
+Agregar `fontFamily` dentro de `theme.extend`:
 
-| #   | Feature  | Model            | Tokens | Cost USD  | Duration |
-| --- | -------- | ---------------- | ------ | --------- | -------- |
-| 1   | teaching | gemini-2.5-flash | 1,871  | $0.000666 | 6,223ms  |
-| 2   | reading  | gemini-2.5-pro   | 5,977  | $0.050311 | 43,795ms |
-| 3   | reading  | gemini-2.5-pro   | 5,004  | $0.040153 | 37,020ms |
-| 4   | reading  | gemini-2.5-pro   | 7,018  | $0.060161 | 53,109ms |
+```ts
 
+fontFamily: {
 
-**Total: 19,870 tokens / $0.151291 / 4 llamadas**
+  sans: ['"Inter"', 'system-ui', 'sans-serif'],
 
-Lesson `b1b122c0` estado: `PLANNED`, `is_generating=false`.
-Teaching: `INVALIDATED`. Reading: `INVALIDATED` (1449 palabras, fuera de rango 1000-1300).
+  serif: ['"Lora"', '"Georgia"', 'serif'],
 
-**Baseline para hard-stop:** count=4, max(created_at)=`2026-03-08 01:26:20.466031+00`
+},
 
----
+```
 
-## Pasos a ejecutar
+2. `index.html`
 
-### Paso 1 — Configurar presupuesto bloqueante
+Agregar en el `<head>`:
 
-Usar `add_secret` para crear `AI_DAILY_BUDGET_USD = 0.0001`.
-El gasto actual del día ($0.151291) ya supera este límite, por lo que el hard-stop debe activarse.
+```html
 
-### Paso 2 — Invocar generate-materials
+<link rel="preconnect" href="[https://fonts.googleapis.com](https://fonts.googleapis.com)" />
 
-Llamar vía `curl_edge_functions` a `/generate-materials` con `lesson_id=b1b122c0-4161-414c-9e5a-3ffd97913ea8`.
-Resultado esperado: error `"Presupuesto diario de IA agotado"`.
+<link rel="preconnect" href="[https://fonts.gstatic.com](https://fonts.gstatic.com)" crossorigin />
 
-### Paso 3 — Verificar no inserción
+<link href="[https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Lora:wght@600;700&display=swap](https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Lora:wght@600;700&display=swap)" rel="stylesheet" />
 
-Ejecutar dos queries:
+```
 
-- `SELECT count(*) FROM ai_usage_logs WHERE lesson_id = '<ID>'` — debe seguir en 4
-- `SELECT max(created_at) FROM ai_usage_logs WHERE lesson_id = '<ID>'` — debe ser idéntico al baseline
+3. `src/components/ui/StepHeader.tsx`
 
-### Paso 4 — Restaurar presupuesto
+Quitar `font-serif` del `h2`:
 
-Usar `add_secret` para setear `AI_DAILY_BUDGET_USD = 2.0`.
+```tsx
 
-### Paso 5 — Actualizar 4 archivos de evidencia
+- <h2 className="font-serif text-2xl font-semibold tracking-tight text-foreground">
 
-`**docs/evidence/sql_outputs.txt**` — Agregar queries 1-5 con resultados reales:
++ <h2 className="text-2xl font-semibold tracking-tight text-foreground">
 
-- Query 1: ai_usage_logs (4 filas con datos completos)
-- Query 2: lessons status/is_generating
-- Query 3: teaching_materials status
-- Query 4: reading_materials status + validation_reasons
-- Query 5: count/max antes y después del bloqueo
+```
 
-`**docs/evidence/logs_extract.txt**` — Agregar logs de generate-materials:
+4. `src/components/ui/EmptyState.tsx`
 
-- 4 líneas AI_TRACKED (1 teaching + 3 reading)
-- Mensaje de bloqueo por presupuesto agotado
+Quitar `font-serif` del texto principal:
 
-`**docs/evidence/e2e_run_ids.txt**` — Agregar sección de validación tracking:
+```tsx
 
-- user_id, course_id, lesson_id
-- Resumen de resultados (4 calls, $0.151291)
-- Hard-stop verificado
+- <p className="font-serif text-2xl font-semibold tracking-tight text-foreground">
 
-`**docs/CONTEXT_EVIDENCE_REPORT.md**` — Agregar 2 secciones:
++ <p className="text-2xl font-semibold tracking-tight text-foreground">
 
-- "Tracking IA validado" con tabla de costos
-- "Budget hard-stop validado" con evidencia de bloqueo y no-inserción
+```
 
----
+5. `src/components/lesson/CopilotPanel.tsx`
 
-## Archivos a modificar
+Quitar `font-serif` del `h3`:
 
+```tsx
 
-| Archivo                           | Acción                                |
-| --------------------------------- | ------------------------------------- |
-| `docs/evidence/sql_outputs.txt`   | Agregar queries 1-5 + resultados      |
-| `docs/evidence/logs_extract.txt`  | Agregar logs tracking + hard-stop     |
-| `docs/evidence/e2e_run_ids.txt`   | Agregar IDs + resumen validación      |
-| `docs/CONTEXT_EVIDENCE_REPORT.md` | Secciones tracking + budget validados |
+- <h3 className="font-serif text-xl font-semibold tracking-tight text-foreground">
 
++ <h3 className="text-xl font-semibold tracking-tight text-foreground">
 
-No se modifican archivos de código. Solo evidencia y secreto temporal.
+```
 
-- confirmar explícitamente que AI_DAILY_BUDGET_USD quedó restaurado a 2.0 al terminar.
+Conservar sin cambios:
+
+- `src/index.css`: mantener `font-serif` en `.document-title`, `.document-section-heading` y `.editorial-prose h1-h3`.
+
+- `src/components/ui/chart.tsx`: mantener `font-mono` para valores numéricos/tabulares.
+
+Verificación obligatoria:
+
+- `rg -n "font-serif" src` debe mostrar solo las 3 reglas documentales de `src/index.css`.
+
+- `rg -n "font-mono" src` debe mostrar solo el uso técnico justificado en `chart.tsx`.
+
+- `npm run build`
+
+- `npm run test`
+
+Entrega esperada:
+
+- 5 archivos modificados.
+
+- 0 cambios de lógica.
+
+- Diff final + evidencia de verificación.
