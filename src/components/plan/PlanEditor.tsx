@@ -643,8 +643,14 @@ export default function PlanEditor({
   if (loading || !plan) {
     return (
       <Card>
-        <CardContent className="py-8 text-center">
-          <p className="text-muted-foreground">Cargando plan...</p>
+        <CardContent>
+          <LoadingState
+            tips={[
+              "Cargando tu planificación...",
+              "Organizando contenidos y objetivos...",
+              "Preparando el editor...",
+            ]}
+          />
         </CardContent>
       </Card>
     );

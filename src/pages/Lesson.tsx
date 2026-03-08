@@ -429,9 +429,15 @@ export default function Lesson() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background p-8">
-        <SkeletonList count={4} />
-      </div>
+      <LoadingState
+        variant="page"
+        tips={[
+          "Cargando la clase...",
+          "Buscando materiales y recursos...",
+          "Organizando el contenido pedagógico...",
+          "Ya casi está todo listo...",
+        ]}
+      />
     );
   }
 

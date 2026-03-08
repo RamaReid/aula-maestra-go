@@ -73,8 +73,14 @@ export default function AgendaView({ courseId, readOnly = false }: Props) {
   if (loading) {
     return (
       <Card>
-        <CardContent className="py-8 text-center">
-          <p className="text-muted-foreground">Cargando agenda...</p>
+        <CardContent>
+          <LoadingState
+            tips={[
+              "Cargando la agenda del curso...",
+              "Organizando las clases...",
+              "Preparando el calendario...",
+            ]}
+          />
         </CardContent>
       </Card>
     );
