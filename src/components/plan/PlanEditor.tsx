@@ -197,8 +197,8 @@ export default function PlanEditor({
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [newStrategy, setNewStrategy] = useState("");
   const [expandedField, setExpandedField] = useState<ExpandableField | null>(null);
-  const [mappedNodes, setMappedNodes] = useState<MappedCurriculumNode[]>([]);
-  const [currentStatus, setCurrentStatus] = useState(planStatus);
+  const [bibliographyNodes, setBibliographyNodes] = useState<BibNode[]>([]);
+  const [groupedContent, setGroupedContent] = useState<GroupedContent[]>([]);
   const [hasEditedAfterValidation, setHasEditedAfterValidation] = useState(false);
   const [exportOrder, setExportOrder] = useState<PlanExportSectionKey[]>(DEFAULT_PLAN_EXPORT_ORDER);
   const [exportingPdf, setExportingPdf] = useState(false);
