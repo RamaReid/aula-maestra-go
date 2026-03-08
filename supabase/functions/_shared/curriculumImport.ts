@@ -195,11 +195,20 @@ function isLikelySectionHeading(line: string): boolean {
 }
 
 function isLikelyUnitHeading(line: string): boolean {
-  return /^(modulo|m[oó]dulo|unidad)\s+\d+/i.test(line.trim());
+  const trimmed = line.trim();
+  // Skip TOC entries: lines with dot leaders or page numbers like "Módulo 1 ........... 16"
+  if (/\.{3,}/.test(trimmed)) return false;
+  if (/\d+\s*$/.test(trimmed) && /\.{2,}|…/.test(trimmed)) return false;
+  return /^(modulo|m[oó]dulo|unidad)\s+\d+/i.test(trimmed);
 }
 
 function isTocLine(line: string): boolean {
-  return /\.{3,}\s*\d+/.test(line);
+  // Lines with dot leaders (.....) or page-number patterns typical of a table of contents
+  if (/\.{4,}/.test(line)) return true;
+  if (/…{2,}/.test(line)) return true;
+  // Pattern: text followed by dots and a page number at the end
+  if (/\.{2,}\s*\d+\s*$/.test(line)) return true;
+  return false;
 }
 
 function isLikelyContentLine(line: string): boolean {
