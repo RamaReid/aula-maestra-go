@@ -89,6 +89,12 @@ function buildRepairGuidance(errors: string[]) {
 }
 
 
+interface PlanIntegrityCheck {
+  label: string;
+  ok: boolean;
+  detail: string;
+}
+
 function splitParagraphs(value: string) {
   return value.split(/\n\s*\n/).map((paragraph) => paragraph.trim()).filter(Boolean);
 }
@@ -103,6 +109,10 @@ export default function PlanEditor({ planId, courseId, curriculumDocumentId, pla
   const [mappedNodes, setMappedNodes] = useState<MappedCurriculumNode[]>([]);
   const [curriculumBibliographyNodes, setCurriculumBibliographyNodes] = useState<MappedCurriculumNode[]>([]);
   const [bibliographyRepairStatus, setBibliographyRepairStatus] = useState<"idle" | "repairing" | "failed">("idle");
+  const [contentBlockCount, setContentBlockCount] = useState(0);
+  const [rubricCount, setRubricCount] = useState(0);
+  const [objectiveCount, setObjectiveCount] = useState(0);
+  const [teacherBibCount, setTeacherBibCount] = useState(0);
   const [currentStatus, setCurrentStatus] = useState(planStatus);
   const [hasEditedAfterValidation, setHasEditedAfterValidation] = useState(planStatus === "EDITED");
   const [exportingPdf, setExportingPdf] = useState(false);
@@ -170,8 +180,18 @@ export default function PlanEditor({ planId, courseId, curriculumDocumentId, pla
 
   useEffect(() => {
     const fetchPlan = async () => {
-      const { data } = await supabase.from("plans").select("fundamentacion, estrategias_marco, estrategias_practicas, evaluacion_marco, resources").eq("id", planId).single();
+      const [{ data }, { count: blocksCount }, { count: rubricsCount }, { count: objectivesCount }, { count: teacherBibsCount }] = await Promise.all([
+        supabase.from("plans").select("fundamentacion, estrategias_marco, estrategias_practicas, evaluacion_marco, resources").eq("id", planId).single(),
+        supabase.from("plan_content_blocks").select("id", { count: "exact", head: true }).eq("plan_id", planId),
+        supabase.from("plan_rubrics").select("id", { count: "exact", head: true }).eq("plan_id", planId),
+        supabase.from("plan_objectives").select("id", { count: "exact", head: true }).eq("plan_id", planId),
+        supabase.from("plan_teacher_bibliography_entries").select("id", { count: "exact", head: true }).eq("plan_id", planId),
+      ]);
       if (data) setPlan(data);
+      setContentBlockCount(blocksCount || 0);
+      setRubricCount(rubricsCount || 0);
+      setObjectiveCount(objectivesCount || 0);
+      setTeacherBibCount(teacherBibsCount || 0);
       await Promise.all([fetchMappedNodes(), fetchCurriculumBibliography()]);
       setLoading(false);
     };
@@ -280,6 +300,62 @@ export default function PlanEditor({ planId, courseId, curriculumDocumentId, pla
 
   const visibleMappedNodes = useMemo(() => mappedNodes.filter((node) => !shouldHideBibliographyNode(node.name)), [mappedNodes]);
 
+  const integrityChecks = useMemo((): PlanIntegrityCheck[] => {
+    if (!plan) return [];
+    return [
+      {
+        label: "Contenidos",
+        ok: contentBlockCount >= 3,
+        detail: contentBlockCount === 0 ? "Sin bloques de contenido" : `${contentBlockCount} bloques definidos`,
+      },
+      {
+        label: "Anclaje curricular",
+        ok: visibleMappedNodes.length >= 1,
+        detail: visibleMappedNodes.length === 0 ? "Sin nodos curriculares mapeados" : `${visibleMappedNodes.length} nodos mapeados`,
+      },
+      {
+        label: "Bibliografía curricular",
+        ok: curriculumBibliographyNodes.length >= 1,
+        detail: curriculumBibliographyNodes.length === 0 ? "No detectada en el documento" : `${curriculumBibliographyNodes.length} referencias`,
+      },
+      {
+        label: "Bibliografía docente",
+        ok: teacherBibCount >= 1,
+        detail: teacherBibCount === 0 ? "Sin bibliografía propia cargada" : `${teacherBibCount} referencias`,
+      },
+      {
+        label: "Rúbrica",
+        ok: rubricCount >= 1,
+        detail: rubricCount === 0 ? "Sin filas de rúbrica" : `${rubricCount} filas articuladas`,
+      },
+      {
+        label: "Objetivos",
+        ok: objectiveCount >= 6 && objectiveCount <= 8,
+        detail: objectiveCount === 0 ? "Sin objetivos definidos" : `${objectiveCount}/8 objetivos`,
+      },
+      {
+        label: "Fundamentación",
+        ok: (plan.fundamentacion || "").trim().length >= 100,
+        detail: (plan.fundamentacion || "").trim().length < 100 ? "Insuficiente o vacía" : "Presente",
+      },
+      {
+        label: "Estrategias",
+        ok: (plan.estrategias_marco || "").trim().length > 0 && (plan.estrategias_practicas || []).filter(Boolean).length >= 1,
+        detail: (plan.estrategias_marco || "").trim().length === 0 ? "Falta estrategia marco" : `Marco + ${(plan.estrategias_practicas || []).filter(Boolean).length} prácticas`,
+      },
+      {
+        label: "Evaluación",
+        ok: (plan.evaluacion_marco || "").trim().length > 0,
+        detail: (plan.evaluacion_marco || "").trim().length === 0 ? "Falta criterio de evaluación" : "Presente",
+      },
+      {
+        label: "Recursos",
+        ok: (plan.resources || "").trim().length > 0,
+        detail: (plan.resources || "").trim().length === 0 ? "Sin recursos cargados" : "Presente",
+      },
+    ];
+  }, [plan, contentBlockCount, rubricCount, objectiveCount, teacherBibCount, visibleMappedNodes, curriculumBibliographyNodes]);
+
   const handleExportPlanPdf = async () => {
     if (!plan) return;
     setExportingPdf(true);
@@ -336,6 +412,22 @@ export default function PlanEditor({ planId, courseId, curriculumDocumentId, pla
       </CardHeader>
       <CardContent className="space-y-5 pt-6">
         <InlineValidationSummary errors={validationErrors} />
+        {integrityChecks.length > 0 && (
+          <div className="rounded-xl border bg-muted/20 p-4 space-y-3">
+            <p className="text-sm font-medium text-foreground">Estado de la planificación anual</p>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3 md:grid-cols-5">
+              {integrityChecks.map((check) => (
+                <div key={check.label} className="flex items-center gap-2">
+                  <div className={`h-2 w-2 shrink-0 rounded-full ${check.ok ? "bg-emerald-500" : "bg-destructive"}`} />
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-foreground truncate">{check.label}</p>
+                    <p className="text-[11px] text-muted-foreground truncate">{check.detail}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         {repairGuidance.length > 0 ? <div className="rounded-xl border border-warning/30 bg-warning/10 p-4"><p className="text-sm font-medium text-warning">Ajustes sugeridos para validar la anual</p><div className="mt-2 space-y-1 text-sm text-foreground">{repairGuidance.map((step, index) => <p key={`${step}-${index}`}>{step}</p>)}</div></div> : null}
         <Tabs defaultValue="fundamentacion" className="space-y-5">
           <TabsList className="grid h-auto w-full grid-cols-4 gap-2 rounded-2xl bg-muted/40 p-2">
