@@ -307,8 +307,8 @@ export default function Course() {
   const handlePrepareSelection = async () => {
     if (selectedLessons.length === 0) {
       toast({
-        title: "ElegÃ­ al menos una clase",
-        description: "SeleccionÃ¡ una clase o una secuencia corta antes de preparar.",
+        title: "Elegí al menos una clase",
+        description: "Seleccioná una clase o una secuencia corta antes de preparar.",
         variant: "destructive",
       });
       return;
