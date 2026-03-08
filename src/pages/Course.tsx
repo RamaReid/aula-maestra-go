@@ -292,10 +292,10 @@ export default function Course() {
       }
       if (current.length >= maxSelectableLessons) {
         toast({
-          title: "LÃ­mite de sesiÃ³n",
+          title: "Límite de sesión",
           description: isFreePlan
-            ? `En Free podÃ©s preparar exactamente ${requiredFreeSelectionCount} clases por sesiÃ³n.`
-            : `PodÃ©s seleccionar hasta ${maxSelectableLessons} clases, que son las clases disponibles en este curso.`,
+            ? `En Free podés preparar exactamente ${requiredFreeSelectionCount} clases por sesión.`
+            : `Podés seleccionar hasta ${maxSelectableLessons} clases, que son las clases disponibles en este curso.`,
           variant: "destructive",
         });
         return current;
@@ -307,8 +307,8 @@ export default function Course() {
   const handlePrepareSelection = async () => {
     if (selectedLessons.length === 0) {
       toast({
-        title: "ElegÃ­ al menos una clase",
-        description: "SeleccionÃ¡ una clase o una secuencia corta antes de preparar.",
+        title: "Elegí al menos una clase",
+        description: "Seleccioná una clase o una secuencia corta antes de preparar.",
         variant: "destructive",
       });
       return;
@@ -317,7 +317,7 @@ export default function Course() {
     if (isFreePlan && !hasExactFreeSelection) {
       toast({
         title: "El plan Free prepara 3 clases",
-        description: "En Free tenÃ©s que elegir exactamente 3 clases del mismo curso.",
+        description: "En Free tenés que elegir exactamente 3 clases del mismo curso.",
         variant: "destructive",
       });
       return;
@@ -326,7 +326,7 @@ export default function Course() {
     if (!isFreePlan && selectedLessons.length > 1 && !hasSequenceSelection) {
       toast({
         title: "La secuencia debe ser consecutiva",
-        description: "Para preparar varias clases, elegÃ­ una secuencia continua sin saltos.",
+        description: "Para preparar varias clases, elegí una secuencia continua sin saltos.",
         variant: "destructive",
       });
       return;
@@ -378,7 +378,7 @@ export default function Course() {
         description:
           orderedLessonIds.length > 1
             ? `Se prepararon ${orderedLessonIds.length} clases de la secuencia seleccionada.`
-            : "La clase seleccionada quedÃ³ preparada.",
+            : "La clase seleccionada quedó preparada.",
       });
       setSelectedLessonIds([]);
       await fetchData();
@@ -423,7 +423,7 @@ export default function Course() {
             </div>
             {course && (
               <p className="text-sm text-muted-foreground">
-                {course.school_name} Â· {course.year_level}Â° aÃ±o Â· {course.academic_year}
+                {course.school_name} · {course.year_level}° año · {course.academic_year}
               </p>
             )}
           </div>
@@ -565,17 +565,17 @@ export default function Course() {
                           <CardContent className="flex flex-col gap-4 pt-6 md:flex-row md:items-center md:justify-between">
                             <div className="space-y-1">
                               <p className="text-sm font-medium text-foreground">
-                                ElegÃ­ una clase o una secuencia para preparar
+                                Elegí una clase o una secuencia para preparar
                               </p>
                               <p className="text-sm text-muted-foreground">
                                 {isFreePlan
-                                  ? "En Free tenÃ©s que elegir exactamente 3 clases del mismo curso. Pueden ser tres clases puntuales o una secuencia."
-                                  : `PodÃ©s seleccionar 1 clase o una secuencia de hasta ${maxSelectableLessons} clases, que coincide con las clases existentes en el curso.`}
+                                  ? "En Free tenés que elegir exactamente 3 clases del mismo curso. Pueden ser tres clases puntuales o una secuencia."
+                                  : `Podés seleccionar 1 clase o una secuencia de hasta ${maxSelectableLessons} clases, que coincide con las clases existentes en el curso.`}
                               </p>
                               {selectedLessons.length > 0 && (
                                 <p className="text-xs text-muted-foreground">
                                   {isFreePlan && !hasExactFreeSelection
-                                    ? `LlevÃ¡s ${selectedLessons.length}/3 clases seleccionadas.`
+                                    ? `Llevás ${selectedLessons.length}/3 clases seleccionadas.`
                                     : isFreePlan && hasSequenceSelection
                                       ? `Secuencia seleccionada: clases ${selectedLessonNumbers[0]} a ${selectedLessonNumbers[selectedLessonNumbers.length - 1]}.`
                                       : isFreePlan
@@ -584,7 +584,7 @@ export default function Course() {
                                       ? `Clase ${selectedLessonNumbers[0]} seleccionada.`
                                       : hasSequenceSelection
                                       ? `Secuencia seleccionada: clases ${selectedLessonNumbers[0]} a ${selectedLessonNumbers[selectedLessonNumbers.length - 1]}.`
-                                      : "La selecciÃ³n actual no forma una secuencia consecutiva."}
+                                      : "La selección actual no forma una secuencia consecutiva."}
                                 </p>
                               )}
                             </div>
@@ -594,7 +594,7 @@ export default function Course() {
                                 onClick={() => setSelectedLessonIds([])}
                                 disabled={selectedLessonIds.length === 0 || preparingSelection}
                               >
-                                Limpiar selecciÃ³n
+                                Limpiar selección
                               </Button>
                               <Button
                                 onClick={handlePrepareSelection}
@@ -627,7 +627,7 @@ export default function Course() {
                                       preparingSelection ||
                                       (!selectedLessonIds.includes(lesson.id) && selectionLimitReached)
                                     }
-                                    aria-label={`Seleccionar lecciÃ³n ${lesson.lesson_number}`}
+                                    aria-label={`Seleccionar lección ${lesson.lesson_number}`}
                                   />
                                   <div className="space-y-1">
                                     <CardTitle className="text-base">

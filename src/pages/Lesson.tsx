@@ -83,7 +83,7 @@ function extractCanonSummary(activitiesSummary?: string | null, fallbackTheme?: 
 function isLikelyBibliographyEntry(name: string): boolean {
   const trimmed = name.trim();
   const commaCount = (trimmed.match(/,/g) || []).length;
-  const hasAuthorPrefix = /^[A-ZÃÃ‰ÃÃ“ÃšÃ‘][^,]{1,90},/.test(trimmed);
+  const hasAuthorPrefix = /^[A-ZÁÉÍÓÚÑ][^,]{1,90},/.test(trimmed);
   const hasYear = /\b(1[89]\d{2}|20\d{2})\b/.test(trimmed);
   const hasEditionFallback = /\bvarias\s+ediciones\b/i.test(trimmed);
 
@@ -354,7 +354,7 @@ export default function Lesson() {
         toast({ title: "Error", description: responseData.error, variant: "destructive" });
         return;
       }
-      toast({ title: "Material didÃ¡ctico regenerado" });
+      toast({ title: "Material didáctico regenerado" });
       fetchData();
     } catch (err: unknown) {
       toast({ title: "Error", description: formatErrorMessage(err), variant: "destructive" });
@@ -438,7 +438,7 @@ export default function Lesson() {
   if (!lesson) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen gap-4">
-        <p className="text-muted-foreground">LecciÃ³n no encontrada</p>
+        <p className="text-muted-foreground">Lección no encontrada</p>
         <Button asChild>
           <Link to="/dashboard">Volver al dashboard</Link>
         </Button>
@@ -484,8 +484,8 @@ export default function Lesson() {
           </Button>
           <div className="flex-1">
             <h1 className="text-lg font-semibold text-foreground">
-              LecciÃ³n {lesson.lesson_number}
-              {planLesson?.theme ? ` â€” ${planLesson.theme}` : ""}
+              Lección {lesson.lesson_number}
+              {planLesson?.theme ? ` — ${planLesson.theme}` : ""}
             </h1>
             <div className="flex gap-2 mt-1">
               <StatusBadge tone={lessonStatusTone(lesson.status)} label={lessonStatusLabel(lesson.status)} />
@@ -661,7 +661,7 @@ export default function Lesson() {
             <section id="materials-section">
               <StepHeader
                 stepNumber={2}
-                title="GeneraciÃ³n"
+                title="Generación"
                 status={materialLabel(hasMaterials ? (readingMaterial?.status || teachingMaterial?.status) : null)}
                 statusTone={materialTone(hasMaterials ? (readingMaterial?.status || teachingMaterial?.status) : null)}
               />
