@@ -977,7 +977,7 @@ export default function CourseNew() {
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground">
-                      SeleccionÃ¡ el ciclo para ayudar a resolver el programa oficial correcto.
+                      Seleccioná el ciclo para ayudar a resolver el programa oficial correcto.
                     </p>
               </div>
             )}
