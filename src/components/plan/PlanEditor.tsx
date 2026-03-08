@@ -16,6 +16,8 @@ import { InlineValidationSummary } from "@/components/ui/InlineValidationSummary
 import { LoadingState } from "@/components/ui/LoadingState";
 import type { Tables } from "@/integrations/supabase/types";
 import { formatErrorMessage } from "@/lib/errors";
+import { cn } from "@/lib/utils";
+import { ThinkingBook } from "@/components/ui/ThinkingBook";
 import { downloadStructuredPdf } from "@/lib/pdfExport";
 import { extractBibliographyProtocolNodes, type BibliographyProtocolNode } from "@/lib/bibliographyProtocol";
 
