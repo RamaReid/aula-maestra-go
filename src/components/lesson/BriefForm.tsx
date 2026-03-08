@@ -98,9 +98,9 @@ type PremiumQueryRequestUpdate = {
 };
 
 // Tables not yet in Cloud DB — use `as any` to bypass strict typing until migrations are applied
-const AUTHORIZED_SOURCES_TABLE = "authorized_sources" as any;
-const AUTHORIZED_SOURCE_TARGETS_TABLE = "authorized_source_targets" as any;
-const PREMIUM_QUERY_REQUESTS_TABLE = "premium_query_requests" as any;
+const AUTHORIZED_SOURCES_TABLE = "authorized_sources" as never;
+const AUTHORIZED_SOURCE_TARGETS_TABLE = "authorized_source_targets" as never;
+const PREMIUM_QUERY_REQUESTS_TABLE = "premium_query_requests" as never;
 
 function isMissingAuthorizedSourceIdsColumn(error: unknown): boolean {
   const message = formatErrorMessage(error, "").toLowerCase();
@@ -721,10 +721,10 @@ export default function BriefForm({
   return (
     <div className="space-y-4">
       {canUsePremiumQuery && isEditable && (
-        <div className="space-y-3 rounded-md border border-primary/20 bg-primary/5 p-3">
+        <div className="section-shell space-y-3 border-primary/20 bg-primary/5">
           <div className="space-y-1">
-            <Label>Copiloto premium para indicaciones</Label>
-            <p className="text-sm text-muted-foreground">{premiumAutocompleteDraft.summary}</p>
+            <Label className="field-label">Copiloto premium para indicaciones</Label>
+            <p className="field-help">{premiumAutocompleteDraft.summary}</p>
           </div>
           <Button type="button" variant="outline" onClick={handleApplyPremiumAutocomplete} disabled={saving || uploading}>
             Autocompletar indicaciones con contexto de la clase
@@ -732,8 +732,8 @@ export default function BriefForm({
         </div>
       )}
 
-      <div className="space-y-2">
-        <Label>Enfoque deseado</Label>
+      <div className="field-shell">
+        <Label className="field-label">Enfoque deseado</Label>
         <Textarea
           value={enfoque}
           onChange={(e) => setEnfoque(e.target.value)}
@@ -742,8 +742,8 @@ export default function BriefForm({
         />
       </div>
 
-      <div className="space-y-2">
-        <Label>Tipo de dinamica sugerida</Label>
+      <div className="field-shell">
+        <Label className="field-label">Tipo de dinamica sugerida</Label>
         <Textarea
           value={dinamica}
           onChange={(e) => setDinamica(e.target.value)}
@@ -752,8 +752,8 @@ export default function BriefForm({
         />
       </div>
 
-      <div className="space-y-2">
-        <Label>Nivel de profundidad</Label>
+      <div className="field-shell">
+        <Label className="field-label">Nivel de profundidad</Label>
         <Select
           value={profundidad}
           onValueChange={(v) => setProfundidad(v as "BAJO" | "MEDIO" | "ALTO")}
@@ -770,8 +770,8 @@ export default function BriefForm({
         </Select>
       </div>
 
-      <div className="space-y-2">
-        <Label>Observaciones</Label>
+      <div className="field-shell">
+        <Label className="field-label">Observaciones</Label>
         <Textarea
           value={observaciones}
           onChange={(e) => setObservaciones(e.target.value)}
@@ -781,8 +781,8 @@ export default function BriefForm({
       </div>
 
       {canUploadTeacherSources && isEditable && (
-        <div className="space-y-2 rounded-md border p-3">
-          <Label>Fuentes del docente (archivo)</Label>
+        <div className="field-shell">
+          <Label className="field-label">Fuentes del docente (archivo)</Label>
           <input
             type="file"
             multiple
@@ -790,7 +790,7 @@ export default function BriefForm({
             onChange={(event) => setSelectedFiles(Array.from(event.target.files || []))}
             className="block w-full text-sm"
           />
-          <p className="text-xs text-muted-foreground">
+          <p className="field-help text-xs">
             Formatos: PDF, JPG, PNG, DOC, DOCX, XLS, XLSX, TXT. Maximo 5 archivos por carga, 20 MB por archivo.
           </p>
           <Button type="button" variant="outline" onClick={handleUploadSources} disabled={uploading || saving}>
@@ -800,8 +800,8 @@ export default function BriefForm({
       )}
 
       {canUsePremiumQuery && isEditable && (
-        <div className="space-y-3 rounded-md border p-3">
-          <Label>Busqueda premium (consulta concreta)</Label>
+        <div className="field-shell">
+          <Label className="field-label">Busqueda premium (consulta concreta)</Label>
           <Input
             value={premiumQuery}
             onChange={(event) => setPremiumQuery(event.target.value)}
@@ -836,7 +836,7 @@ export default function BriefForm({
             </Button>
           </div>
           {premiumCorrectedQuery && (
-            <p className="text-xs text-muted-foreground">Sugerencia aplicada: {premiumCorrectedQuery}</p>
+            <p className="field-help text-xs">Sugerencia aplicada: {premiumCorrectedQuery}</p>
           )}
           {premiumCandidates.length > 0 && (
             <div className="space-y-2">
@@ -844,8 +844,9 @@ export default function BriefForm({
                 const isApproving = approvingCandidateUrl === candidate.url;
                 const confidencePct = Math.max(0, Math.min(100, Math.round((candidate.confidence || 0) * 100)));
                 return (
-                  <div key={`${candidate.url}-${index}`} className="space-y-2 rounded-md border p-3">
-                    <div className="text-sm font-medium">{candidate.title}</div>
+                  <div key={`${candidate.url}-${index}`} className="rounded-2xl border border-border/70 bg-background/80 p-4">
+                    <div className="space-y-2">
+                      <div className="text-sm font-medium">{candidate.title}</div>
                     <a
                       href={candidate.url}
                       target="_blank"
@@ -858,6 +859,7 @@ export default function BriefForm({
                     <p className="text-xs text-muted-foreground">
                       {candidate.domain || "sin dominio"} | confianza {confidencePct}%
                     </p>
+                    </div>
                     <Button
                       type="button"
                       variant="secondary"
@@ -871,7 +873,7 @@ export default function BriefForm({
               })}
             </div>
           )}
-          <p className="text-xs text-muted-foreground">
+          <p className="field-help text-xs">
             Solo se acepta consulta concreta. La fuente elegida queda autorizada para esta clase.
           </p>
         </div>

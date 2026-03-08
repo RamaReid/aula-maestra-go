@@ -4,6 +4,7 @@ import { Archive, ArrowLeft, BookOpen, Sparkles } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { PageIntro } from "@/components/editorial/PageIntro";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -458,6 +459,11 @@ export default function Course() {
           <SkeletonList count={6} />
         ) : plan ? (
           <div className="space-y-4">
+            <PageIntro
+              eyebrow="Curso"
+              title={`${course?.subject ?? "Curso"}${course?.year_level ? ` · ${course.year_level} ano` : ""}`}
+              description="Revisa la base curricular, valida la planificacion y prepara clases o secuencias con una composicion mas clara para lectura y seguimiento."
+            />
             <Card>
               <CardContent className="pt-6 space-y-2">
                 <p className="text-sm font-medium text-foreground">Base curricular del curso</p>

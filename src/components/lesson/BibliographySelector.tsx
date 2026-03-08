@@ -184,18 +184,18 @@ export default function BibliographySelector({
 
   return (
     <div className="space-y-4">
-      <div className="space-y-2">
-        <Label>Bibliografia sugerida (curricular y del docente) - selecciona 1 a 5</Label>
-        <div className="max-h-60 space-y-2 overflow-y-auto rounded-md border p-3">
+      <div className="field-shell">
+        <Label className="field-label">Bibliografia sugerida (curricular y del docente) - selecciona 1 a 5</Label>
+        <div className="max-h-60 space-y-2 overflow-y-auto rounded-2xl border border-border/70 bg-background/75 p-3">
           {nodes.length > 0 ? (
             nodes.map((node) => (
-              <div key={node.id} className="flex items-start gap-2">
+              <div key={node.id} className="flex items-start gap-3 rounded-xl px-2 py-2">
                 <Checkbox
                   checked={selected.includes(node.id)}
                   onCheckedChange={() => toggleCurriculum(node.id)}
                   disabled={disabled || (!selected.includes(node.id) && totalSelected >= MAX_SOURCES)}
                 />
-                <div className="text-sm">
+                <div className="text-sm leading-7">
                   <span className="font-medium text-muted-foreground">[BIBLIOGRAFIA]</span> {node.name}
                 </div>
               </div>
@@ -209,18 +209,18 @@ export default function BibliographySelector({
       </div>
 
       {canUseAuthorizedSources && (
-        <div className="space-y-2">
-          <Label>Fuentes del docente disponibles para esta clase</Label>
-          <div className="max-h-60 space-y-2 overflow-y-auto rounded-md border p-3">
+        <div className="field-shell">
+          <Label className="field-label">Fuentes del docente disponibles para esta clase</Label>
+          <div className="max-h-60 space-y-2 overflow-y-auto rounded-2xl border border-border/70 bg-background/75 p-3">
             {authorizedSources.length > 0 ? (
               authorizedSources.map((source) => (
-                <div key={source.id} className="flex items-start gap-2">
+                <div key={source.id} className="flex items-start gap-3 rounded-xl px-2 py-2">
                   <Checkbox
                     checked={selectedAuthorized.includes(source.id)}
                     onCheckedChange={() => toggleAuthorized(source.id)}
                     disabled={disabled || (!selectedAuthorized.includes(source.id) && totalSelected >= MAX_SOURCES)}
                   />
-                  <div className="text-sm">
+                  <div className="text-sm leading-7">
                     <span className="font-medium text-muted-foreground">
                       [DOCENTE/{mapMediaLabel(source.media_type)}]
                     </span>{" "}
@@ -235,7 +235,7 @@ export default function BibliographySelector({
         </div>
       )}
 
-      <p className="text-xs text-muted-foreground">{totalSelected}/{MAX_SOURCES} seleccionadas</p>
+      <p className="helper-note text-xs">{totalSelected}/{MAX_SOURCES} seleccionadas</p>
     </div>
   );
 }

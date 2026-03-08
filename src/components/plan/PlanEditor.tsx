@@ -496,7 +496,17 @@ export default function PlanEditor({
 
       downloadStructuredPdf({
         title: "Planificacion anual",
+        subtitle: "Documento de trabajo anual con fundamento, objetivos, estrategias, contenidos y recorrido de clases.",
         filename: `planificacion-anual-${planId.slice(0, 8)}.pdf`,
+        generatedAt: new Intl.DateTimeFormat("es-AR", {
+          day: "2-digit",
+          month: "long",
+          year: "numeric",
+        }).format(new Date()),
+        meta: [
+          { label: "Documento", value: "Planificacion anual" },
+          { label: "Plan", value: planId.slice(0, 8).toUpperCase() },
+        ],
         sections: exportOrder.map((sectionKey) => sectionContent[sectionKey]),
       });
     } catch (err: unknown) {

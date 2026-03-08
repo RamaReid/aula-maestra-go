@@ -14,6 +14,7 @@ import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useToast } from "@/components/ui/use-toast";
+import { PageIntro } from "@/components/editorial/PageIntro";
 import { formatErrorMessage, formatFunctionErrorMessage } from "@/lib/errors";
 
 interface SubscriptionRow {
@@ -50,7 +51,7 @@ type ManualPaymentRequestInsert = {
   notes: string | null;
 };
 
-const MANUAL_PAYMENT_REQUESTS_TABLE = "manual_payment_requests" as any;
+const MANUAL_PAYMENT_REQUESTS_TABLE = "manual_payment_requests" as never;
 
 const planCardCopy: Record<
   PlanType,
@@ -350,6 +351,13 @@ export default function Billing() {
       </header>
 
       <main className="mx-auto grid max-w-5xl gap-6 px-4 py-8 lg:grid-cols-[1.15fr_0.85fr]">
+        <div className="lg:col-span-2">
+          <PageIntro
+            eyebrow="Planes y facturacion"
+            title="Estado del plan, cobro y solicitudes administrativas"
+            description="Consulta el estado de tu cuenta, inicia un checkout, sincroniza la suscripcion y deja solicitudes manuales con formato mas claro para soporte."
+          />
+        </div>
         <div className="space-y-6">
           <Card>
             <CardHeader>
@@ -372,32 +380,32 @@ export default function Billing() {
                     />
                   </div>
 
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="rounded-lg border p-4">
-                      <p className="text-sm font-medium text-foreground">Titular</p>
-                      <p className="mt-1 text-sm text-muted-foreground">{profile?.email || "Sin email"}</p>
+                  <div className="metric-grid">
+                    <div className="metric-card">
+                      <p className="metric-label">Titular</p>
+                      <p className="metric-value">{profile?.email || "Sin email"}</p>
                     </div>
-                    <div className="rounded-lg border p-4">
-                      <p className="text-sm font-medium text-foreground">Inicio del plan</p>
-                      <p className="mt-1 text-sm text-muted-foreground">{formatDate(subscription?.start_date)}</p>
+                    <div className="metric-card">
+                      <p className="metric-label">Inicio del plan</p>
+                      <p className="metric-value">{formatDate(subscription?.start_date)}</p>
                     </div>
-                    <div className="rounded-lg border p-4">
-                      <p className="text-sm font-medium text-foreground">Fin o corte actual</p>
-                      <p className="mt-1 text-sm text-muted-foreground">
+                    <div className="metric-card">
+                      <p className="metric-label">Fin o corte actual</p>
+                      <p className="metric-value">
                         {formatDate(subscription?.current_period_end || subscription?.end_date)}
                       </p>
                     </div>
-                    <div className="rounded-lg border p-4">
-                      <p className="text-sm font-medium text-foreground">Ultima actualizacion</p>
-                      <p className="mt-1 text-sm text-muted-foreground">{formatDate(subscription?.updated_at)}</p>
+                    <div className="metric-card">
+                      <p className="metric-label">Ultima actualizacion</p>
+                      <p className="metric-value">{formatDate(subscription?.updated_at)}</p>
                     </div>
-                    <div className="rounded-lg border p-4">
-                      <p className="text-sm font-medium text-foreground">Proveedor</p>
-                      <p className="mt-1 text-sm text-muted-foreground">{subscription?.provider || "Sin proveedor automatico"}</p>
+                    <div className="metric-card">
+                      <p className="metric-label">Proveedor</p>
+                      <p className="metric-value">{subscription?.provider || "Sin proveedor automatico"}</p>
                     </div>
-                    <div className="rounded-lg border p-4">
-                      <p className="text-sm font-medium text-foreground">Estado reportado por cobro</p>
-                      <p className="mt-1 text-sm text-muted-foreground">{subscription?.last_payment_status || "Sin dato"}</p>
+                    <div className="metric-card">
+                      <p className="metric-label">Estado de cobro</p>
+                      <p className="metric-value">{subscription?.last_payment_status || "Sin dato"}</p>
                     </div>
                   </div>
 

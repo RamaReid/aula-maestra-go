@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertTriangle, Copy, Download, Eye } from "lucide-react";
+import { DocumentSheet } from "@/components/editorial/DocumentSheet";
 import { supabase } from "@/integrations/supabase/client";
 import { downloadStructuredPdf } from "@/lib/pdfExport";
+import { formatDocumentDate, stripHtmlToParagraphs, type DocumentMetaItem } from "@/lib/editorial";
 
 interface ReadingMaterialViewProps {
   material: {
@@ -18,6 +19,10 @@ interface ReadingMaterialViewProps {
   pdfBase64?: string | null;
   canExportPdf?: boolean;
   exportFileName?: string;
+  documentTitle?: string;
+  documentSummary?: string;
+  documentMeta?: DocumentMetaItem[];
+  generatedAt?: string | null;
 }
 
 const statusLabel: Record<string, string> = {
@@ -58,6 +63,10 @@ export default function ReadingMaterialView({
   pdfBase64,
   canExportPdf = false,
   exportFileName = "material-lectura.pdf",
+  documentTitle = "Material de lectura",
+  documentSummary = "Texto de apoyo preparado para lectura real, con jerarquía de lectura y formato de documento listo para compartir.",
+  documentMeta = [],
+  generatedAt,
 }: ReadingMaterialViewProps) {
   const [downloadError, setDownloadError] = useState("");
 
@@ -65,6 +74,7 @@ export default function ReadingMaterialView({
     .replace(/```(?:html|HTML)?\s*/gi, "")
     .replace(/<span\s+data-ref="[^"]*"\s*><\/span>/gi, "")
     .trim();
+  const paragraphs = stripHtmlToParagraphs(displayHtml);
 
   const showReasons =
     material.status === "INVALIDATED" &&
@@ -85,14 +95,18 @@ export default function ReadingMaterialView({
   };
 
   const handleExportHtmlFallback = () => {
-    const paragraphs = displayHtml
-      .split(/<\/p>/i)
-      .map((part) => part.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim())
-      .filter(Boolean);
-
     downloadStructuredPdf({
-      title: "Material de Lectura",
+      title: documentTitle,
+      subtitle: documentSummary,
       filename: exportFileName,
+      generatedAt: formatDocumentDate(generatedAt),
+      meta: [
+        ...documentMeta,
+        { label: "Estado", value: statusLabel[material.status] || material.status },
+        { label: "Extension", value: `${material.word_count} palabras` },
+      ]
+        .filter((item) => item.value)
+        .map((item) => ({ label: item.label, value: String(item.value) })),
       sections: [{ body: paragraphs }],
     });
   };
@@ -138,18 +152,60 @@ export default function ReadingMaterialView({
     }
   };
 
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold">Material de Lectura</h3>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">{material.word_count} palabras</span>
-          <Badge variant={statusVariant(material.status)}>
-            {statusLabel[material.status] || material.status}
-          </Badge>
-        </div>
-      </div>
+  const exportActions = (
+    <>
+      {exportEnabled && material.pdf_url ? (
+        <>
+          <Button variant="outline" size="sm" className="text-xs" asChild>
+            <a href={material.pdf_url} target="_blank" rel="noopener noreferrer" download>
+              <Download className="mr-1 h-3 w-3" />
+              Exportar PDF
+            </a>
+          </Button>
+          <Button variant="outline" size="sm" className="text-xs" onClick={downloadFromStorageApi}>
+            <Download className="mr-1 h-3 w-3" />
+            Descarga alternativa
+          </Button>
+          <Button variant="outline" size="sm" className="text-xs" onClick={copyPdfLink}>
+            <Copy className="mr-1 h-3 w-3" />
+            Copiar enlace
+          </Button>
+        </>
+      ) : null}
+      {exportEnabled && !material.pdf_url && pdfBase64 ? (
+        <Button variant="outline" size="sm" className="text-xs" onClick={handleDownloadTempPdf}>
+          <Download className="mr-1 h-3 w-3" />
+          Exportar PDF
+        </Button>
+      ) : null}
+      {exportEnabled && !material.pdf_url && !pdfBase64 ? (
+        <Button variant="outline" size="sm" className="text-xs" onClick={handleExportHtmlFallback}>
+          <Download className="mr-1 h-3 w-3" />
+          Exportar PDF
+        </Button>
+      ) : null}
+      {!exportEnabled && !material.pdf_url && pdfBase64 ? (
+        <Button variant="outline" size="sm" className="text-xs" onClick={handleViewTempPdf}>
+          <Eye className="mr-1 h-3 w-3" />
+          Ver PDF temporal
+        </Button>
+      ) : null}
+    </>
+  );
 
+  return (
+    <DocumentSheet
+      eyebrow="Lectura"
+      title={documentTitle}
+      summary={documentSummary}
+      status={<Badge variant={statusVariant(material.status)}>{statusLabel[material.status] || material.status}</Badge>}
+      actions={exportActions}
+      meta={[
+        ...documentMeta,
+        { label: "Extension", value: `${material.word_count} palabras` },
+        { label: "Fecha", value: formatDocumentDate(generatedAt) },
+      ]}
+    >
       {showReasons && (
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
@@ -165,77 +221,42 @@ export default function ReadingMaterialView({
         </Alert>
       )}
 
-      <Card>
-        <CardContent className="pt-6">
-          <div
-            className="prose prose-sm max-w-none text-foreground"
-            dangerouslySetInnerHTML={{ __html: displayHtml }}
-          />
-        </CardContent>
-      </Card>
+      <section className="document-section">
+        <p className="document-section-label">Vista previa editorial</p>
+        <div
+          className="editorial-prose"
+          dangerouslySetInnerHTML={{ __html: displayHtml }}
+        />
+      </section>
 
       {exportEnabled && material.pdf_url && (
-        <div className="space-y-2">
-          <p className="text-xs text-muted-foreground">
-            Si tu navegador bloquea el dominio de Supabase (ERR_BLOCKED_BY_CLIENT), usa la descarga alternativa.
-          </p>
-          <div className="flex flex-wrap items-center gap-3">
-            <Button variant="outline" size="sm" className="text-xs" asChild>
-              <a href={material.pdf_url} target="_blank" rel="noopener noreferrer" download>
-                <Download className="mr-1 h-3 w-3" />
-                Exportar PDF
-              </a>
-            </Button>
-            <Button variant="outline" size="sm" className="text-xs" onClick={downloadFromStorageApi}>
-              <Download className="mr-1 h-3 w-3" />
-              Descarga alternativa
-            </Button>
-            <Button variant="outline" size="sm" className="text-xs" onClick={copyPdfLink}>
-              <Copy className="mr-1 h-3 w-3" />
-              Copiar enlace
-            </Button>
-          </div>
-          {downloadError && (
-            <Alert variant="destructive">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertDescription className="text-xs">{downloadError}</AlertDescription>
-            </Alert>
-          )}
-        </div>
+        <p className="helper-note">
+          Si tu navegador bloquea el dominio de Supabase (`ERR_BLOCKED_BY_CLIENT`), usa la descarga alternativa.
+        </p>
       )}
 
-      {exportEnabled && !material.pdf_url && pdfBase64 && (
-        <div className="space-y-2">
-          <Button variant="outline" size="sm" className="text-xs" onClick={handleDownloadTempPdf}>
-            <Download className="mr-1 h-3 w-3" />
-            Exportar PDF
-          </Button>
-        </div>
-      )}
-
-      {exportEnabled && !material.pdf_url && !pdfBase64 && (
-        <div className="space-y-2">
-          <Button variant="outline" size="sm" className="text-xs" onClick={handleExportHtmlFallback}>
-            <Download className="mr-1 h-3 w-3" />
-            Exportar PDF
-          </Button>
-        </div>
+      {downloadError && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription className="text-xs">{downloadError}</AlertDescription>
+        </Alert>
       )}
 
       {!exportEnabled && !material.pdf_url && pdfBase64 && (
-        <div className="space-y-2">
-          <Alert>
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription className="text-xs">
-              Este PDF no se guarda. Actualiza tu plan para almacenamiento permanente.
-            </AlertDescription>
-          </Alert>
-          <Button variant="outline" size="sm" className="text-xs" onClick={handleViewTempPdf}>
-            <Eye className="mr-1 h-3 w-3" />
-            Ver PDF (temporal)
-          </Button>
+        <Alert>
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription className="text-xs">
+            Este PDF no se guarda. Actualiza tu plan para almacenamiento permanente.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {paragraphs.length === 0 && (
+        <div className="helper-note">
+          El sistema no pudo componer una vista legible del texto. Usa la exportación PDF para revisar la salida completa.
         </div>
       )}
-    </div>
+
+    </DocumentSheet>
   );
 }

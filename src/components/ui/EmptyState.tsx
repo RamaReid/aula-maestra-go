@@ -1,6 +1,7 @@
 import { LucideIcon } from "lucide-react";
-import { Card, CardContent } from "./card";
+
 import { Button } from "./button";
+import { Card, CardContent } from "./card";
 
 interface EmptyStateProps {
   icon?: LucideIcon;
@@ -11,18 +12,20 @@ interface EmptyStateProps {
 
 export function EmptyState({ icon: Icon, title, description, action }: EmptyStateProps) {
   return (
-    <Card>
-      <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-        {Icon && <Icon className="h-12 w-12 text-muted-foreground mb-4" />}
-        <p className="text-muted-foreground font-medium">{title}</p>
-        {description && (
-          <p className="text-sm text-muted-foreground mt-1">{description}</p>
-        )}
-        {action && (
-          <Button className="mt-4" onClick={action.onClick}>
+    <Card className="rounded-[1.75rem] border-border/80 bg-card/90 shadow-sm">
+      <CardContent className="flex flex-col items-center justify-center gap-4 py-14 text-center">
+        {Icon && <Icon className="mb-1 h-12 w-12 text-muted-foreground" />}
+        <div className="space-y-2">
+          <p className="font-serif text-2xl font-semibold tracking-tight text-foreground">{title}</p>
+          {description ? (
+            <p className="mx-auto max-w-xl text-sm leading-7 text-muted-foreground">{description}</p>
+          ) : null}
+        </div>
+        {action ? (
+          <Button className="mt-1" onClick={action.onClick}>
             {action.label}
           </Button>
-        )}
+        ) : null}
       </CardContent>
     </Card>
   );

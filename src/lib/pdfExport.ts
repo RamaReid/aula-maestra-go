@@ -9,19 +9,32 @@ type PdfSection = {
   body: string[];
 };
 
+type PdfMetaItem = {
+  label: string;
+  value: string;
+};
+
 interface ExportPdfOptions {
   title: string;
   filename: string;
   sections: PdfSection[];
+  subtitle?: string;
+  meta?: PdfMetaItem[];
+  generatedAt?: string;
+  footerNote?: string;
 }
 
 const PAGE_WIDTH = 595.28;
 const PAGE_HEIGHT = 841.89;
 const MARGIN = 54;
-const BODY_FONT_SIZE = 11;
-const TITLE_FONT_SIZE = 18;
-const SECTION_TITLE_FONT_SIZE = 13;
-const LINE_HEIGHT_FACTOR = 1.35;
+const BODY_FONT_SIZE = 11.5;
+const TITLE_FONT_SIZE = 22;
+const SUBTITLE_FONT_SIZE = 12.5;
+const META_LABEL_FONT_SIZE = 8.5;
+const META_VALUE_FONT_SIZE = 10;
+const SECTION_TITLE_FONT_SIZE = 13.5;
+const FOOTER_FONT_SIZE = 8.5;
+const LINE_HEIGHT_FACTOR = 1.48;
 const MAX_TEXT_WIDTH = PAGE_WIDTH - MARGIN * 2;
 const CHAR_WIDTH_FACTOR = 0.52;
 
@@ -65,10 +78,32 @@ function pushWrappedLine(lines: PdfLine[], text: string, fontSize: number, bold 
   }
 }
 
-function buildLines({ title, sections }: ExportPdfOptions): PdfLine[] {
+function buildLines({ title, subtitle, meta = [], generatedAt, footerNote, sections }: ExportPdfOptions): PdfLine[] {
   const lines: PdfLine[] = [];
 
   pushWrappedLine(lines, title, TITLE_FONT_SIZE, true);
+  if (subtitle) {
+    pushWrappedLine(lines, subtitle, SUBTITLE_FONT_SIZE);
+  }
+
+  const createdAtLabel = generatedAt ? `Emitido: ${generatedAt}` : "";
+  if (createdAtLabel) {
+    pushWrappedLine(lines, createdAtLabel, META_VALUE_FONT_SIZE);
+  }
+
+  if (meta.length > 0) {
+    lines.push({ text: "", fontSize: BODY_FONT_SIZE });
+    for (const item of meta) {
+      pushWrappedLine(lines, item.label.toUpperCase(), META_LABEL_FONT_SIZE, true);
+      pushWrappedLine(lines, item.value, META_VALUE_FONT_SIZE);
+    }
+  }
+
+  if (footerNote) {
+    lines.push({ text: "", fontSize: BODY_FONT_SIZE });
+    pushWrappedLine(lines, footerNote, BODY_FONT_SIZE);
+  }
+
   lines.push({ text: "", fontSize: BODY_FONT_SIZE });
 
   for (const section of sections) {
@@ -110,7 +145,7 @@ function paginateLines(lines: PdfLine[]): PdfLine[][] {
   return pages;
 }
 
-function buildPdfBytes(pages: PdfLine[][]): Uint8Array {
+function buildPdfBytes(pages: PdfLine[][], footerLabel?: string): Uint8Array {
   const objects: string[] = [];
   const addObject = (content: string) => {
     objects.push(content);
@@ -124,7 +159,9 @@ function buildPdfBytes(pages: PdfLine[][]): Uint8Array {
 
   const pageObjectIds: number[] = [];
 
-  for (const pageLines of pages) {
+  const totalPages = pages.length;
+
+  for (const [pageIndex, pageLines] of pages.entries()) {
     let y = PAGE_HEIGHT - MARGIN;
     const operations: string[] = [];
 
@@ -141,6 +178,11 @@ function buildPdfBytes(pages: PdfLine[][]): Uint8Array {
 
       y -= lineHeight;
     }
+
+    const footerText = `${footerLabel || ""}${footerLabel ? "  |  " : ""}Pagina ${pageIndex + 1} de ${totalPages}`;
+    operations.push(
+      `BT /F1 ${FOOTER_FONT_SIZE} Tf 1 0 0 1 ${MARGIN} ${MARGIN - 14} Tm (${escapePdfText(footerText)}) Tj ET`
+    );
 
     const stream = operations.join("\n");
     const streamLength = new TextEncoder().encode(stream).length;
@@ -178,7 +220,7 @@ function buildPdfBytes(pages: PdfLine[][]): Uint8Array {
 export function downloadStructuredPdf(options: ExportPdfOptions) {
   const lines = buildLines(options);
   const pages = paginateLines(lines);
-  const bytes = buildPdfBytes(pages);
+  const bytes = buildPdfBytes(pages, options.generatedAt);
   const blob = new Blob([bytes as BlobPart], { type: "application/pdf" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");

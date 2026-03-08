@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ArrowDown, ArrowUp, Download, RotateCcw } from "lucide-react";
+import { DocumentSheet } from "@/components/editorial/DocumentSheet";
+import { formatDocumentDate, type DocumentMetaItem } from "@/lib/editorial";
 import { downloadStructuredPdf } from "@/lib/pdfExport";
 
 interface Activity {
@@ -29,6 +30,10 @@ interface TeachingMaterialViewProps {
   };
   canExportPdf?: boolean;
   exportFileName?: string;
+  documentTitle?: string;
+  documentSummary?: string;
+  documentMeta?: DocumentMetaItem[];
+  generatedAt?: string | null;
 }
 
 type TeachingSectionKey =
@@ -73,6 +78,10 @@ export default function TeachingMaterialView({
   material,
   canExportPdf = false,
   exportFileName = "material-didactico.pdf",
+  documentTitle = "Material didactico",
+  documentSummary = "Guia de trabajo organizada para aula real, con secciones claras, evidencias visibles y orden de lectura profesional.",
+  documentMeta = [],
+  generatedAt,
 }: TeachingMaterialViewProps) {
   const activities = Array.isArray(material.activities) ? material.activities : [];
   const differentiation = Array.isArray(material.differentiation) ? material.differentiation : [];
@@ -107,52 +116,64 @@ export default function TeachingMaterialView({
     };
 
     downloadStructuredPdf({
-      title: "Material Didactico",
+      title: documentTitle,
+      subtitle: documentSummary,
       filename: exportFileName,
+      generatedAt: formatDocumentDate(generatedAt),
+      meta: [
+        ...documentMeta,
+        { label: "Estado", value: statusLabel[material.status] || material.status },
+      ]
+        .filter((item) => item.value)
+        .map((item) => ({ label: item.label, value: String(item.value) })),
       sections: exportOrder.map((sectionKey) => sectionContent[sectionKey]),
     });
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold">Material Didactico</h3>
-        <div className="flex items-center gap-2">
-          {exportEnabled && (
-            <Button variant="outline" size="sm" className="text-xs" onClick={handleExportPdf}>
-              <Download className="mr-1 h-3 w-3" />
-              Exportar PDF
-            </Button>
-          )}
-          <Badge variant={statusVariant(material.status)}>
-            {statusLabel[material.status] || material.status}
-          </Badge>
-        </div>
-      </div>
-
+    <DocumentSheet
+      eyebrow="Didactico"
+      title={documentTitle}
+      summary={documentSummary}
+      status={<Badge variant={statusVariant(material.status)}>{statusLabel[material.status] || material.status}</Badge>}
+      actions={
+        exportEnabled ? (
+          <Button variant="outline" size="sm" className="text-xs" onClick={handleExportPdf}>
+            <Download className="mr-1 h-3 w-3" />
+            Exportar PDF
+          </Button>
+        ) : null
+      }
+      meta={[
+        ...documentMeta,
+        { label: "Fecha", value: formatDocumentDate(generatedAt) },
+        { label: "Actividades", value: activities.length || null },
+      ]}
+    >
       {exportEnabled && (
-        <Card>
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between gap-2">
-              <CardTitle className="text-sm text-muted-foreground">Orden del imprimible</CardTitle>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="text-xs"
-                onClick={() => setExportOrder(DEFAULT_EXPORT_ORDER)}
-              >
-                <RotateCcw className="mr-1 h-3 w-3" />
-                Restablecer
-              </Button>
+        <section className="document-section">
+          <div className="mb-4 flex items-center justify-between gap-2">
+            <div>
+              <p className="document-section-label">Imprimible</p>
+              <h4 className="document-section-heading mb-1 text-lg">Orden del documento exportado</h4>
+              <p className="field-help">
+                Este orden afecta solo al PDF exportado. No modifica el contenido elaborado.
+              </p>
             </div>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <p className="text-xs text-muted-foreground">
-              Este orden afecta solo al PDF exportado. No modifica el contenido elaborado.
-            </p>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="text-xs"
+              onClick={() => setExportOrder(DEFAULT_EXPORT_ORDER)}
+            >
+              <RotateCcw className="mr-1 h-3 w-3" />
+              Restablecer
+            </Button>
+          </div>
+          <div className="space-y-2">
             {exportOrder.map((sectionKey, index) => (
-              <div key={sectionKey} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
+              <div key={sectionKey} className="flex items-center justify-between rounded-2xl border border-border/70 bg-background/80 px-4 py-3 text-sm">
                 <span>
                   {index + 1}. {EXPORT_SECTION_LABELS[sectionKey]}
                 </span>
@@ -182,83 +203,69 @@ export default function TeachingMaterialView({
                 </div>
               </div>
             ))}
-          </CardContent>
-        </Card>
+          </div>
+        </section>
       )}
 
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm text-muted-foreground">Proposito</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm">{material.purpose}</p>
-        </CardContent>
-      </Card>
+      <section className="document-section">
+        <p className="document-section-label">Apertura</p>
+        <h4 className="document-section-heading">Proposito</h4>
+        <p className="document-copy">{material.purpose}</p>
+      </section>
 
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm text-muted-foreground">Actividades</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
+      <section className="document-section">
+        <p className="document-section-label">Desarrollo</p>
+        <h4 className="document-section-heading">Actividades</h4>
+        <div className="space-y-3">
           {activities.map((activity, index) => (
-            <div key={index} className="rounded border p-3">
-              <div className="mb-1 flex items-center justify-between">
-                <span className="text-sm font-medium">{activity.title}</span>
+            <article key={index} className="rounded-2xl border border-border/70 bg-background/80 p-4">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <h5 className="text-base font-semibold tracking-tight text-foreground">{activity.title}</h5>
                 <div className="flex gap-2">
                   <Badge variant="outline" className="text-xs">{activity.type}</Badge>
                   <Badge variant="outline" className="text-xs">{activity.duration_minutes} min</Badge>
                 </div>
               </div>
-              <p className="text-sm text-muted-foreground">{activity.description}</p>
-            </div>
+              <p className="document-copy text-sm">{activity.description}</p>
+            </article>
           ))}
-        </CardContent>
-      </Card>
+        </div>
+      </section>
 
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm text-muted-foreground">Producto / evidencia minima</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm">{material.expected_product}</p>
-        </CardContent>
-      </Card>
+      <section className="document-section">
+        <p className="document-section-label">Cierre verificable</p>
+        <h4 className="document-section-heading">Producto o evidencia minima</h4>
+        <p className="document-copy">{material.expected_product}</p>
+      </section>
 
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm text-muted-foreground">Criterios de logro</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ul className="list-disc list-inside space-y-1 text-sm">
-            {material.achievement_criteria.map((criterion, index) => (
-              <li key={index}>{criterion}</li>
-            ))}
-          </ul>
-        </CardContent>
-      </Card>
+      <section className="document-section">
+        <p className="document-section-label">Seguimiento</p>
+        <h4 className="document-section-heading">Criterios de logro</h4>
+        <ul className="document-list">
+          {material.achievement_criteria.map((criterion, index) => (
+            <li key={index}>{criterion}</li>
+          ))}
+        </ul>
+      </section>
 
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm text-muted-foreground">Diferenciacion</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
+      <section className="document-section">
+        <p className="document-section-label">Adaptaciones</p>
+        <h4 className="document-section-heading">Diferenciacion</h4>
+        <div className="space-y-3">
           {differentiation.map((item, index) => (
-            <div key={index} className="text-sm">
+            <div key={index} className="rounded-2xl border border-border/70 bg-background/75 px-4 py-3 text-sm leading-7 text-foreground">
               <Badge variant="outline" className="mr-2">{item.type}</Badge>
               {item.description}
             </div>
           ))}
-        </CardContent>
-      </Card>
+        </div>
+      </section>
 
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm text-muted-foreground">Cierre</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm">{material.closure}</p>
-        </CardContent>
-      </Card>
-    </div>
+      <section className="document-section">
+        <p className="document-section-label">Cierre</p>
+        <h4 className="document-section-heading">Cierre de la clase</h4>
+        <p className="document-copy">{material.closure}</p>
+      </section>
+    </DocumentSheet>
   );
 }

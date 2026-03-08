@@ -271,7 +271,10 @@ export default function CopilotPanel({
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-3">
-        <h3 className="text-sm font-semibold">Copiloto</h3>
+        <div>
+          <p className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Asistente</p>
+          <h3 className="font-serif text-xl font-semibold tracking-tight text-foreground">Copiloto</h3>
+        </div>
         <Badge variant={isPremium ? "default" : "outline"}>{isPremium ? "Premium" : copilotoMode === "limited" ? "Basico" : "Bloqueado"}</Badge>
       </div>
 
@@ -303,22 +306,22 @@ export default function CopilotPanel({
       )}
 
       {isPremium && !isDisabled && (
-        <div className="space-y-3 rounded-lg border bg-muted/30 p-3">
+        <div className="space-y-3 rounded-[1.35rem] border border-border/70 bg-muted/30 p-4">
           <div className="flex items-center gap-2">
             <Wand2 className="h-4 w-4 text-primary" />
             <Label className="text-xs">Lectura de contexto</Label>
           </div>
           <div className="grid gap-2 text-xs text-muted-foreground">
-            <div className="rounded-md bg-background p-3">
+            <div className="rounded-xl bg-background p-3">
               <span className="font-medium text-foreground">Tema:</span> {normalize(planTheme) || "Sin tema detectado"}
             </div>
-            <div className="rounded-md bg-background p-3">
+            <div className="rounded-xl bg-background p-3">
               <span className="font-medium text-foreground">Resultado esperado:</span> {normalize(learningOutcome) || "Sin resultado esperado detectado"}
             </div>
-            <div className="rounded-md bg-background p-3">
+            <div className="rounded-xl bg-background p-3">
               <span className="font-medium text-foreground">Operacion:</span> {normalize(canonOperation) || "Sin operacion sintetizada"}
             </div>
-            <div className="rounded-md bg-background p-3">
+            <div className="rounded-xl bg-background p-3">
               <span className="font-medium text-foreground">Evidencia:</span> {normalize(canonEvidence) || "Sin evidencia minima sintetizada"}
             </div>
           </div>
@@ -351,21 +354,21 @@ export default function CopilotPanel({
 
       {!isDisabled && (
         <div className="grid gap-3 sm:grid-cols-2">
-          <div className="rounded-md border p-3">
+          <div className="rounded-xl border border-border/70 p-3">
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Cobertura bibliografica</p>
             <p className="mt-1 text-sm font-medium text-foreground">
               {referencedCount} de {bibliographyNodes.length || 0} fuentes citadas
             </p>
           </div>
-          <div className="rounded-md border p-3">
+          <div className="rounded-xl border border-border/70 p-3">
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Fuentes del docente</p>
             <p className="mt-1 text-sm font-medium text-foreground">{processedAuthorizedSources.length} procesadas</p>
           </div>
-          <div className="rounded-md border p-3">
+          <div className="rounded-xl border border-border/70 p-3">
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Contenidos curriculares</p>
             <p className="mt-1 text-sm font-medium text-foreground">{mappedCurriculumNodes.length} vinculados</p>
           </div>
-          <div className="rounded-md border p-3">
+          <div className="rounded-xl border border-border/70 p-3">
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Estado de indicaciones</p>
             <p className="mt-1 text-sm font-medium text-foreground">{briefStatus || "Sin indicaciones"}</p>
           </div>
@@ -404,7 +407,7 @@ export default function CopilotPanel({
           <Label className="text-xs">Recomendaciones premium</Label>
           <div className="space-y-2">
             {premiumRecommendations.map((recommendation) => (
-              <div key={recommendation.id} className="rounded-md border p-3">
+              <div key={recommendation.id} className="rounded-xl border border-border/70 p-3">
                 <p className="text-sm font-medium text-foreground">{recommendation.title}</p>
                 <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{recommendation.detail}</p>
                 {recommendation.actionLabel && recommendation.action && (

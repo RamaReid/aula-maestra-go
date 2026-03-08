@@ -42,7 +42,23 @@ type GenerateMaterialsResponse = {
   reading_validation_issues?: string[];
 };
 
-const AUTHORIZED_SOURCES_TABLE = "authorized_sources" as any;
+type CourseContextRow = Pick<Tables<"courses">, "subject" | "year_level" | "academic_year"> & {
+  schools: Pick<Tables<"schools">, "official_name"> | null;
+};
+
+type TeachingActivity = {
+  title: string;
+  description: string;
+  duration_minutes: number;
+  type: string;
+};
+
+type TeachingDifferentiation = {
+  type: string;
+  description: string;
+};
+
+const AUTHORIZED_SOURCES_TABLE = "authorized_sources" as never;
 
 function extractCanonSummary(activitiesSummary?: string | null, fallbackTheme?: string | null) {
   const summary = (activitiesSummary || "").trim();
@@ -155,6 +171,7 @@ export default function Lesson() {
   const { lessonId } = useParams<{ lessonId: string }>();
   const { entitlements, planType } = useEntitlements();
   const [lesson, setLesson] = useState<LessonRow | null>(null);
+  const [courseContext, setCourseContext] = useState<CourseContextRow | null>(null);
   const [planLesson, setPlanLesson] = useState<PlanLessonRow | null>(null);
   const [brief, setBrief] = useState<LessonBriefRow | null>(null);
   const [teachingMaterial, setTeachingMaterial] = useState<TeachingMaterialRow | null>(null);
@@ -180,13 +197,19 @@ export default function Lesson() {
     }
     setLesson(lessonData as LessonRow);
 
-    const [planLessonRes, briefRes, teachingRes, readingRes] = await Promise.all([
+    const [courseRes, planLessonRes, briefRes, teachingRes, readingRes] = await Promise.all([
+      supabase
+        .from("courses")
+        .select("subject, year_level, academic_year, schools(official_name)")
+        .eq("id", lessonData.course_id)
+        .maybeSingle(),
       supabase.from("plan_lessons").select("*").eq("id", lessonData.plan_lesson_id).single(),
       supabase.from("lesson_briefs").select("*").eq("lesson_id", lessonId).maybeSingle(),
       supabase.from("teaching_materials").select("*").eq("lesson_id", lessonId).maybeSingle(),
       supabase.from("reading_materials").select("*").eq("lesson_id", lessonId).maybeSingle(),
     ]);
 
+    setCourseContext((courseRes.data as CourseContextRow | null) ?? null);
     setPlanLesson(planLessonRes.data as PlanLessonRow | null);
     setBrief((briefRes.data as LessonBriefRow | null) ?? null);
     setTeachingMaterial(teachingRes.data as TeachingMaterialRow | null);
@@ -429,6 +452,25 @@ export default function Lesson() {
   const referencedNodes = bibliographyNodes.filter((node) => referencedNodeIds.includes(node.id));
   const canExportValidatedPdf = planType === "BASICO" || planType === "PREMIUM";
   const lessonSlug = `leccion-${lesson.lesson_number}`;
+  const documentMeta = [
+    { label: "Institucion", value: courseContext?.schools?.official_name || null },
+    { label: "Materia", value: courseContext?.subject || null },
+    { label: "Curso", value: courseContext?.year_level ? `${courseContext.year_level} ano` : null },
+    { label: "Clase", value: `Leccion ${lesson.lesson_number}` },
+    { label: "Tema", value: planLesson?.theme || null },
+    { label: "Ciclo", value: courseContext?.academic_year || null },
+  ];
+  const normalizedTeachingMaterial = teachingMaterial
+    ? {
+        ...teachingMaterial,
+        activities: Array.isArray(teachingMaterial.activities)
+          ? (teachingMaterial.activities as unknown as TeachingActivity[])
+          : [],
+        differentiation: Array.isArray(teachingMaterial.differentiation)
+          ? (teachingMaterial.differentiation as unknown as TeachingDifferentiation[])
+          : [],
+      }
+    : null;
 
   return (
     <div className="min-h-screen bg-background">
@@ -630,16 +672,16 @@ export default function Lesson() {
                 disabled={!canGenerate}
               />
 
-              {teachingMaterial && (
+              {normalizedTeachingMaterial && (
                 <div className="mt-6">
                   <TeachingMaterialView
-                    material={{
-                      ...teachingMaterial,
-                      activities: Array.isArray(teachingMaterial.activities) ? teachingMaterial.activities as any : [],
-                      differentiation: Array.isArray(teachingMaterial.differentiation) ? teachingMaterial.differentiation as any : [],
-                    }}
+                    material={normalizedTeachingMaterial}
                     canExportPdf={canExportValidatedPdf}
                     exportFileName={`${lessonSlug}-material-didactico.pdf`}
+                    documentTitle={planLesson?.theme ? `Material didactico - ${planLesson.theme}` : "Material didactico"}
+                    documentSummary="Documento de trabajo para aula con proposito, actividades, criterios y cierre listo para uso real."
+                    documentMeta={documentMeta}
+                    generatedAt={normalizedTeachingMaterial.created_at}
                   />
                 </div>
               )}
@@ -651,6 +693,10 @@ export default function Lesson() {
                     pdfBase64={pdfBase64}
                     canExportPdf={canExportValidatedPdf}
                     exportFileName={`${lessonSlug}-material-lectura.pdf`}
+                    documentTitle={planLesson?.theme ? `Material de lectura - ${planLesson.theme}` : "Material de lectura"}
+                    documentSummary="Lectura continua y trazable, preparada como pieza pedagogica presentable y lista para compartir."
+                    documentMeta={documentMeta}
+                    generatedAt={readingMaterial.created_at}
                   />
                 </div>
               )}
@@ -658,7 +704,7 @@ export default function Lesson() {
           </div>
 
           {(brief?.status === "READY_FOR_PRODUCTION" || brief?.status === "PRODUCED") && (
-            <aside className="border rounded-lg p-4 h-fit sticky top-4">
+            <aside className="sticky top-4 h-fit rounded-[1.5rem] border border-border/70 bg-card/90 p-4 shadow-sm">
               <CopilotPanel
                 bibliographyNodes={bibliographyNodes}
                 referencedNodeIds={referencedNodeIds}

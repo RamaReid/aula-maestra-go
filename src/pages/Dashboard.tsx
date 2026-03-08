@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { clearMockCurriculumForCourse } from "@/mock/curriculumCatalog";
 import { Button } from "@/components/ui/button";
+import { PageIntro } from "@/components/editorial/PageIntro";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -220,7 +221,7 @@ export default function Dashboard() {
                 <>
                   <div className="space-y-2">
                     <h2 className="text-2xl font-semibold text-foreground">Tu curso de muestra ya está listo</h2>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-sm leading-7 text-muted-foreground">
                       Podés abrir tu curso y seguir con la generación de hasta {entitlements.max_classes_per_session} clases por sesión.
                     </p>
                   </div>
@@ -278,6 +279,11 @@ export default function Dashboard() {
       </header>
 
       <main className="mx-auto max-w-4xl space-y-8 px-4 py-8">
+        <PageIntro
+          eyebrow="Panel docente"
+          title="Cursos, agenda y acceso rapido al trabajo del dia"
+          description="Organiza el recorrido anual de cada curso, revisa estados de planificacion y entra rapido a las clases o a la sincronizacion curricular."
+        />
         <section>
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-xl font-semibold text-foreground">Mis cursos activos</h2>
@@ -307,10 +313,13 @@ export default function Dashboard() {
           ) : (
             <div className="grid gap-4 sm:grid-cols-2">
               {activeCourses.map((course) => (
-                <Card key={course.id} className="transition-colors hover:border-primary/50">
+                <Card key={course.id} className="rounded-[1.5rem] border-border/80 bg-card/90 transition-colors hover:border-primary/50">
                   <CardHeader className="pb-2">
                     <div className="flex items-start justify-between gap-3">
-                      <CardTitle className="text-base">{course.subject}</CardTitle>
+                      <div className="space-y-1">
+                        <p className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Curso</p>
+                        <CardTitle className="text-xl font-semibold tracking-tight">{course.subject}</CardTitle>
+                      </div>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
@@ -364,15 +373,15 @@ export default function Dashboard() {
               <CollapsibleContent className="mt-4">
                 <div className="grid gap-4 sm:grid-cols-2">
                   {archivedCourses.map((course) => (
-                    <Card key={course.id} className="opacity-70">
+                    <Card key={course.id} className="rounded-[1.5rem] border-border/80 bg-card/80 opacity-70">
                       <CardHeader className="pb-2">
                         <div className="flex items-center justify-between gap-3">
-                          <CardTitle className="text-base">{course.subject}</CardTitle>
+                          <CardTitle className="text-lg font-semibold tracking-tight">{course.subject}</CardTitle>
                           <StatusBadge tone="archived" label="Archivado" />
                         </div>
                       </CardHeader>
                       <CardContent className="space-y-3">
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-sm leading-7 text-muted-foreground">
                           {course.school?.official_name ?? "Sin escuela"} · {course.year_level}° año · {course.academic_year}
                         </p>
                         <Button asChild variant="outline" size="sm">
