@@ -237,6 +237,7 @@ export default function PlanEditor({
     }
 
     // Fallback: if no mappings but curriculum document exists, load nodes directly
+    let usingFallback = false;
     if (contentNodes.length === 0 && curriculumDocumentId) {
       const { data: docNodes } = await supabase
         .from("curriculum_nodes")
@@ -245,7 +246,9 @@ export default function PlanEditor({
         .in("node_type", ["UNIDAD", "BLOQUE", "CONTENIDO"])
         .order("order_index");
       contentNodes = ((docNodes || []) as MappedCurriculumNode[]).filter((n) => !isAuthorityOrNoiseNode(n.name) && !isLikelyBibliographyNode(n.name));
+      usingFallback = contentNodes.length > 0;
     }
+    setContentFromFallback(usingFallback);
 
     const parentIds = Array.from(new Set(contentNodes.map((n) => n.parent_id).filter(Boolean))) as string[];
     let parentMap = new Map<string, { name: string; node_type: string }>();
