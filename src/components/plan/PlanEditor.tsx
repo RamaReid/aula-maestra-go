@@ -13,6 +13,7 @@ import { toast } from "@/hooks/use-toast";
 import PlanObjectivesEditor from "./PlanObjectivesEditor";
 import PlanLessonsEditor, { fetchLessonUnitMap } from "./PlanLessonsEditor";
 import { InlineValidationSummary } from "@/components/ui/InlineValidationSummary";
+import { LoadingState } from "@/components/ui/LoadingState";
 import type { Tables } from "@/integrations/supabase/types";
 import { formatErrorMessage } from "@/lib/errors";
 import { downloadStructuredPdf } from "@/lib/pdfExport";
