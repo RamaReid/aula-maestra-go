@@ -635,6 +635,14 @@ export default function CourseNew() {
 
         if (legacyCourseError || !legacyCourse) throw legacyCourseError;
         course = legacyCourse;
+      } else if (courseWithCurriculumError?.code === "23505") {
+        toast({
+          title: "Curso duplicado",
+          description: "Ya existe un curso con la misma materia, escuela, año y ciclo lectivo. Revisá tus cursos existentes.",
+          variant: "destructive",
+        });
+        setCreating(false);
+        return;
       } else {
         throw courseWithCurriculumError;
       }
