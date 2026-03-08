@@ -1469,6 +1469,14 @@ REGLAS:
           },
         ];
 
+        const aiTracking: AITrackingContext = {
+          adminClient,
+          userId,
+          courseId: lesson.course_id,
+          lessonId,
+          feature: "teaching",
+        };
+
         const teachingResult = await callAI(
           lovableApiKey,
           "google/gemini-2.5-flash",
@@ -1477,7 +1485,8 @@ REGLAS:
             { role: "user", content: "Generá el material didáctico completo." },
           ],
           teachingTools,
-          { type: "function", function: { name: "create_teaching_material" } }
+          { type: "function", function: { name: "create_teaching_material" } },
+          aiTracking
         );
 
         const teachingArgs = JSON.parse(
