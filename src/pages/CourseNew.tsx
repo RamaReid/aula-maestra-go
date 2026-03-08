@@ -819,7 +819,7 @@ export default function CourseNew() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="NINGUNA">Ninguna / Normal</SelectItem>
-                          <SelectItem value="ORIENTACION">OrientaciÃ³n</SelectItem>
+                          <SelectItem value="ORIENTACION">Orientación</SelectItem>
                           <SelectItem value="TECNICATURA">Tecnicatura</SelectItem>
                         </SelectContent>
                       </Select>
