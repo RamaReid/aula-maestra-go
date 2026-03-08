@@ -914,11 +914,11 @@ export default function PlanEditor({
               <Label className="text-base font-semibold">Recursos</Label>
               <Button type="button" variant="ghost" size="sm" onClick={() => setExpandedField("resources")}>
                 <Maximize2 className="mr-2 h-4 w-4" />
-                Expandir
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Sección metodológica-instrumental: qué recursos se utilizarán, cómo se aprovechará la bibliografía, el programa y la orientación. Incluya herramientas, soportes y formas de trabajo.
+                Expandir editar
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Sección metodológica-instrumental: qué recursos se utilizarán, cómo se aprovechará la bibliografía, el programa y la orientación. Incluya herramientas, soportes y formas de trabajo.
             </p>
             <Textarea
               value={plan.resources}
