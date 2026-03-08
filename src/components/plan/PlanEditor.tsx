@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { X, Plus, RotateCcw, ShieldCheck, Maximize2, Download, ArrowUp, ArrowDown } from "lucide-react";
+import { X, Plus, RotateCcw, ShieldCheck, Maximize2, Download, ArrowUp, ArrowDown, AlertTriangle } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import PlanObjectivesEditor from "./PlanObjectivesEditor";
 import PlanLessonsEditor, { fetchLessonUnitMap } from "./PlanLessonsEditor";
@@ -209,6 +209,7 @@ export default function PlanEditor({
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [rubricItems, setRubricItems] = useState<{ id: string; unit_label: string; criteria: string; order_index: number }[]>([]);
   const [rubricLoading, setRubricLoading] = useState(false);
+  const [repairingNodes, setRepairingNodes] = useState(false);
   const transitioningRef = useRef(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -882,6 +883,56 @@ export default function PlanEditor({
               </p>
             </div>
             <div className="rounded-md border p-4">
+              {/* Detect index noise: nodes containing "..." patterns */}
+              {(() => {
+                const hasIndexNoise = allContentNodes.some((n) => /\.{3,}\s*\d+/.test(n.name));
+                if (!hasIndexNoise) return null;
+                return (
+                  <div className="rounded-md bg-destructive/10 border border-destructive/30 p-3 mb-3">
+                    <div className="flex items-center gap-2 mb-1">
+                      <AlertTriangle className="h-4 w-4 text-destructive" />
+                      <p className="text-sm text-destructive font-medium">Los contenidos parecen ser del índice del PDF</p>
+                    </div>
+                    <p className="text-xs text-muted-foreground mb-2">
+                      Se detectaron entradas con puntos suspendidos y números de página, típicas de un índice. Podés corregir esto automáticamente extrayendo los módulos reales del documento.
+                    </p>
+                    {!readOnly && curriculumDocumentId && (
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        disabled={repairingNodes}
+                        onClick={async () => {
+                          setRepairingNodes(true);
+                          try {
+                            const { data, error } = await supabase.functions.invoke("repair-curriculum-nodes", {
+                              body: { curriculum_document_id: curriculumDocumentId },
+                            });
+                            if (error) throw error;
+                            if (data?.error) throw new Error(data.error);
+                            if (data?.success === false) {
+                              toast({ title: "No se pudieron corregir", description: data.error || "No se encontraron módulos reales.", variant: "destructive" });
+                              return;
+                            }
+                            toast({
+                              title: "Contenidos corregidos",
+                              description: `Se encontraron ${data.modules_found} módulos reales con ${data.total_nodes_created} nodos. Recargando...`,
+                            });
+                            await fetchMappedNodes();
+                          } catch (err: unknown) {
+                            toast({ title: "Error al corregir contenidos", description: formatErrorMessage(err), variant: "destructive" });
+                          } finally {
+                            setRepairingNodes(false);
+                          }
+                        }}
+                      >
+                        <RotateCcw className="mr-1 h-3.5 w-3.5" />
+                        {repairingNodes ? "Corrigiendo..." : "Corregir contenidos del programa"}
+                      </Button>
+                    )}
+                  </div>
+                );
+              })()}
               {contentFromFallback && (
                 <div className="rounded-md bg-warning/10 border border-warning/30 p-3 mb-3">
                   <p className="text-sm text-warning font-medium">Contenidos cargados desde el programa oficial</p>
