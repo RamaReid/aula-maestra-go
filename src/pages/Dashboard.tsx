@@ -328,6 +328,10 @@ export default function Dashboard() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => navigate(`/curriculum/import?course_id=${course.id}`)}>
+                            <RefreshCw className="mr-2 h-4 w-4" />
+                            Recargar diseño curricular
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => setCourseToArchive(course)}>
                             <Archive className="mr-2 h-4 w-4" />
                             Archivar
