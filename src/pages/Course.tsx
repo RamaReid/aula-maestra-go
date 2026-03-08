@@ -334,7 +334,7 @@ export default function Course() {
     if (!selectionIsReady) {
       toast({
         title: "Hay clases incompletas",
-        description: "Cada clase seleccionada debe tener el brief listo para producción y no estar generándose.",
+        description: "Cada clase seleccionada debe tener las indicaciones listas para produccion y no estar generandose.",
         variant: "destructive",
       });
       return;
@@ -636,7 +636,7 @@ export default function Course() {
                                     <p className="text-xs text-muted-foreground">
                                       {lesson.brief_status === "READY_FOR_PRODUCTION" || lesson.brief_status === "PRODUCED"
                                         ? "Lista para preparar."
-                                        : "Completá el brief antes de prepararla."}
+                                        : "Completa las indicaciones antes de prepararla."}
                                     </p>
                                   </div>
                                 </div>

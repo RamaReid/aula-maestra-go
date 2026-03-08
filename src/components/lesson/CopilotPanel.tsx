@@ -112,8 +112,8 @@ function buildPremiumRecommendations(params: {
     recommendations.push({
       id: "focus",
       title: "Defini el foco docente",
-      detail: "El brief necesita un enfoque explicito para que la generacion no derive en una clase generica.",
-      actionLabel: "Ir al brief",
+      detail: "Las indicaciones necesitan un enfoque explicito para que la generacion no derive en una clase generica.",
+      actionLabel: "Ir a indicaciones",
       action: "focus_brief",
     });
   }
@@ -123,7 +123,7 @@ function buildPremiumRecommendations(params: {
       id: "dynamic",
       title: "Completa la dinamica de trabajo",
       detail: "Agregar una dinamica sugerida ayuda a que el material didactico quede mas utilizable en aula.",
-      actionLabel: "Ir al brief",
+      actionLabel: "Ir a indicaciones",
       action: "focus_brief",
     });
   }
@@ -133,7 +133,7 @@ function buildPremiumRecommendations(params: {
       id: "observations",
       title: "Agrega observaciones de contexto",
       detail: "Con una nota docente breve, el copiloto puede sostener mejor adaptaciones y decisiones de tono.",
-      actionLabel: "Ir al brief",
+      actionLabel: "Ir a indicaciones",
       action: "focus_brief",
     });
   }
@@ -142,8 +142,8 @@ function buildPremiumRecommendations(params: {
     recommendations.push({
       id: "curriculum",
       title: "Refuerza el anclaje curricular",
-      detail: "La clase parece apoyarse en pocos nodos del programa. Conviene revisar el brief y la planificacion antes de regenerar.",
-      actionLabel: "Ir al brief",
+      detail: "La clase parece apoyarse en pocos nodos del programa. Conviene revisar las indicaciones y la planificacion antes de regenerar.",
+      actionLabel: "Ir a indicaciones",
       action: "focus_brief",
     });
   }
@@ -153,7 +153,7 @@ function buildPremiumRecommendations(params: {
       id: "bibliography",
       title: "Confirma bibliografia antes de producir",
       detail: "Todavia no hay fuentes confirmadas para esta leccion. El copiloto premium mejora cuando parte de un set bibliografico cerrado.",
-      actionLabel: "Ir al brief",
+      actionLabel: "Ir a indicaciones",
       action: "focus_brief",
     });
   } else if (referencedCount === 0 && readingStatus) {
@@ -190,7 +190,7 @@ function buildPremiumRecommendations(params: {
     recommendations.push({
       id: "healthy-state",
       title: "Clase bien preparada para premium",
-      detail: "El brief, la bibliografia y el anclaje curricular ya dan una base solida para regenerar con ajustes finos.",
+      detail: "Las indicaciones, la bibliografia y el anclaje curricular ya dan una base solida para regenerar con ajustes finos.",
     });
   }
 
@@ -296,8 +296,8 @@ export default function CopilotPanel({
           <AlertTitle>{isPremium ? "Diagnostico contextual activo" : "Modo operativo limitado"}</AlertTitle>
           <AlertDescription className="text-xs">
             {isPremium
-              ? "El copiloto premium analiza brief, trazabilidad, fuentes y estado de materiales para sugerir ajustes concretos."
-              : "En Basico el copiloto controla profundidad, bibliografia visible y regeneracion de materiales."}
+              ? "El copiloto premium analiza indicaciones, trazabilidad, bibliografia y estado de materiales para sugerir ajustes concretos."
+              : "En Basico el copiloto controla profundidad, bibliografia sugerida visible y regeneracion de materiales."}
           </AlertDescription>
         </Alert>
       )}
@@ -326,7 +326,7 @@ export default function CopilotPanel({
       )}
 
       <div className="space-y-2">
-        <Label className="text-xs">Bibliografia usada</Label>
+        <Label className="text-xs">Bibliografia sugerida usada</Label>
         <div className="space-y-1">
           {bibliographyNodes.length === 0 ? (
             <p className="text-xs text-muted-foreground">Todavia no hay bibliografia confirmada para esta clase.</p>
@@ -366,8 +366,8 @@ export default function CopilotPanel({
             <p className="mt-1 text-sm font-medium text-foreground">{mappedCurriculumNodes.length} vinculados</p>
           </div>
           <div className="rounded-md border p-3">
-            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Estado del brief</p>
-            <p className="mt-1 text-sm font-medium text-foreground">{briefStatus || "Sin brief"}</p>
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Estado de indicaciones</p>
+            <p className="mt-1 text-sm font-medium text-foreground">{briefStatus || "Sin indicaciones"}</p>
           </div>
         </div>
       )}

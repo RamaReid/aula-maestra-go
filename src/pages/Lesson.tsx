@@ -457,7 +457,7 @@ export default function Lesson() {
           {briefIsDraft && (
             <Button onClick={scrollToBrief}>
               <ClipboardEdit className="h-4 w-4 mr-2" />
-              Completar brief
+              Completar indicaciones
             </Button>
           )}
         </div>
@@ -526,18 +526,18 @@ export default function Lesson() {
 
                   <div className="space-y-2">
                     <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Fuentes curriculares confirmadas para generar
+                      Bibliografia sugerida confirmada para generar
                     </p>
                     <div className="flex flex-wrap gap-2">
                       {bibliographyNodes.length > 0 ? (
                         bibliographyNodes.map((node) => (
                           <Badge key={node.id} variant="secondary">
-                            [FUENTE CURRICULAR] {node.name}
+                            [BIBLIOGRAFIA SUGERIDA] {node.name}
                           </Badge>
                         ))
                       ) : (
                         <p className="text-sm text-muted-foreground">
-                          El brief todavia no tiene bibliografia confirmada.
+                          Las indicaciones todavia no tienen bibliografia confirmada.
                         </p>
                       )}
                     </div>
@@ -594,7 +594,7 @@ export default function Lesson() {
             <section id="brief-form">
               <StepHeader
                 stepNumber={1}
-                title="Relevamiento"
+                title="Indicaciones"
                 status={briefLabel(brief?.status)}
                 statusTone={briefTone(brief?.status)}
               />

@@ -185,7 +185,7 @@ export default function BibliographySelector({
   return (
     <div className="space-y-4">
       <div className="space-y-2">
-        <Label>Fuentes curriculares y del docente - selecciona 1 a 5</Label>
+        <Label>Bibliografia sugerida (curricular y del docente) - selecciona 1 a 5</Label>
         <div className="max-h-60 space-y-2 overflow-y-auto rounded-md border p-3">
           {nodes.length > 0 ? (
             nodes.map((node) => (
@@ -202,7 +202,7 @@ export default function BibliographySelector({
             ))
           ) : (
             <p className="text-sm text-muted-foreground">
-              No se encontro bibliografia extraida del diseno curricular. Revisa la importacion del documento o vuelve a sincronizar el programa.
+              No se encontro bibliografia sugerida extraida del diseno curricular. Revisa la importacion del documento o vuelve a sincronizar el programa.
             </p>
           )}
         </div>

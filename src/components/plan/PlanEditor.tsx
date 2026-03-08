@@ -8,13 +8,14 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { X, Plus, RotateCcw, ShieldCheck, Maximize2 } from "lucide-react";
+import { X, Plus, RotateCcw, ShieldCheck, Maximize2, Download, ArrowUp, ArrowDown } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import PlanObjectivesEditor from "./PlanObjectivesEditor";
 import PlanLessonsEditor from "./PlanLessonsEditor";
 import { InlineValidationSummary } from "@/components/ui/InlineValidationSummary";
 import type { Tables } from "@/integrations/supabase/types";
 import { formatErrorMessage } from "@/lib/errors";
+import { downloadStructuredPdf } from "@/lib/pdfExport";
 
 interface PlanData {
   fundamentacion: string;
@@ -31,12 +32,44 @@ interface MappedCurriculumNode {
   order_index?: number | null;
 }
 
+type PlanExportSectionKey =
+  | "fundamentacion"
+  | "objetivos"
+  | "estrategias"
+  | "evaluacion"
+  | "recursos"
+  | "bibliografia"
+  | "clases"
+  | "contenidos";
+
+const DEFAULT_PLAN_EXPORT_ORDER: PlanExportSectionKey[] = [
+  "fundamentacion",
+  "objetivos",
+  "estrategias",
+  "evaluacion",
+  "recursos",
+  "bibliografia",
+  "clases",
+  "contenidos",
+];
+
+const PLAN_EXPORT_LABELS: Record<PlanExportSectionKey, string> = {
+  fundamentacion: "Fundamentacion",
+  objetivos: "Objetivos",
+  estrategias: "Estrategias",
+  evaluacion: "Criterios de evaluacion",
+  recursos: "Recursos",
+  bibliografia: "Bibliografia",
+  clases: "Clases",
+  contenidos: "Contenidos",
+};
+
 type ExpandableField = "fundamentacion" | "estrategias_marco" | "evaluacion_marco" | "resources";
 
 const fieldTitles: Record<ExpandableField, string> = {
   fundamentacion: "Fundamentacion",
   estrategias_marco: "Estrategias marco",
-  evaluacion_marco: "Evaluacion marco",
+  evaluacion_marco: "Criterios de evaluacion",
   resources: "Recursos",
 };
 
@@ -65,7 +98,7 @@ function buildRepairGuidance(errors: string[]) {
       continue;
     }
     if (error.includes("Evaluacion marco")) {
-      steps.push("Revise la pestana Evaluacion y explicite como se seguira y recuperara el trabajo del curso.");
+      steps.push("Revise la pestana Criterios de evaluacion y explicite como se seguira y recuperara el trabajo del curso.");
       continue;
     }
     if (error.includes("Recursos")) {
@@ -73,7 +106,7 @@ function buildRepairGuidance(errors: string[]) {
       continue;
     }
     if (error.includes("propositos")) {
-      steps.push("Revise la pestana Propositos y deje entre 4 y 8 objetivos observables.");
+      steps.push("Revise la pestana Objetivos y deje entre 4 y 8 objetivos observables.");
       continue;
     }
     if (error.includes("contenido curricular mapeado")) {
@@ -154,6 +187,8 @@ export default function PlanEditor({
   const [mappedNodes, setMappedNodes] = useState<MappedCurriculumNode[]>([]);
   const [currentStatus, setCurrentStatus] = useState(planStatus);
   const [hasEditedAfterValidation, setHasEditedAfterValidation] = useState(false);
+  const [exportOrder, setExportOrder] = useState<PlanExportSectionKey[]>(DEFAULT_PLAN_EXPORT_ORDER);
+  const [exportingPdf, setExportingPdf] = useState(false);
   const transitioningRef = useRef(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -343,6 +378,14 @@ export default function PlanEditor({
     }
   };
 
+  const moveExportSection = (index: number, offset: -1 | 1) => {
+    const nextIndex = index + offset;
+    if (nextIndex < 0 || nextIndex >= exportOrder.length) return;
+    const nextOrder = [...exportOrder];
+    [nextOrder[index], nextOrder[nextIndex]] = [nextOrder[nextIndex], nextOrder[index]];
+    setExportOrder(nextOrder);
+  };
+
   const renderStatusBadge = () => {
     switch (currentStatus) {
       case "VALIDATED":
@@ -362,6 +405,110 @@ export default function PlanEditor({
   const visibleMappedNodes = mappedNodes.filter((node) => !isAuthorityOrNoiseNode(node.name));
   const bibliographyNodes = visibleMappedNodes.filter((node) => isLikelyBibliographyNode(node.name));
   const curricularNodes = visibleMappedNodes.filter((node) => !isLikelyBibliographyNode(node.name));
+
+  const handleExportPlanPdf = async () => {
+    setExportingPdf(true);
+
+    try {
+      const [{ data: objectives, error: objectivesError }, { data: planLessons, error: lessonsError }] =
+        await Promise.all([
+          supabase
+            .from("plan_objectives")
+            .select("description, order_index")
+            .eq("plan_id", planId)
+            .order("order_index"),
+          supabase
+            .from("plan_lessons")
+            .select("lesson_number, term, theme, justification, learning_outcome, activities_summary")
+            .eq("plan_id", planId)
+            .order("lesson_number"),
+        ]);
+
+      if (objectivesError) throw objectivesError;
+      if (lessonsError) throw lessonsError;
+
+      const objectiveLines =
+        (objectives || [])
+          .map((objective, index) => objective.description?.trim() ? `${index + 1}. ${objective.description.trim()}` : "")
+          .filter(Boolean) || [];
+
+      const strategiesLines = [
+        plan.estrategias_marco?.trim() ? `Marco: ${plan.estrategias_marco.trim()}` : "",
+        ...(plan.estrategias_practicas || [])
+          .map((strategy, index) => strategy.trim() ? `Estrategia practica ${index + 1}: ${strategy.trim()}` : "")
+          .filter(Boolean),
+      ].filter(Boolean);
+
+      const classesLines =
+        (planLessons || [])
+          .map((lesson) => {
+            const chunks = [
+              `Clase ${lesson.lesson_number}${lesson.term ? ` (T${lesson.term})` : ""}.`,
+              lesson.theme?.trim() ? `Foco: ${lesson.theme.trim()}.` : "",
+              lesson.justification?.trim() ? `Justificacion: ${lesson.justification.trim()}.` : "",
+              lesson.learning_outcome?.trim() ? `Resultado esperado: ${lesson.learning_outcome.trim()}.` : "",
+              lesson.activities_summary?.trim() ? `Operacion y evidencia minima: ${lesson.activities_summary.trim()}.` : "",
+            ].filter(Boolean);
+            return chunks.join(" ");
+          })
+          .filter(Boolean) || [];
+
+      const sectionContent: Record<PlanExportSectionKey, { title: string; body: string[] }> = {
+        fundamentacion: {
+          title: "Fundamentacion",
+          body: [plan.fundamentacion?.trim() || "Sin fundamentacion cargada."],
+        },
+        objetivos: {
+          title: "Objetivos",
+          body: objectiveLines.length > 0 ? objectiveLines : ["Sin objetivos cargados."],
+        },
+        estrategias: {
+          title: "Estrategias",
+          body: strategiesLines.length > 0 ? strategiesLines : ["Sin estrategias cargadas."],
+        },
+        evaluacion: {
+          title: "Criterios de evaluacion",
+          body: [plan.evaluacion_marco?.trim() || "Sin criterios de evaluacion cargados."],
+        },
+        recursos: {
+          title: "Recursos",
+          body: [plan.resources?.trim() || "Sin recursos cargados."],
+        },
+        bibliografia: {
+          title: "Bibliografia",
+          body:
+            bibliographyNodes.length > 0
+              ? bibliographyNodes.map((node, index) => `${index + 1}. ${node.name}`)
+              : ["Sin bibliografia sugerida detectada."],
+        },
+        clases: {
+          title: "Clases",
+          body: classesLines.length > 0 ? classesLines : ["Sin clases cargadas."],
+        },
+        contenidos: {
+          title: "Contenidos",
+          body:
+            curricularNodes.length > 0
+              ? curricularNodes.map((node, index) => `${index + 1}. [${node.node_type}] ${node.name}`)
+              : ["Sin contenidos curriculares mapeados."],
+        },
+      };
+
+      downloadStructuredPdf({
+        title: "Planificacion anual",
+        filename: `planificacion-anual-${planId.slice(0, 8)}.pdf`,
+        sections: exportOrder.map((sectionKey) => sectionContent[sectionKey]),
+      });
+    } catch (err: unknown) {
+      toast({
+        title: "No se pudo exportar el imprimible",
+        description: formatErrorMessage(err),
+        variant: "destructive",
+      });
+    } finally {
+      setExportingPdf(false);
+    }
+  };
 
   const ctaLabel = currentStatus === "EDITED" ? "Validar cambios" : "Validar plan";
   const showCta = !readOnly && !courseArchived && currentStatus !== "VALIDATED";
@@ -398,8 +545,8 @@ export default function PlanEditor({
           </div>
         )}
 
-        {!readOnly && (
-          <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2">
+          {!readOnly && (
             <Button
               type="button"
               variant="outline"
@@ -409,19 +556,75 @@ export default function PlanEditor({
               <RotateCcw className="mr-2 h-4 w-4" />
               {bootstrapping ? "Reconstruyendo..." : "Rearmar borrador curricular"}
             </Button>
+          )}
+          <Button type="button" variant="outline" onClick={handleExportPlanPdf} disabled={exportingPdf}>
+            <Download className="mr-2 h-4 w-4" />
+            {exportingPdf ? "Exportando..." : "Exportar imprimible"}
+          </Button>
+        </div>
+
+        <div className="rounded-md border p-3 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm font-medium">Orden del imprimible anual</p>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="text-xs"
+              onClick={() => setExportOrder(DEFAULT_PLAN_EXPORT_ORDER)}
+            >
+              <RotateCcw className="mr-1 h-3 w-3" />
+              Restablecer
+            </Button>
           </div>
-        )}
+          <p className="text-xs text-muted-foreground">
+            Cambia solo el orden de salida del PDF. No modifica lo elaborado en la planificacion.
+          </p>
+          <div className="space-y-1">
+            {exportOrder.map((sectionKey, index) => (
+              <div key={sectionKey} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
+                <span>
+                  {index + 1}. {PLAN_EXPORT_LABELS[sectionKey]}
+                </span>
+                <div className="flex items-center gap-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={() => moveExportSection(index, -1)}
+                    disabled={index === 0}
+                    aria-label={`Subir ${PLAN_EXPORT_LABELS[sectionKey]}`}
+                  >
+                    <ArrowUp className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={() => moveExportSection(index, 1)}
+                    disabled={index === exportOrder.length - 1}
+                    aria-label={`Bajar ${PLAN_EXPORT_LABELS[sectionKey]}`}
+                  >
+                    <ArrowDown className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
 
         <Tabs defaultValue="fundamentacion">
           <TabsList className="grid w-full grid-cols-8">
             <TabsTrigger value="fundamentacion">Fundamentacion</TabsTrigger>
+            <TabsTrigger value="propositos">Objetivos</TabsTrigger>
             <TabsTrigger value="estrategias">Estrategias</TabsTrigger>
-            <TabsTrigger value="evaluacion">Evaluacion</TabsTrigger>
+            <TabsTrigger value="evaluacion">Criterios de evaluacion</TabsTrigger>
             <TabsTrigger value="recursos">Recursos</TabsTrigger>
-            <TabsTrigger value="contenidos">Contenidos</TabsTrigger>
             <TabsTrigger value="bibliografia">Bibliografia</TabsTrigger>
-            <TabsTrigger value="propositos">Propositos</TabsTrigger>
             <TabsTrigger value="clases">Clases</TabsTrigger>
+            <TabsTrigger value="contenidos">Contenidos</TabsTrigger>
           </TabsList>
 
           <TabsContent value="fundamentacion" className="space-y-2 pt-2">
@@ -494,7 +697,7 @@ export default function PlanEditor({
 
           <TabsContent value="evaluacion" className="space-y-2 pt-2">
             <div className="flex items-center justify-between gap-2">
-              <Label>Evaluacion marco</Label>
+              <Label>Criterios de evaluacion</Label>
               <Button type="button" variant="ghost" size="sm" onClick={() => setExpandedField("evaluacion_marco")}>
                 <Maximize2 className="mr-2 h-4 w-4" />
                 Expandir
@@ -503,7 +706,7 @@ export default function PlanEditor({
             <Textarea
               value={plan.evaluacion_marco}
               onChange={(e) => updateField("evaluacion_marco", e.target.value)}
-              placeholder="Describir el marco de evaluacion..."
+              placeholder="Describir los criterios de evaluacion..."
               rows={6}
               disabled={readOnly}
               onDoubleClick={() => setExpandedField("evaluacion_marco")}
@@ -552,9 +755,9 @@ export default function PlanEditor({
 
           <TabsContent value="bibliografia" className="space-y-4 pt-2">
             <div className="rounded-md border p-3">
-              <p className="text-sm font-medium">Bibliografia detectada</p>
+              <p className="text-sm font-medium">Bibliografia sugerida</p>
               <p className="text-xs text-muted-foreground">
-                {bibliographyNodes.length} fuentes detectadas para soporte de brief y materiales.
+                {bibliographyNodes.length} entradas sugeridas para soporte de indicaciones y materiales.
               </p>
               <div className="mt-3 max-h-56 space-y-2 overflow-y-auto pr-1">
                 {bibliographyNodes.length > 0 ? (
@@ -565,7 +768,7 @@ export default function PlanEditor({
                   ))
                 ) : (
                   <p className="text-sm text-muted-foreground">
-                    No se detectaron fuentes bibliograficas en el mapeo actual. Reimporta el programa y rearma el borrador.
+                    No se detecto bibliografia sugerida en el mapeo actual. Reimporta el programa y rearma el borrador.
                   </p>
                 )}
               </div>

@@ -713,7 +713,7 @@ export default function BriefForm({
     setProfundidad(premiumAutocompleteDraft.profundidad);
     setObservaciones(premiumAutocompleteDraft.observaciones);
     toast({
-      title: "Brief autocompletado",
+      title: "Indicaciones autocompletadas",
       description: premiumAutocompleteDraft.summary,
     });
   };
@@ -723,11 +723,11 @@ export default function BriefForm({
       {canUsePremiumQuery && isEditable && (
         <div className="space-y-3 rounded-md border border-primary/20 bg-primary/5 p-3">
           <div className="space-y-1">
-            <Label>Copiloto premium para el brief</Label>
+            <Label>Copiloto premium para indicaciones</Label>
             <p className="text-sm text-muted-foreground">{premiumAutocompleteDraft.summary}</p>
           </div>
           <Button type="button" variant="outline" onClick={handleApplyPremiumAutocomplete} disabled={saving || uploading}>
-            Autocompletar brief con contexto de la clase
+            Autocompletar indicaciones con contexto de la clase
           </Button>
         </div>
       )}
@@ -881,7 +881,7 @@ export default function BriefForm({
         <Alert variant="destructive">
           <AlertTitle>Fuentes invalidadas</AlertTitle>
           <AlertDescription>
-            Algunas fuentes confirmadas ya no cumplen el protocolo bibliografico actual. Revise la seleccion y confirme otra vez el relevamiento.
+            Algunas fuentes confirmadas ya no cumplen el protocolo bibliografico actual. Revise la seleccion y confirme otra vez las indicaciones.
           </AlertDescription>
         </Alert>
       )}
@@ -907,7 +907,7 @@ export default function BriefForm({
             Guardar
           </Button>
           <Button onClick={handleConfirm} disabled={saving || uploading || totalSelectedSources === 0}>
-            Confirmar relevamiento
+            Confirmar indicaciones
           </Button>
         </div>
       )}

@@ -62,7 +62,7 @@ export default function PlanObjectivesEditor({ planId, readOnly, onDirty }: Prop
     );
   };
 
-  if (loading) return <p className="text-sm text-muted-foreground">Cargando propósitos...</p>;
+  if (loading) return <p className="text-sm text-muted-foreground">Cargando objetivos...</p>;
 
   const count = objectives.length;
   const valid = count >= 4 && count <= 8;
@@ -71,7 +71,7 @@ export default function PlanObjectivesEditor({ planId, readOnly, onDirty }: Prop
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <p className={`text-sm font-medium ${valid ? "text-muted-foreground" : "text-destructive"}`}>
-          {count}/8 propósitos {count < 4 && "(mínimo 4)"}
+          {count}/8 objetivos {count < 4 && "(mínimo 4)"}
         </p>
       </div>
 
@@ -81,7 +81,7 @@ export default function PlanObjectivesEditor({ planId, readOnly, onDirty }: Prop
             value={obj.description}
             onChange={(e) => handleChange(obj.id, e.target.value)}
             onBlur={() => handleBlur(obj.id, obj.description)}
-            placeholder="Describir propósito..."
+            placeholder="Describir objetivo..."
             disabled={readOnly}
           />
           {!readOnly && (
@@ -94,7 +94,7 @@ export default function PlanObjectivesEditor({ planId, readOnly, onDirty }: Prop
 
       {!readOnly && (
         <Button variant="outline" size="sm" onClick={handleAdd} disabled={count >= 8}>
-          <Plus className="h-4 w-4 mr-1" /> Agregar propósito
+          <Plus className="h-4 w-4 mr-1" /> Agregar objetivo
         </Button>
       )}
     </div>
