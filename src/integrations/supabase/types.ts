@@ -231,6 +231,47 @@ export type Database = {
           },
         ]
       }
+      course_schedule_slots: {
+        Row: {
+          course_id: string
+          created_at: string
+          day_of_week: number
+          end_time: string
+          id: string
+          module_count: number
+          order_index: number
+          start_time: string
+        }
+        Insert: {
+          course_id: string
+          created_at?: string
+          day_of_week: number
+          end_time: string
+          id?: string
+          module_count?: number
+          order_index?: number
+          start_time: string
+        }
+        Update: {
+          course_id?: string
+          created_at?: string
+          day_of_week?: number
+          end_time?: string
+          id?: string
+          module_count?: number
+          order_index?: number
+          start_time?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_schedule_slots_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       courses: {
         Row: {
           academic_year: number
@@ -726,6 +767,7 @@ export type Database = {
       plan_lessons: {
         Row: {
           activities_summary: string
+          content_block_id: string | null
           created_at: string
           id: string
           is_integrative_evaluation: boolean
@@ -741,6 +783,7 @@ export type Database = {
         }
         Insert: {
           activities_summary?: string
+          content_block_id?: string | null
           created_at?: string
           id?: string
           is_integrative_evaluation?: boolean
@@ -756,6 +799,7 @@ export type Database = {
         }
         Update: {
           activities_summary?: string
+          content_block_id?: string | null
           created_at?: string
           id?: string
           is_integrative_evaluation?: boolean
@@ -770,6 +814,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "plan_lessons_content_block_id_fkey"
+            columns: ["content_block_id"]
+            isOneToOne: false
+            referencedRelation: "plan_content_blocks"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "plan_lessons_plan_id_fkey"
             columns: ["plan_id"]
