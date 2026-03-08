@@ -675,7 +675,7 @@ export default function CourseNew() {
       if (bootstrapError) {
         toast({
           title: "Curso creado con bootstrap pendiente",
-          description: "El curso se creÃ³, pero el borrador inicial del plan no pudo completarse automÃ¡ticamente.",
+          description: "El curso se creó, pero el borrador inicial del plan no pudo completarse automáticamente.",
           variant: "destructive",
         });
         navigate(courseDetailUrl(course!.id));
