@@ -123,7 +123,7 @@ export default function PlanEditor({ planId, courseId, curriculumDocumentId, pla
       return;
     }
     const { data: nodes } = await supabase.from("curriculum_nodes").select("id, name, node_type, order_index").in("id", nodeIds).order("order_index");
-    setMappedNodes((nodes || []).filter((node) => !isAuthorityOrNoiseNode(node.name)));
+    setMappedNodes((nodes || []).filter((node) => !shouldHideBibliographyNode(node.name)));
   }, [planId]);
 
   const fetchCurriculumBibliography = useCallback(async () => {
@@ -131,9 +131,21 @@ export default function PlanEditor({ planId, courseId, curriculumDocumentId, pla
       setCurriculumBibliographyNodes([]);
       return;
     }
-    const { data: nodes } = await supabase.from("curriculum_nodes").select("id, name, node_type, order_index").eq("curriculum_document_id", curriculumDocumentId).order("order_index");
-    setCurriculumBibliographyNodes((nodes || []).filter((node) => !isAuthorityOrNoiseNode(node.name) && isLikelyBibliographyNode(node.name)));
-  }, [curriculumDocumentId]);
+    const { data: nodes } = await supabase.from("curriculum_nodes").select("id, name, node_type, parent_id, order_index").eq("curriculum_document_id", curriculumDocumentId).order("order_index");
+    const bibNodes = extractBibliographyProtocolNodes((nodes || []) as Array<{ id: string; name: string; node_type: string; parent_id: string | null; order_index: number }>);
+    if (bibNodes.length > 0) {
+      setCurriculumBibliographyNodes(bibNodes);
+      return;
+    }
+    // Auto-repair: invoke edge function then retry
+    const { error: repairError } = await supabase.functions.invoke("repair-curriculum-bibliography", { body: { course_id: courseId } });
+    if (repairError) {
+      setCurriculumBibliographyNodes([]);
+      return;
+    }
+    const { data: repairedNodes } = await supabase.from("curriculum_nodes").select("id, name, node_type, parent_id, order_index").eq("curriculum_document_id", curriculumDocumentId).order("order_index");
+    setCurriculumBibliographyNodes(extractBibliographyProtocolNodes((repairedNodes || []) as Array<{ id: string; name: string; node_type: string; parent_id: string | null; order_index: number }>));
+  }, [courseId, curriculumDocumentId]);
 
   useEffect(() => {
     const fetchPlan = async () => {
