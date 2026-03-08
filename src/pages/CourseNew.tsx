@@ -90,7 +90,7 @@ const SPECIALITY_ALIAS_TO_CANON: Record<string, string> = {
 
 function candidateScopeLabel(candidate: Pick<CurriculumCandidate, "school_type" | "orientation" | "speciality">): string {
   const parts = [
-    candidate.school_type || "GenÃ©rico",
+    candidate.school_type || "Genérico",
     candidate.orientation || null,
     candidate.speciality || null,
   ].filter(Boolean);
