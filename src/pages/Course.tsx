@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import PlanEditor from "@/components/plan/PlanEditor";
 import AgendaView from "@/components/plan/AgendaView";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { LoadingState } from "@/components/ui/LoadingState";
 import { SkeletonList } from "@/components/ui/SkeletonList";
 import { StatusBadge, briefLabel, briefTone, lessonStatusLabel, lessonStatusTone } from "@/components/ui/StatusBadge";
 import { useEntitlements } from "@/hooks/useEntitlements";
@@ -456,7 +457,13 @@ export default function Course() {
 
       <main className="mx-auto max-w-4xl px-4 py-8">
         {loading ? (
-          <SkeletonList count={6} />
+          <LoadingState
+            tips={[
+              "Cargando el curso...",
+              "Buscando la planificación y las clases...",
+              "Organizando todo para vos...",
+            ]}
+          />
         ) : plan ? (
           <div className="space-y-4">
             <PageIntro

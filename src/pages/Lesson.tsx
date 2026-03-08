@@ -13,6 +13,7 @@ import ReadingMaterialView from "@/components/lesson/ReadingMaterialView";
 import CopilotPanel from "@/components/lesson/CopilotPanel";
 import GenerateButton from "@/components/lesson/GenerateButton";
 import { useEntitlements } from "@/hooks/useEntitlements";
+import { LoadingState } from "@/components/ui/LoadingState";
 import { StatusBadge, briefLabel, briefTone, materialLabel, materialTone, lessonStatusLabel, lessonStatusTone } from "@/components/ui/StatusBadge";
 import { StepHeader } from "@/components/ui/StepHeader";
 import { SkeletonList } from "@/components/ui/SkeletonList";
@@ -429,9 +430,15 @@ export default function Lesson() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background p-8">
-        <SkeletonList count={4} />
-      </div>
+      <LoadingState
+        variant="page"
+        tips={[
+          "Cargando la clase...",
+          "Buscando materiales y recursos...",
+          "Organizando el contenido pedagógico...",
+          "Ya casi está todo listo...",
+        ]}
+      />
     );
   }
 
