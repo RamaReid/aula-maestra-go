@@ -326,7 +326,7 @@ export default function Course() {
     if (!isFreePlan && selectedLessons.length > 1 && !hasSequenceSelection) {
       toast({
         title: "La secuencia debe ser consecutiva",
-        description: "Para preparar varias clases, elegÃ­ una secuencia continua sin saltos.",
+        description: "Para preparar varias clases, elegí una secuencia continua sin saltos.",
         variant: "destructive",
       });
       return;
