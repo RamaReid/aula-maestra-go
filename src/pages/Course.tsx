@@ -294,8 +294,8 @@ export default function Course() {
         toast({
           title: "Límite de sesión",
           description: isFreePlan
-            ? `En Free podÃ©s preparar exactamente ${requiredFreeSelectionCount} clases por sesiÃ³n.`
-            : `PodÃ©s seleccionar hasta ${maxSelectableLessons} clases, que son las clases disponibles en este curso.`,
+            ? `En Free podés preparar exactamente ${requiredFreeSelectionCount} clases por sesión.`
+            : `Podés seleccionar hasta ${maxSelectableLessons} clases, que son las clases disponibles en este curso.`,
           variant: "destructive",
         });
         return current;
