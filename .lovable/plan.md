@@ -1,89 +1,62 @@
-# Plan: Validación Hard-Stop + Cierre de Evidencia
-
-## Estado actual (verificado ahora)
-
-**Tracking E2E: FUNCIONAL** — 4 filas en `ai_usage_logs`:
 
 
-| #   | Feature  | Model            | Tokens | Cost USD  | Duration |
-| --- | -------- | ---------------- | ------ | --------- | -------- |
-| 1   | teaching | gemini-2.5-flash | 1,871  | $0.000666 | 6,223ms  |
-| 2   | reading  | gemini-2.5-pro   | 5,977  | $0.050311 | 43,795ms |
-| 3   | reading  | gemini-2.5-pro   | 5,004  | $0.040153 | 37,020ms |
-| 4   | reading  | gemini-2.5-pro   | 7,018  | $0.060161 | 53,109ms |
+# Problema: el parser NO maneja correctamente el ejemplo real
 
+Analicé el parser contra el texto exacto que proporcionaste. El problema concreto:
 
-**Total: 19,870 tokens / $0.151291 / 4 llamadas**
+En el PDF extraído, las líneas de continuación **también empiezan con `•`** porque el PDF las corta así. Ejemplo del Módulo 1:
 
-Lesson `b1b122c0` estado: `PLANNED`, `is_generating=false`.
-Teaching: `INVALIDATED`. Reading: `INVALIDATED` (1449 palabras, fuera de rango 1000-1300).
+```
+• La filosofía en el territorio de la ciencia, de la ideología y del sentido común. La relación
+• de la filosofía con el conjunto de los saberes.
+```
 
-**Baseline para hard-stop:** count=4, max(created_at)=`2026-03-08 01:26:20.466031+00`
+El parser actual (línea 81-88) trata **cada `•`** como un bullet nuevo. Resultado: genera ~12 children para el Módulo 1 en lugar de los 6 reales. Las líneas como `"de la filosofía con el conjunto de los saberes."` y `"crítico. Sentidos de la crítica..."` quedan como items separados cuando deberían ser continuaciones del bullet anterior.
 
----
+**Heurística faltante:** si una línea empieza con `•` pero el texto después del bullet **comienza con minúscula**, es una continuación del bullet anterior, no un bullet nuevo.
 
-## Pasos a ejecutar
+## Ejemplo esperado para Módulo 1 (6 items, no 12)
 
-### Paso 1 — Configurar presupuesto bloqueante
+1. "¿En qué sentido la filosofía puede ser considerada un pensamiento problematizador?"
+2. "La filosofía en el territorio de la ciencia, de la ideología y del sentido común. La relación de la filosofía con el conjunto de los saberes."
+3. "¿Filosofía o filosofar? La filosofía y los filósofos. La historia de la filosofía."
+4. "¿Qué es un problema filosófico? Clasificación de preguntas y configuración de las disciplinas filosóficas."
+5. "¿En qué piensan los filósofos? Pensar por uno mismo y la relación con lo otro."
+6. "¿Qué es el pensamiento crítico? La imagen dogmática del pensamiento vs. el pensamiento crítico. Sentidos de la crítica. La importancia de la argumentación y el pensamiento crítico"
 
-Usar `add_secret` para crear `AI_DAILY_BUDGET_USD = 0.0001`.
-El gasto actual del día ($0.151291) ya supera este límite, por lo que el hard-stop debe activarse.
+## Cambio
 
-### Paso 2 — Invocar generate-materials
+### `supabase/functions/repair-curriculum-nodes/index.ts`
 
-Llamar vía `curl_edge_functions` a `/generate-materials` con `lesson_id=b1b122c0-4161-414c-9e5a-3ffd97913ea8`.
-Resultado esperado: error `"Presupuesto diario de IA agotado"`.
+En el bloque de detección de bullets (líneas 80-88), agregar:
 
-### Paso 3 — Verificar no inserción
+```typescript
+const bulletMatch = line.match(/^[•\-–—]\s*(.+)/);
+if (bulletMatch) {
+  const content = bulletMatch[1].trim();
+  if (content.length > 5 && !isTocLine(content)) {
+    // Si empieza con minúscula → es continuación del bullet anterior
+    const startsLowercase = /^[a-záéíóúñ]/.test(content);
+    if (startsLowercase && lastChildWasBullet && currentModule.children.length > 0) {
+      const lastIdx = currentModule.children.length - 1;
+      currentModule.children[lastIdx] += " " + content;
+    } else {
+      currentModule.children.push(content);
+      lastChildWasBullet = true;
+    }
+  }
+  continue;
+}
+```
 
-Ejecutar dos queries:
+Misma lógica para la continuación sin bullet (línea 102-106) que ya funciona correctamente.
 
-- `SELECT count(*) FROM ai_usage_logs WHERE lesson_id = '<ID>'` — debe seguir en 4
-- `SELECT max(created_at) FROM ai_usage_logs WHERE lesson_id = '<ID>'` — debe ser idéntico al baseline
+### `scripts/import-curriculum-pdfs.mjs`
 
-### Paso 4 — Restaurar presupuesto
+Aplicar la misma heurística de minúscula-es-continuación en `extractCurriculumNodes` si existe lógica de bullets ahí.
 
-Usar `add_secret` para setear `AI_DAILY_BUDGET_USD = 2.0`.
+| Archivo | Cambio |
+|---|---|
+| `supabase/functions/repair-curriculum-nodes/index.ts` | Bullet con minúscula = continuación |
+| `scripts/import-curriculum-pdfs.mjs` | Misma heurística si aplica |
 
-### Paso 5 — Actualizar 4 archivos de evidencia
-
-`**docs/evidence/sql_outputs.txt**` — Agregar queries 1-5 con resultados reales:
-
-- Query 1: ai_usage_logs (4 filas con datos completos)
-- Query 2: lessons status/is_generating
-- Query 3: teaching_materials status
-- Query 4: reading_materials status + validation_reasons
-- Query 5: count/max antes y después del bloqueo
-
-`**docs/evidence/logs_extract.txt**` — Agregar logs de generate-materials:
-
-- 4 líneas AI_TRACKED (1 teaching + 3 reading)
-- Mensaje de bloqueo por presupuesto agotado
-
-`**docs/evidence/e2e_run_ids.txt**` — Agregar sección de validación tracking:
-
-- user_id, course_id, lesson_id
-- Resumen de resultados (4 calls, $0.151291)
-- Hard-stop verificado
-
-`**docs/CONTEXT_EVIDENCE_REPORT.md**` — Agregar 2 secciones:
-
-- "Tracking IA validado" con tabla de costos
-- "Budget hard-stop validado" con evidencia de bloqueo y no-inserción
-
----
-
-## Archivos a modificar
-
-
-| Archivo                           | Acción                                |
-| --------------------------------- | ------------------------------------- |
-| `docs/evidence/sql_outputs.txt`   | Agregar queries 1-5 + resultados      |
-| `docs/evidence/logs_extract.txt`  | Agregar logs tracking + hard-stop     |
-| `docs/evidence/e2e_run_ids.txt`   | Agregar IDs + resumen validación      |
-| `docs/CONTEXT_EVIDENCE_REPORT.md` | Secciones tracking + budget validados |
-
-
-No se modifican archivos de código. Solo evidencia y secreto temporal.
-
-- confirmar explícitamente que AI_DAILY_BUDGET_USD quedó restaurado a 2.0 al terminar.
