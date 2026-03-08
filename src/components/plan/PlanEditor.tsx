@@ -16,6 +16,7 @@ import { InlineValidationSummary } from "@/components/ui/InlineValidationSummary
 import type { Tables } from "@/integrations/supabase/types";
 import { formatErrorMessage } from "@/lib/errors";
 import { downloadStructuredPdf } from "@/lib/pdfExport";
+import { extractBibliographyProtocolNodes, type BibliographyProtocolNode } from "@/lib/bibliographyProtocol";
 
 interface PlanData {
   fundamentacion: string;
