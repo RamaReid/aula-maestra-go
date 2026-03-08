@@ -584,7 +584,7 @@ export default function Course() {
                                       ? `Clase ${selectedLessonNumbers[0]} seleccionada.`
                                       : hasSequenceSelection
                                       ? `Secuencia seleccionada: clases ${selectedLessonNumbers[0]} a ${selectedLessonNumbers[selectedLessonNumbers.length - 1]}.`
-                                      : "La selecciÃ³n actual no forma una secuencia consecutiva."}
+                                      : "La selección actual no forma una secuencia consecutiva."}
                                 </p>
                               )}
                             </div>
