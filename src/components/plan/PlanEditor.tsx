@@ -132,6 +132,7 @@ export default function PlanEditor({ planId, courseId, curriculumDocumentId, pla
       setCurriculumBibliographyNodes([]);
       return;
     }
+    setBibliographyRepairStatus("idle");
     const { data: nodes } = await supabase.from("curriculum_nodes").select("id, name, node_type, parent_id, order_index").eq("curriculum_document_id", curriculumDocumentId).order("order_index");
     const bibNodes = extractBibliographyProtocolNodes((nodes || []) as Array<{ id: string; name: string; node_type: string; parent_id: string | null; order_index: number }>);
     if (bibNodes.length > 0) {
@@ -142,11 +143,30 @@ export default function PlanEditor({ planId, courseId, curriculumDocumentId, pla
     const { error: repairError } = await supabase.functions.invoke("repair-curriculum-bibliography", { body: { course_id: courseId } });
     if (repairError) {
       setCurriculumBibliographyNodes([]);
+      setBibliographyRepairStatus("failed");
       return;
     }
     const { data: repairedNodes } = await supabase.from("curriculum_nodes").select("id, name, node_type, parent_id, order_index").eq("curriculum_document_id", curriculumDocumentId).order("order_index");
-    setCurriculumBibliographyNodes(extractBibliographyProtocolNodes((repairedNodes || []) as Array<{ id: string; name: string; node_type: string; parent_id: string | null; order_index: number }>));
+    const repairedBib = extractBibliographyProtocolNodes((repairedNodes || []) as Array<{ id: string; name: string; node_type: string; parent_id: string | null; order_index: number }>);
+    setCurriculumBibliographyNodes(repairedBib);
+    if (repairedBib.length === 0) setBibliographyRepairStatus("failed");
   }, [courseId, curriculumDocumentId]);
+
+  const handleManualBibliographyRepair = async () => {
+    if (!curriculumDocumentId) return;
+    setBibliographyRepairStatus("repairing");
+    try {
+      await supabase.functions.invoke("repair-curriculum-bibliography", { body: { course_id: courseId } });
+      const { data: nodes } = await supabase.from("curriculum_nodes").select("id, name, node_type, parent_id, order_index").eq("curriculum_document_id", curriculumDocumentId).order("order_index");
+      const bibNodes = extractBibliographyProtocolNodes((nodes || []) as Array<{ id: string; name: string; node_type: string; parent_id: string | null; order_index: number }>);
+      setCurriculumBibliographyNodes(bibNodes);
+      setBibliographyRepairStatus(bibNodes.length === 0 ? "failed" : "idle");
+      if (bibNodes.length > 0) toast({ title: "Bibliografía reparada", description: `Se detectaron ${bibNodes.length} referencias bibliográficas.` });
+    } catch {
+      setBibliographyRepairStatus("failed");
+      toast({ title: "No se pudo reparar la bibliografía", variant: "destructive" });
+    }
+  };
 
   useEffect(() => {
     const fetchPlan = async () => {
