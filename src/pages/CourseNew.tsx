@@ -429,7 +429,7 @@ export default function CourseNew() {
         setCurriculumCandidates([]);
         setSelectedCurriculumId("");
         setResolutionStatus("not_found");
-        setResolutionError(data?.reason || "No se encontrÃ³ un programa disponible para esa combinaciÃ³n.");
+        setResolutionError(data?.reason || "No se encontró un programa disponible para esa combinación.");
       };
 
     resolveCurriculum();
