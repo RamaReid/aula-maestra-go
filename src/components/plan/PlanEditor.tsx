@@ -89,6 +89,12 @@ function buildRepairGuidance(errors: string[]) {
 }
 
 
+interface PlanIntegrityCheck {
+  label: string;
+  ok: boolean;
+  detail: string;
+}
+
 function splitParagraphs(value: string) {
   return value.split(/\n\s*\n/).map((paragraph) => paragraph.trim()).filter(Boolean);
 }
