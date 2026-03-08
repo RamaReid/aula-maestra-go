@@ -273,7 +273,7 @@ export default function CopilotPanel({
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Asistente</p>
-          <h3 className="font-serif text-xl font-semibold tracking-tight text-foreground">Copiloto</h3>
+          <h3 className="text-xl font-semibold tracking-tight text-foreground">Copiloto</h3>
         </div>
         <Badge variant={isPremium ? "default" : "outline"}>{isPremium ? "Premium" : copilotoMode === "limited" ? "Basico" : "Bloqueado"}</Badge>
       </div>

@@ -16,7 +16,7 @@ export function StepHeader({ stepNumber, title, status, statusTone }: StepHeader
         <p className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
           Paso {stepNumber}
         </p>
-        <h2 className="font-serif text-2xl font-semibold tracking-tight text-foreground">{title}</h2>
+        <h2 className="text-2xl font-semibold tracking-tight text-foreground">{title}</h2>
       </div>
       <StatusBadge tone={statusTone} label={status} />
     </div>
