@@ -829,7 +829,7 @@ export default function CourseNew() {
                     </div>
                     {state.contextMode === "ORIENTACION" && (
                       <div className="space-y-2">
-                        <Label>OrientaciÃ³n</Label>
+                        <Label>Orientación</Label>
                         <Input
                           list="orientation-options"
                           value={state.orientation}
