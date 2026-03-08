@@ -483,7 +483,7 @@ export default function PlanEditor({ planId, courseId, curriculumDocumentId, pla
             <StructuredListEditor items={plan.estrategias_practicas.map((strategy, index) => ({ id: String(index), value: strategy }))} label="Estrategias prácticas" itemLabel="Estrategia práctica" helper="Las estrategias prácticas deben verse y gestionarse con la misma lógica clara y editable que los objetivos." addLabel="Agregar estrategia" emptyLabel="Todavía no hay estrategias prácticas definidas." readOnly={readOnly} minItems={1} maxItems={8} onAdd={addStrategy} onDelete={(id) => removeStrategy(Number(id))} onChange={(id, value) => updateStrategy(Number(id), value)} onBlur={(id, value) => updateStrategy(Number(id), value)} />
           </TabsContent>
           <TabsContent value="contenidos" className="space-y-4">
-            <PlanContentBlocksEditor planId={planId} readOnly={readOnly} onDirty={transitionToEdited} />
+            <PlanContentBlocksEditor planId={planId} readOnly={readOnly} onDirty={onContentBlocksDirty} />
             <Card><CardContent className="space-y-3 pt-5"><div><p className="text-sm font-medium text-foreground">Anclaje curricular mapeado</p><p className="text-xs text-muted-foreground">Estos nodos sostienen la trazabilidad curricular del plan, pero no reemplazan la organización anual en bloques.</p></div><div className="space-y-2">{visibleMappedNodes.length > 0 ? visibleMappedNodes.map((node) => <p key={node.id} className="text-sm text-foreground">{node.name}</p>) : <p className="text-sm text-muted-foreground">No hay contenidos curriculares mapeados. Revisa el programa oficial y reconstruye el borrador anual.</p>}</div></CardContent></Card>
           </TabsContent>
           <TabsContent value="evaluacion" className="space-y-4">
