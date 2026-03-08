@@ -1054,7 +1054,7 @@ serve(async (req) => {
 
     const nodeNames = nodePools.nodesForPrompt.map((node) => `[${node.node_type}] ${node.name}`);
     const bibliographyNodeNames = nodePools.bibliographyNodes.map((node) => node.name);
-    const truncatedRawText = (curriculumDocument.raw_text || "").slice(0, 12000);
+    const truncatedRawText = (curriculumDocument.raw_text || "").slice(0, 24000);
     const subjectCanonNote = isFyHctSubject(courseRecord.subject)
       ? [
           "Canon disciplinar obligatorio para FyHyCyT:",
