@@ -962,7 +962,7 @@ export default function PlanEditor({
             {expandedField && (
               <div className="space-y-2">
                 <Textarea
-                  value={(plan as Record<string, string>)[expandedField] ?? ""}
+                  value={(plan as unknown as Record<string, string>)[expandedField] ?? ""}
                   onChange={(event) => updateField(expandedField, event.target.value)}
                   rows={24}
                   disabled={readOnly}
