@@ -1,14 +1,26 @@
-import { useCallback, useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  CourseScheduleSlot,
+  formatScheduledDate,
+  formatScheduleSlot,
+  getSchedulePreviewForLesson,
+} from "@/lib/annualPlan";
 
 interface PlanLesson {
   id: string;
   lesson_number: number;
   term: number;
+  content_block_id: string | null;
   theme: string;
+  subtitle: string;
   justification: string;
   learning_outcome: string;
   activities_summary: string;
@@ -16,311 +28,280 @@ interface PlanLesson {
   is_recovery: boolean;
 }
 
+interface ContentBlock {
+  id: string;
+  title: string;
+}
+
 interface Props {
   planId: string;
+  courseId: string;
   readOnly: boolean;
   onDirty?: () => Promise<void> | void;
 }
 
-function isLessonComplete(lesson: PlanLesson): boolean {
-  return (
-    lesson.theme.trim().length > 0 &&
-    lesson.justification.trim().length > 0 &&
-    lesson.learning_outcome.trim().length > 0 &&
-    lesson.activities_summary.trim().length > 0
-  );
+type EditableField = "content_block_id" | "theme" | "subtitle" | "justification" | "learning_outcome" | "activities_summary";
+
+function extractCanonParts(summary: string, theme: string) {
+  const raw = summary.trim();
+  if (!raw) {
+    return {
+      operation: "",
+      evidence: "",
+      fallbackOperation: `Desarrollo guiado sobre ${theme || "la clase"}.`,
+      fallbackEvidence: `Producción breve verificable alineada con ${theme || "la clase"}.`,
+    };
+  }
+
+  const operationMatch = raw.match(/operacion\s*:\s*([\s\S]*?)(?=evidencia minima\s*:|$)/i);
+  const evidenceMatch = raw.match(/evidencia minima\s*:\s*([\s\S]*)$/i);
+
+  return {
+    operation: (operationMatch?.[1] || "").replace(/\s+/g, " ").trim(),
+    evidence: (evidenceMatch?.[1] || "").replace(/\s+/g, " ").trim(),
+    fallbackOperation: raw.replace(/\s+/g, " ").trim(),
+    fallbackEvidence: "",
+  };
 }
 
-export default function PlanLessonsEditor({ planId, readOnly, onDirty }: Props) {
+export default function PlanLessonsEditor({ planId, courseId, readOnly, onDirty }: Props) {
   const [lessons, setLessons] = useState<PlanLesson[]>([]);
+  const [blocks, setBlocks] = useState<ContentBlock[]>([]);
+  const [scheduleSlots, setScheduleSlots] = useState<CourseScheduleSlot[]>([]);
+  const [academicYear, setAcademicYear] = useState<number>(new Date().getFullYear());
   const [loading, setLoading] = useState(true);
-  const [unitMap, setUnitMap] = useState<Map<string, string>>(new Map());
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [savingKey, setSavingKey] = useState<string | null>(null);
 
   const fetchLessons = useCallback(async () => {
-    const { data } = await supabase
-      .from("plan_lessons")
-      .select(
-        "id, lesson_number, term, theme, justification, learning_outcome, activities_summary, is_integrative_evaluation, is_recovery"
-      )
-      .eq("plan_id", planId)
-      .order("lesson_number");
+    const [{ data: lessonRows }, { data: contentBlocks }, { data: courseRow }, { data: slots }] = await Promise.all([
+      supabase
+        .from("plan_lessons")
+        .select(
+          "id, lesson_number, term, content_block_id, theme, subtitle, justification, learning_outcome, activities_summary, is_integrative_evaluation, is_recovery"
+        )
+        .eq("plan_id", planId)
+        .order("lesson_number"),
+      supabase.from("plan_content_blocks").select("id, title").eq("plan_id", planId).order("order_index"),
+      supabase.from("courses").select("academic_year").eq("id", courseId).single(),
+      supabase
+        .from("course_schedule_slots")
+        .select("id, day_of_week, start_time, end_time, module_count, order_index")
+        .eq("course_id", courseId)
+        .order("order_index"),
+    ]);
 
-    const lessonsData = data || [];
-    setLessons(lessonsData);
-
-    if (lessonsData.length > 0) {
-      const lessonIds = lessonsData.map((l) => l.id);
-      const { data: links } = await supabase
-        .from("plan_lesson_content_links")
-        .select("plan_lesson_id, plan_content_mapping_id")
-        .in("plan_lesson_id", lessonIds);
-
-      if (links && links.length > 0) {
-        const mappingIds = [...new Set(links.map((l) => l.plan_content_mapping_id))];
-        const { data: mappings } = await supabase
-          .from("plan_content_mappings")
-          .select("id, curriculum_node_id")
-          .in("id", mappingIds);
-
-        if (mappings && mappings.length > 0) {
-          const nodeIds = [...new Set(mappings.map((m) => m.curriculum_node_id))];
-          const { data: nodes } = await supabase
-            .from("curriculum_nodes")
-            .select("id, name, node_type, parent_id")
-            .in("id", nodeIds);
-
-          const nodeMap = new Map((nodes || []).map((n) => [n.id, n]));
-          const mappingToNode = new Map(mappings.map((m) => [m.id, m.curriculum_node_id]));
-
-          const parentIdsToFetch = new Set<string>();
-          for (const node of nodes || []) {
-            if (node.node_type !== "UNIDAD" && node.node_type !== "EJE" && node.node_type !== "BLOQUE" && node.parent_id) {
-              parentIdsToFetch.add(node.parent_id);
-            }
-          }
-
-          let parentNodes = new Map<string, { name: string; node_type: string }>();
-          if (parentIdsToFetch.size > 0) {
-            const { data: parents } = await supabase
-              .from("curriculum_nodes")
-              .select("id, name, node_type")
-              .in("id", [...parentIdsToFetch]);
-            parentNodes = new Map((parents || []).map((p) => [p.id, { name: p.name, node_type: p.node_type }]));
-          }
-
-          const newUnitMap = new Map<string, string>();
-          for (const link of links) {
-            const nodeId = mappingToNode.get(link.plan_content_mapping_id);
-            if (!nodeId) continue;
-            const node = nodeMap.get(nodeId);
-            if (!node) continue;
-            if (node.node_type === "UNIDAD" || node.node_type === "EJE" || node.node_type === "BLOQUE") {
-              if (!newUnitMap.has(link.plan_lesson_id)) {
-                newUnitMap.set(link.plan_lesson_id, node.name);
-              }
-            } else if (node.parent_id) {
-              const parent = parentNodes.get(node.parent_id) || nodeMap.get(node.parent_id);
-              if (parent && (parent.node_type === "UNIDAD" || parent.node_type === "EJE" || parent.node_type === "BLOQUE")) {
-                if (!newUnitMap.has(link.plan_lesson_id)) {
-                  newUnitMap.set(link.plan_lesson_id, parent.name);
-                }
-              }
-            }
-          }
-          setUnitMap(newUnitMap);
-        }
-      }
-    }
+    if (lessonRows) setLessons(lessonRows);
+    if (contentBlocks) setBlocks(contentBlocks);
+    if (courseRow?.academic_year) setAcademicYear(courseRow.academic_year);
+    if (slots) setScheduleSlots(slots);
     setLoading(false);
-  }, [planId]);
+  }, [courseId, planId]);
 
   useEffect(() => {
     fetchLessons();
   }, [fetchLessons]);
 
-  useEffect(() => {
-    if (editingId && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
-    }
-  }, [editingId]);
-
-  const persistTheme = async (lessonId: string, value: string) => {
-    if (readOnly) return;
-    await onDirty?.();
-    await supabase.from("plan_lessons").update({ theme: value }).eq("id", lessonId);
-    setEditingId(null);
+  const updateLocalLesson = (lessonId: string, field: EditableField, value: string | null) => {
+    setLessons((current) =>
+      current.map((lesson) => (lesson.id === lessonId ? { ...lesson, [field]: value } : lesson))
+    );
   };
+
+  const persistField = async (lessonId: string, field: EditableField, value: string | null) => {
+    if (readOnly) return;
+
+    setSavingKey(`${lessonId}:${field}`);
+    await onDirty?.();
+    await supabase.from("plan_lessons").update({ [field]: value }).eq("id", lessonId);
+    setSavingKey(null);
+  };
+
+  const lessonsByTerm = useMemo(
+    () => [
+      { term: 1, title: "Primer cuatrimestre", lessons: lessons.filter((lesson) => lesson.term === 1) },
+      { term: 2, title: "Segundo cuatrimestre", lessons: lessons.filter((lesson) => lesson.term === 2) },
+    ],
+    [lessons]
+  );
+
+  const completeLessons = lessons.filter((lesson) => {
+    const canon = extractCanonParts(lesson.activities_summary, lesson.theme);
+    return (
+      lesson.theme.trim().length > 0 &&
+      lesson.subtitle.trim().length > 0 &&
+      lesson.justification.trim().length > 0 &&
+      lesson.learning_outcome.trim().length > 0 &&
+      lesson.activities_summary.trim().length > 0 &&
+      (canon.operation.length > 0 || canon.fallbackOperation.length > 0) &&
+      canon.evidence.length > 0
+    );
+  }).length;
 
   if (loading) {
     return <p className="text-sm text-muted-foreground">Cargando clases del plan...</p>;
   }
 
-  const completeLessons = lessons.filter(isLessonComplete).length;
-  const term1 = lessons.filter((l) => l.term === 1);
-  const term2 = lessons.filter((l) => l.term === 2);
-
-  const renderRow = (lesson: PlanLesson) => {
-    const complete = isLessonComplete(lesson);
-    const unitName = unitMap.get(lesson.id);
-    const isEditing = editingId === lesson.id;
-
-    return (
-      <div
-        key={lesson.id}
-        className={cn(
-          "grid grid-cols-[2.5rem_2rem_1fr_auto] sm:grid-cols-[2.5rem_2rem_minmax(8rem,1fr)_minmax(6rem,1fr)_auto] items-center gap-2 rounded-lg px-3 py-2 text-sm",
-          complete ? "bg-background/60" : "bg-destructive/5 border border-destructive/20"
-        )}
-      >
-        {/* Nro */}
-        <span className="font-medium text-foreground">{lesson.lesson_number}</span>
-        {/* Cuatrimestre */}
-        <span className="text-muted-foreground text-xs">T{lesson.term}</span>
-        {/* Tema (editable inline) */}
-        <div className="min-w-0">
-          {isEditing && !readOnly ? (
-            <Input
-              ref={inputRef}
-              value={lesson.theme}
-              onChange={(e) =>
-                setLessons((prev) =>
-                  prev.map((l) => (l.id === lesson.id ? { ...l, theme: e.target.value } : l))
-                )
-              }
-              onBlur={(e) => persistTheme(lesson.id, e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") persistTheme(lesson.id, lesson.theme);
-                if (e.key === "Escape") setEditingId(null);
-              }}
-              className="h-7 text-sm"
-              placeholder="Tema de la clase..."
-            />
-          ) : (
-            <span
-              className={cn(
-                "block truncate cursor-pointer hover:text-primary transition-colors",
-                lesson.theme.trim() ? "text-foreground" : "text-muted-foreground italic"
-              )}
-              onClick={() => !readOnly && setEditingId(lesson.id)}
-              title={lesson.theme || "Click para editar tema"}
-            >
-              {lesson.theme.trim() || "Sin tema"}
-            </span>
-          )}
-        </div>
-        {/* Unidad (hidden on mobile) */}
-        <span className="hidden sm:block truncate text-xs text-muted-foreground" title={unitName}>
-          {unitName || "—"}
-        </span>
-        {/* Badges */}
-        <div className="flex items-center gap-1 shrink-0">
-          {lesson.is_integrative_evaluation && <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Integ.</Badge>}
-          {lesson.is_recovery && <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Recup.</Badge>}
-          {complete ? (
-            <Badge variant="default" className="text-[10px] px-1.5 py-0">✓</Badge>
-          ) : (
-            <Badge variant="destructive" className="text-[10px] px-1.5 py-0">—</Badge>
-          )}
-        </div>
-      </div>
-    );
-  };
-
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-sm text-muted-foreground">
-          {completeLessons}/{lessons.length} clases completas
-        </span>
-        <p className="text-xs text-muted-foreground">
-          Click en el tema para editar. Los demás campos se completan en la vista individual de cada clase post-validación.
-        </p>
-      </div>
-
-      {/* Header row */}
-      <div className="grid grid-cols-[2.5rem_2rem_1fr_auto] sm:grid-cols-[2.5rem_2rem_minmax(8rem,1fr)_minmax(6rem,1fr)_auto] gap-2 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-        <span>#</span>
-        <span>T</span>
-        <span>Tema</span>
-        <span className="hidden sm:block">Unidad</span>
-        <span>Estado</span>
-      </div>
-
-      {term1.length > 0 && (
-        <div className="space-y-1">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-3">1er cuatrimestre</h3>
-          <div className="space-y-0.5">
-            {term1.map(renderRow)}
+    <div className="space-y-5">
+      <div className="rounded-xl border bg-muted/20 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-foreground">{completeLessons}/28 clases con estructura completa</p>
+            <p className="text-xs text-muted-foreground">
+              La anual se organiza como clases reales: unidad, tema, modo de trabajo, evidencia y cronograma semanal.
+            </p>
+          </div>
+          <div className="text-xs text-muted-foreground">
+            {scheduleSlots.length > 0
+              ? `Cursada configurada: ${scheduleSlots.map((slot) => formatScheduleSlot(slot)).join(" · ")}`
+              : "Todavía no hay días y horarios configurados para este curso."}
           </div>
         </div>
-      )}
+      </div>
 
-      {term2.length > 0 && (
-        <div className="space-y-1">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-3">2do cuatrimestre</h3>
-          <div className="space-y-0.5">
-            {term2.map(renderRow)}
+      {lessonsByTerm.map((termGroup) => (
+        <section key={termGroup.term} className="space-y-3">
+          <div className="space-y-1">
+            <h3 className="text-base font-semibold text-foreground">{termGroup.title}</h3>
+            <p className="text-sm text-muted-foreground">{termGroup.lessons.length} clases previstas para este tramo.</p>
           </div>
-        </div>
-      )}
+
+          <Accordion type="multiple" className="space-y-3">
+            {termGroup.lessons.map((lesson) => {
+              const block = blocks.find((item) => item.id === lesson.content_block_id);
+              const canon = extractCanonParts(lesson.activities_summary, lesson.theme);
+              const schedulePreview = getSchedulePreviewForLesson(academicYear, scheduleSlots, lesson.lesson_number, lesson.term);
+              const issueLabels = [
+                !lesson.content_block_id ? "Falta unidad" : null,
+                !lesson.theme.trim() ? "Falta tema" : null,
+                !lesson.subtitle.trim() ? "Falta modo de trabajo" : null,
+                !lesson.learning_outcome.trim() ? "Falta evidencia esperada" : null,
+                !canon.evidence.trim() ? "Falta evidencia mínima" : null,
+              ].filter(Boolean) as string[];
+
+              return (
+                <AccordionItem key={lesson.id} value={lesson.id} className="rounded-xl border bg-card px-4">
+                  <AccordionTrigger className="py-4">
+                    <div className="flex flex-1 flex-col gap-2 text-left">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-semibold text-foreground">Clase {lesson.lesson_number}</span>
+                        {lesson.is_integrative_evaluation ? <Badge variant="secondary">Integradora</Badge> : null}
+                        {lesson.is_recovery ? <Badge variant="secondary">Recuperación</Badge> : null}
+                        {issueLabels.length === 0 ? <Badge variant="default">Completa</Badge> : <Badge variant="destructive">En revisión</Badge>}
+                      </div>
+                      <p className="text-sm text-foreground">
+                        <span className="font-medium">Unidad:</span> {block?.title || "Sin unidad asignada"}{" "}
+                        <span className="font-medium">· Tema:</span> {lesson.theme || "Sin tema definido"}
+                      </p>
+                      <p className="text-sm text-muted-foreground">{lesson.subtitle || canon.operation || "Define cómo se va a trabajar el tema."}</p>
+                      <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                        <span>{schedulePreview.slot ? formatScheduleSlot(schedulePreview.slot) : "Sin día y horario"}</span>
+                        <span>{formatScheduledDate(schedulePreview.scheduledDate)}</span>
+                      </div>
+                    </div>
+                  </AccordionTrigger>
+
+                  <AccordionContent className="space-y-4 pb-5">
+                    <div className="space-y-2">
+                      <Label>Unidad o bloque</Label>
+                      <Select
+                        value={lesson.content_block_id || ""}
+                        disabled={readOnly}
+                        onValueChange={(value) => {
+                          updateLocalLesson(lesson.id, "content_block_id", value);
+                          void persistField(lesson.id, "content_block_id", value);
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecciona una unidad" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {blocks.map((blockOption) => (
+                            <SelectItem key={blockOption.id} value={blockOption.id}>
+                              {blockOption.title}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Tema de la clase</Label>
+                      <Input
+                        value={lesson.theme}
+                        disabled={readOnly}
+                        onChange={(event) => updateLocalLesson(lesson.id, "theme", event.target.value)}
+                        onBlur={(event) => void persistField(lesson.id, "theme", event.target.value)}
+                        placeholder="Recorte central de la clase"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Cómo se va a trabajar el tema</Label>
+                      <Textarea
+                        value={lesson.subtitle}
+                        rows={2}
+                        disabled={readOnly}
+                        onChange={(event) => updateLocalLesson(lesson.id, "subtitle", event.target.value)}
+                        onBlur={(event) => void persistField(lesson.id, "subtitle", event.target.value)}
+                        placeholder="Subtítulo operativo de la clase"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Justificación pedagógica</Label>
+                      <Textarea
+                        value={lesson.justification}
+                        rows={3}
+                        disabled={readOnly}
+                        onChange={(event) => updateLocalLesson(lesson.id, "justification", event.target.value)}
+                        onBlur={(event) => void persistField(lesson.id, "justification", event.target.value)}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Resultado o evidencia esperada</Label>
+                      <Textarea
+                        value={lesson.learning_outcome}
+                        rows={3}
+                        disabled={readOnly}
+                        onChange={(event) => updateLocalLesson(lesson.id, "learning_outcome", event.target.value)}
+                        onBlur={(event) => void persistField(lesson.id, "learning_outcome", event.target.value)}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Operación y evidencia mínima</Label>
+                      <Textarea
+                        value={lesson.activities_summary}
+                        rows={4}
+                        disabled={readOnly}
+                        onChange={(event) => updateLocalLesson(lesson.id, "activities_summary", event.target.value)}
+                        onBlur={(event) => void persistField(lesson.id, "activities_summary", event.target.value)}
+                        placeholder='Usa el formato: "Operacion: ... Evidencia minima: ..."'
+                      />
+                      <div className="space-y-1 rounded-lg bg-muted/30 p-3 text-xs text-muted-foreground">
+                        <p>
+                          <span className="font-medium text-foreground">Operación detectada:</span>{" "}
+                          {canon.operation || canon.fallbackOperation || "Todavía no se detecta una operación principal."}
+                        </p>
+                        <p>
+                          <span className="font-medium text-foreground">Evidencia mínima detectada:</span>{" "}
+                          {canon.evidence || "Todavía no se explicitó la evidencia mínima."}
+                        </p>
+                      </div>
+                    </div>
+
+                    {savingKey?.startsWith(lesson.id) ? (
+                      <p className="text-xs text-muted-foreground">Guardando cambios...</p>
+                    ) : null}
+                  </AccordionContent>
+                </AccordionItem>
+              );
+            })}
+          </Accordion>
+        </section>
+      ))}
     </div>
   );
-}
-
-/** Fetches the unit map for plan lessons — used by PlanEditor for PDF export */
-export async function fetchLessonUnitMap(planId: string): Promise<Map<string, string>> {
-  const { data: lessonsData } = await supabase
-    .from("plan_lessons")
-    .select("id")
-    .eq("plan_id", planId);
-
-  if (!lessonsData || lessonsData.length === 0) return new Map();
-
-  const lessonIds = lessonsData.map((l) => l.id);
-
-  const { data: links } = await supabase
-    .from("plan_lesson_content_links")
-    .select("plan_lesson_id, plan_content_mapping_id")
-    .in("plan_lesson_id", lessonIds);
-
-  if (!links || links.length === 0) return new Map();
-
-  const mappingIds = [...new Set(links.map((l) => l.plan_content_mapping_id))];
-  const { data: mappings } = await supabase
-    .from("plan_content_mappings")
-    .select("id, curriculum_node_id")
-    .in("id", mappingIds);
-
-  if (!mappings || mappings.length === 0) return new Map();
-
-  const nodeIds = [...new Set(mappings.map((m) => m.curriculum_node_id))];
-  const { data: nodes } = await supabase
-    .from("curriculum_nodes")
-    .select("id, name, node_type, parent_id")
-    .in("id", nodeIds);
-
-  const nodeMap = new Map((nodes || []).map((n) => [n.id, n]));
-  const mappingToNode = new Map(mappings.map((m) => [m.id, m.curriculum_node_id]));
-
-  const parentIdsToFetch = new Set<string>();
-  for (const node of nodes || []) {
-    if (node.node_type !== "UNIDAD" && node.node_type !== "EJE" && node.node_type !== "BLOQUE" && node.parent_id) {
-      parentIdsToFetch.add(node.parent_id);
-    }
-  }
-
-  let parentNodes = new Map<string, { name: string; node_type: string }>();
-  if (parentIdsToFetch.size > 0) {
-    const { data: parents } = await supabase
-      .from("curriculum_nodes")
-      .select("id, name, node_type")
-      .in("id", [...parentIdsToFetch]);
-    parentNodes = new Map((parents || []).map((p) => [p.id, { name: p.name, node_type: p.node_type }]));
-  }
-
-  const result = new Map<string, string>();
-  for (const link of links) {
-    const nodeId = mappingToNode.get(link.plan_content_mapping_id);
-    if (!nodeId) continue;
-    const node = nodeMap.get(nodeId);
-    if (!node) continue;
-
-    if (node.node_type === "UNIDAD" || node.node_type === "EJE" || node.node_type === "BLOQUE") {
-      if (!result.has(link.plan_lesson_id)) {
-        result.set(link.plan_lesson_id, node.name);
-      }
-    } else if (node.parent_id) {
-      const parent = parentNodes.get(node.parent_id) || nodeMap.get(node.parent_id);
-      if (parent && (parent.node_type === "UNIDAD" || parent.node_type === "EJE" || parent.node_type === "BLOQUE")) {
-        if (!result.has(link.plan_lesson_id)) {
-          result.set(link.plan_lesson_id, parent.name);
-        }
-      }
-    }
-  }
-
-  return result;
 }

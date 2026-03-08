@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+﻿import { useEffect, useState, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,6 @@ import ReadingMaterialView from "@/components/lesson/ReadingMaterialView";
 import CopilotPanel from "@/components/lesson/CopilotPanel";
 import GenerateButton from "@/components/lesson/GenerateButton";
 import { useEntitlements } from "@/hooks/useEntitlements";
-import { LoadingState } from "@/components/ui/LoadingState";
 import { StatusBadge, briefLabel, briefTone, materialLabel, materialTone, lessonStatusLabel, lessonStatusTone } from "@/components/ui/StatusBadge";
 import { StepHeader } from "@/components/ui/StepHeader";
 import { SkeletonList } from "@/components/ui/SkeletonList";
@@ -59,7 +58,7 @@ type TeachingDifferentiation = {
   description: string;
 };
 
-const AUTHORIZED_SOURCES_TABLE = "authorized_sources" as const;
+const AUTHORIZED_SOURCES_TABLE = "authorized_sources" as never;
 
 function extractCanonSummary(activitiesSummary?: string | null, fallbackTheme?: string | null) {
   const summary = (activitiesSummary || "").trim();
@@ -84,7 +83,7 @@ function extractCanonSummary(activitiesSummary?: string | null, fallbackTheme?: 
 function isLikelyBibliographyEntry(name: string): boolean {
   const trimmed = name.trim();
   const commaCount = (trimmed.match(/,/g) || []).length;
-  const hasAuthorPrefix = /^[A-ZÁÉÍÓÚÑ][^,]{1,90},/.test(trimmed);
+  const hasAuthorPrefix = /^[A-ZÃÃ‰ÃÃ“ÃšÃ‘][^,]{1,90},/.test(trimmed);
   const hasYear = /\b(1[89]\d{2}|20\d{2})\b/.test(trimmed);
   const hasEditionFallback = /\bvarias\s+ediciones\b/i.test(trimmed);
 
@@ -355,7 +354,7 @@ export default function Lesson() {
         toast({ title: "Error", description: responseData.error, variant: "destructive" });
         return;
       }
-      toast({ title: "Material didáctico regenerado" });
+      toast({ title: "Material didÃ¡ctico regenerado" });
       fetchData();
     } catch (err: unknown) {
       toast({ title: "Error", description: formatErrorMessage(err), variant: "destructive" });
@@ -430,22 +429,16 @@ export default function Lesson() {
 
   if (loading) {
     return (
-      <LoadingState
-        variant="page"
-        tips={[
-          "Cargando la clase...",
-          "Buscando materiales y recursos...",
-          "Organizando el contenido pedagógico...",
-          "Ya casi está todo listo...",
-        ]}
-      />
+      <div className="min-h-screen bg-background p-8">
+        <SkeletonList count={4} />
+      </div>
     );
   }
 
   if (!lesson) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen gap-4">
-        <p className="text-muted-foreground">Lección no encontrada</p>
+        <p className="text-muted-foreground">LecciÃ³n no encontrada</p>
         <Button asChild>
           <Link to="/dashboard">Volver al dashboard</Link>
         </Button>
@@ -462,7 +455,7 @@ export default function Lesson() {
   const documentMeta = [
     { label: "Institucion", value: courseContext?.schools?.official_name || null },
     { label: "Materia", value: courseContext?.subject || null },
-    { label: "Curso", value: courseContext?.year_level ? `${courseContext.year_level}° año` : null },
+    { label: "Curso", value: courseContext?.year_level ? `${courseContext.year_level} a\u00f1o` : null },
     { label: "Clase", value: `Leccion ${lesson.lesson_number}` },
     { label: "Tema", value: planLesson?.theme || null },
     { label: "Ciclo", value: courseContext?.academic_year || null },
@@ -491,8 +484,8 @@ export default function Lesson() {
           </Button>
           <div className="flex-1">
             <h1 className="text-lg font-semibold text-foreground">
-              Lección {lesson.lesson_number}
-              {planLesson?.theme ? ` — ${planLesson.theme}` : ""}
+              LecciÃ³n {lesson.lesson_number}
+              {planLesson?.theme ? ` â€” ${planLesson.theme}` : ""}
             </h1>
             <div className="flex gap-2 mt-1">
               <StatusBadge tone={lessonStatusTone(lesson.status)} label={lessonStatusLabel(lesson.status)} />
@@ -668,7 +661,7 @@ export default function Lesson() {
             <section id="materials-section">
               <StepHeader
                 stepNumber={2}
-                title="Generación"
+                title="GeneraciÃ³n"
                 status={materialLabel(hasMaterials ? (readingMaterial?.status || teachingMaterial?.status) : null)}
                 statusTone={materialTone(hasMaterials ? (readingMaterial?.status || teachingMaterial?.status) : null)}
               />
@@ -743,3 +736,4 @@ export default function Lesson() {
     </div>
   );
 }
+

@@ -17,15 +17,15 @@ Esto aplica a:
 El sistema no debe aceptar:
 
 - `servicios.abc.gov.ar`
-- PDFs subidos manualmente desde PC
 - URLs externas aunque apunten a un PDF valido
-- documentos curriculares persistidos con proveedor manual o dominio no oficial
+- documentos curriculares manuales mezclados en la resolucion automatica global
 
 El sistema si debe aceptar:
 
 - URLs `https://abc.gob.ar/...`
 - documentos ya resueltos o ingeridos desde `abc.gob.ar`
 - reuso de `curriculum_documents` existentes que ya tengan `official_url` en `abc.gob.ar`
+- PDFs manuales solo para planes `BASICO` y `PREMIUM`
 
 ## Cambios requeridos en Supabase / Lovable
 
@@ -54,55 +54,58 @@ La function `resolve-curriculum-document` debe:
 
 La function `import-curriculum-pdf` debe cambiar de contrato:
 
-- `official_url` pasa a ser obligatorio
-- `file_base64` debe rechazarse con error explicito
+- `FREE` solo puede usar `official_url`
+- `BASICO` y `PREMIUM` pueden usar `official_url` o `file_base64`
 - la URL debe validar contra `abc.gob.ar`
 - `allow_external_url` debe quedar en `false`
 
-Mensaje sugerido:
+Mensajes sugeridos:
 
-`La carga manual de PDF fue deshabilitada. Usa solo URLs oficiales de abc.gob.ar.`
+- `La carga manual de PDF requiere un plan BASICO o PREMIUM.`
+- `Debe enviar file_base64 o official_url, ademas de subject, cycle y year_level`
 
 ### 4. Ingesta compartida
 
 La logica compartida de `curriculumImport.ts` debe:
 
-- rechazar `file_base64`
-- descargar solo desde `abc.gob.ar`
-- persistir `source_provider = 'ABC_PBA_WEB'`
-- dejar de producir `MANUAL_URL` o variantes equivalentes
+- aceptar `file_base64` solo cuando la function ya valido un plan pago
+- descargar por URL solo desde `abc.gob.ar`
+- persistir `source_provider = 'ABC_PBA_WEB'` para documentos por URL oficial
+- persistir `source_provider = 'MANUAL_UPLOAD'` para PDFs manuales
+- excluir `MANUAL_UPLOAD` de la resolucion automatica global
 
 ### 5. Remediacion de datos existentes
 
 Lovable debe ejecutar una remediacion sobre `curriculum_documents`:
 
-- detectar filas con `official_url` nula
+- detectar filas con `official_url` nula que no sean `MANUAL_UPLOAD`
 - detectar filas con host distinto de `abc.gob.ar`
-- detectar filas con `source_provider` manual/no oficial
+- detectar filas con `source_provider` manual/no oficial que hoy puedan filtrarse al resolver global
 
 Resultado esperado:
 
 - marcarlas como `DEPRECATED`, o
 - excluirlas de toda resolucion automatica si no se quiere tocar historial
 
-La resolucion futura no debe volver a ofrecer estos documentos como candidatos.
+La resolucion futura no debe volver a ofrecer documentos manuales como candidatos automaticos.
 
 ### 6. UI dependiente del backend
 
 Una vez desplegado el backend, la UI debe quedar consistente:
 
 - `CourseNew` no debe ofrecer “Importar programa” como salida para documentos no resueltos
-- `CurriculumImport` debe funcionar como sincronizacion administrativa por URL oficial de ABC
+- `CurriculumImport` debe funcionar como sincronizacion administrativa por URL oficial de ABC y como importacion manual solo para planes pagos
 - `Dashboard` puede conservar acceso administrativo, pero con copy de sincronizacion, no de carga manual
 
 ## Criterios de aceptacion
 
 1. Una URL `https://abc.gob.ar/...pdf` se importa correctamente.
 2. Una URL `https://servicios.abc.gov.ar/...pdf` es rechazada.
-3. Un `file_base64` enviado a `import-curriculum-pdf` es rechazado.
+3. Un `file_base64` enviado a `import-curriculum-pdf` es rechazado para `FREE` y aceptado para `BASICO/PREMIUM`.
 4. `resolve-curriculum-document` no usa ni devuelve enlaces de `servicios.abc.gov.ar`.
-5. `curriculum_documents` nuevos quedan con `source_provider = 'ABC_PBA_WEB'`.
-6. Un curso nuevo solo puede vincularse a documentos resueltos desde la base oficial ABC.
+5. `curriculum_documents` nuevos por URL quedan con `source_provider = 'ABC_PBA_WEB'`.
+6. `curriculum_documents` nuevos por PDF manual quedan con `source_provider = 'MANUAL_UPLOAD'`.
+7. La resolucion automatica de curso solo usa documentos `ABC_PBA_WEB`.
 
 ## Deploy requerido por Lovable
 

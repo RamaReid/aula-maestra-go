@@ -12,10 +12,29 @@ const corsHeaders = {
 
 type LessonDraft = {
   lesson_number: number;
+  content_block_title: string;
   theme: string;
+  subtitle: string;
   justification: string;
   learning_outcome: string;
   activities_summary: string;
+};
+
+type ContentBlockDraft = {
+  title: string;
+  description: string;
+  topics: string[];
+  term: number | null;
+};
+
+type RubricRowDraft = {
+  content_block_title: string;
+  criterion_name: string;
+  focus_note: string;
+  advanced_level: string;
+  expected_level: string;
+  basic_level: string;
+  initial_level: string;
 };
 
 type BootstrapPayload = {
@@ -25,6 +44,8 @@ type BootstrapPayload = {
   evaluacion_marco: string;
   resources: string;
   objectives: string[];
+  content_blocks: ContentBlockDraft[];
+  rubrics: RubricRowDraft[];
   lessons: LessonDraft[];
 };
 
@@ -222,6 +243,149 @@ function buildNodePools(nodes: CurriculumNodeRow[]): {
 
 function buildActivitiesSummary(operation: string, evidence: string): string {
   return `Operacion: ${operation} Evidencia minima: ${evidence}`;
+}
+
+function extractOperation(summary: string | null | undefined): string {
+  const raw = typeof summary === "string" ? summary.trim() : "";
+  if (!raw) return "";
+  const operationMatch = raw.match(/operacion\s*:\s*([\s\S]*?)(?=evidencia minima\s*:|$)/i);
+  return (operationMatch?.[1] || raw).replace(/\s+/g, " ").trim();
+}
+
+function defaultLessonSubtitle(operation: string, theme: string): string {
+  const cleaned = operation.replace(/\s+/g, " ").trim();
+  if (cleaned) return cleaned;
+  return `Trabajo guiado sobre ${theme}.`;
+}
+
+function createGenericContentBlocks(nodeNames: string[]): ContentBlockDraft[] {
+  const cleanedTopics = nodeNames.filter((name) => name.trim().length > 0).slice(0, 16);
+  const blocks = [
+    {
+      title: "Unidad 1",
+      description: "Apertura del recorrido anual con conceptos, preguntas iniciales y primeras relaciones con el programa oficial.",
+      topics: cleanedTopics.slice(0, 4),
+      term: 1,
+    },
+    {
+      title: "Unidad 2",
+      description: "Profundizacion del primer cuatrimestre con problemas, casos y producciones que dejen evidencia visible.",
+      topics: cleanedTopics.slice(4, 8),
+      term: 1,
+    },
+    {
+      title: "Unidad 3",
+      description: "Inicio del segundo cuatrimestre con revision, ampliacion de contenidos y mejora de herramientas de trabajo.",
+      topics: cleanedTopics.slice(8, 12),
+      term: 2,
+    },
+    {
+      title: "Unidad 4",
+      description: "Cierre anual con integracion de contenidos, producciones finales y recuperacion equivalente.",
+      topics: cleanedTopics.slice(12, 16),
+      term: 2,
+    },
+  ];
+
+  return blocks.map((block, index) => ({
+    ...block,
+    title: block.title,
+    topics: block.topics.length > 0 ? block.topics : [`Tema central ${index + 1}`],
+  }));
+}
+
+function buildFallbackRubrics(blocks: ContentBlockDraft[]): RubricRowDraft[] {
+  return blocks.map((block, index) => ({
+    content_block_title: block.title,
+    criterion_name: `Criterio ${index + 1}: desarrollo del bloque`,
+    focus_note: `Se observa la apropiacion de contenidos, la calidad del trabajo y la evidencia producida en ${block.title}.`,
+    advanced_level: "Integra contenidos del bloque con precision, autonomia y una evidencia clara, completa y bien justificada.",
+    expected_level: "Resuelve lo central del bloque con claridad suficiente y deja una evidencia pertinente y comprensible.",
+    basic_level: "Avanza de forma parcial en el bloque y necesita apoyos para sostener conceptos, organizacion o evidencia.",
+    initial_level: "No logra aun apropiarse del bloque ni producir una evidencia suficiente para acreditar el recorrido.",
+  }));
+}
+
+function buildFyHctContentBlocks(): Array<ContentBlockDraft & { lesson_range: [number, number] }> {
+  return [
+    {
+      title: "Unidad I: Filosofia, conocimiento y argumentacion",
+      description:
+        "Presenta la filosofia como practica de problematizar, conceptualizar y argumentar, y la situa en problemas reales del contexto escolar.",
+      topics: [
+        "Concepto de filosofia y toma de decisiones",
+        "Asombro, duda y situaciones limite",
+        "Del mito al logos",
+        "Ramas y problemas actuales situados",
+      ],
+      term: 1,
+      lesson_range: [1, 4],
+    },
+    {
+      title: "Unidad II: Ciencia, tecnologia y vinculos",
+      description:
+        "Desarrolla relaciones entre ciencia, tecnologia, evidencia y decisiones tecnicas a partir de casos y proyectos del primer cuatrimestre.",
+      topics: [
+        "Rasgos del conocimiento cientifico",
+        "Tecnologia, historia e impactos",
+        "Ciencia y tecnologia en alimentos",
+        "Casos del taller: problema, hipotesis, controles y evidencia",
+        "Proyecto de protocolo digital",
+        "Cierre y recuperacion del primer cuatrimestre",
+      ],
+      term: 1,
+      lesson_range: [5, 14],
+    },
+    {
+      title: "Unidad III: Lenguaje y logica de la explicacion",
+      description:
+        "Fortalece precision conceptual, argumentacion e informes como base para el segundo cuatrimestre.",
+      topics: [
+        "Lenguaje y explicacion tecnica",
+        "Razonamientos y falacias",
+        "Mejora de informes",
+      ],
+      term: 2,
+      lesson_range: [15, 17],
+    },
+    {
+      title: "Unidad IV: Teorias y cambio cientifico",
+      description:
+        "Trabaja teorias, modelos, cambio cientifico y controversias para leer la validacion del conocimiento.",
+      topics: [
+        "Teorias y modelos",
+        "Kuhn y cambio cientifico",
+        "Popper y prueba critica",
+        "Casos historicos de Darwin y Pasteur-Pouchet",
+      ],
+      term: 2,
+      lesson_range: [18, 22],
+    },
+    {
+      title: "Unidad V: Metodos y etica de la investigacion",
+      description:
+        "Integra metodos, comunidad cientifica, etica y producciones finales con una salida verificable para el curso.",
+      topics: [
+        "Metodos: induccion e hipotetico-deductivo",
+        "Comunidad cientifica y revision",
+        "Etica de la investigacion y de la tecnologia",
+        "Dossier integrador, presentacion y recuperacion",
+      ],
+      term: 2,
+      lesson_range: [23, 28],
+    },
+  ];
+}
+
+function blockTitleForLesson(
+  lessonNumber: number,
+  blocks: Array<ContentBlockDraft & { lesson_range?: [number, number] }>
+): string {
+  const matched = blocks.find((block) => {
+    if (!block.lesson_range) return false;
+    return lessonNumber >= block.lesson_range[0] && lessonNumber <= block.lesson_range[1];
+  });
+  return matched?.title || blocks[Math.min(blocks.length - 1, Math.floor((lessonNumber - 1) / Math.max(1, Math.ceil(28 / blocks.length))))].title;
 }
 
 const GOLDEN_FYHCT_6_EESA_LESSONS: CanonLessonSeed[] = [
@@ -468,11 +632,15 @@ function fallbackObjectives(subject: string): string[] {
 }
 
 function buildFyHctFallbackBootstrap(lessonCount: number): BootstrapPayload {
+  const contentBlocks = buildFyHctContentBlocks();
   const lessons = Array.from({ length: lessonCount }, (_, index) => {
     const seed = GOLDEN_FYHCT_6_EESA_LESSONS[index] || GOLDEN_FYHCT_6_EESA_LESSONS[GOLDEN_FYHCT_6_EESA_LESSONS.length - 1];
+    const contentBlockTitle = blockTitleForLesson(index + 1, contentBlocks);
     return {
       lesson_number: index + 1,
+      content_block_title: contentBlockTitle,
       theme: seed.theme,
+      subtitle: defaultLessonSubtitle(seed.operation, seed.theme),
       justification: seed.justification,
       learning_outcome: seed.learning_outcome,
       activities_summary: buildActivitiesSummary(seed.operation, seed.evidence),
@@ -503,6 +671,8 @@ function buildFyHctFallbackBootstrap(lessonCount: number): BootstrapPayload {
     resources:
       "Pizarron, carpeta o cuaderno, impresos con glosario y lecturas breves, planillas de registro, fotografias o descripciones de casos del taller, proyector o TV segun disponibilidad y alternativa low-tech para cada actividad.",
     objectives: fallbackObjectives("Filosofia e Historia de la Ciencia y la Tecnologia"),
+    content_blocks: contentBlocks.map(({ lesson_range: _lessonRange, ...block }) => block),
+    rubrics: buildFallbackRubrics(contentBlocks),
     lessons,
   };
 }
@@ -513,6 +683,7 @@ function fallbackBootstrap(subject: string, nodeNames: string[], lessonCount: nu
   }
 
   const baseTopics = nodeNames.length > 0 ? nodeNames : [subject];
+  const contentBlocks = createGenericContentBlocks(baseTopics);
 
   return {
     fundamentacion:
@@ -550,17 +721,33 @@ function fallbackBootstrap(subject: string, nodeNames: string[], lessonCount: nu
     resources:
       "Pizarron, cuaderno o carpeta, materiales impresos, textos del curso, proyector o TV segun disponibilidad y alternativa low-tech para cada actividad.",
     objectives: fallbackObjectives(subject),
+    content_blocks: contentBlocks,
+    rubrics: buildFallbackRubrics(contentBlocks),
     lessons: Array.from({ length: lessonCount }, (_, index) => {
       const topic = baseTopics[index % baseTopics.length];
+      const contentBlockTitle = blockTitleForLesson(
+        index + 1,
+        contentBlocks.map((block, blockIndex) => ({
+          ...block,
+          lesson_range:
+            blockIndex === 0
+              ? [1, 7]
+              : blockIndex === 1
+                ? [8, 14]
+                : blockIndex === 2
+                  ? [15, 21]
+                  : [22, 28],
+        }))
+      );
+      const operation = `Apertura con recuperacion breve y desarrollo guiado sobre "${topic}".`;
       return {
         lesson_number: index + 1,
+        content_block_title: contentBlockTitle,
         theme: `${topic}`,
+        subtitle: defaultLessonSubtitle(operation, topic),
         justification: `La clase ${index + 1} desarrolla un recorte del diseno curricular para sostener una progresion anual clara y contextualizada.`,
         learning_outcome: `Al finalizar la clase ${index + 1}, el estudiantado podra explicar y trabajar de manera situada el eje "${topic}".`,
-        activities_summary: buildActivitiesSummary(
-          `Apertura con recuperacion breve y desarrollo guiado sobre "${topic}".`,
-          `Produccion breve verificable vinculada al eje "${topic}" y puesta en comun final.`
-        ),
+        activities_summary: buildActivitiesSummary(operation, `Produccion breve verificable vinculada al eje "${topic}" y puesta en comun final.`),
       };
     }),
   };
@@ -594,6 +781,49 @@ function normalizeBootstrapPayload(
 ): BootstrapPayload {
   const fallback = fallbackBootstrap(subject, nodeNames, lessonCount);
   const lessons = Array.isArray(payload?.lessons) ? payload!.lessons : fallback.lessons;
+  const contentBlocks =
+    Array.isArray(payload?.content_blocks) && payload.content_blocks.length > 0
+      ? payload.content_blocks
+          .filter((block): block is ContentBlockDraft => typeof block?.title === "string" && block.title.trim().length > 0)
+          .slice(0, 8)
+          .map((block, index) => ({
+            title: block.title.trim(),
+            description:
+              typeof block.description === "string" && block.description.trim().length > 0
+                ? block.description.trim()
+                : `Bloque ${index + 1} del recorrido anual.`,
+            topics:
+              Array.isArray(block.topics) && block.topics.length > 0
+                ? block.topics
+                    .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+                    .slice(0, 8)
+                : [`Tema central del bloque ${index + 1}`],
+            term: block.term === 1 || block.term === 2 ? block.term : null,
+          }))
+      : fallback.content_blocks;
+  const blockKeys = new Set(contentBlocks.map((block) => normalizeKey(block.title)));
+  const rubrics =
+    Array.isArray(payload?.rubrics) && payload.rubrics.length > 0
+      ? payload.rubrics
+          .filter(
+            (row): row is RubricRowDraft =>
+              typeof row?.content_block_title === "string" &&
+              typeof row?.criterion_name === "string" &&
+              row.content_block_title.trim().length > 0 &&
+              row.criterion_name.trim().length > 0 &&
+              blockKeys.has(normalizeKey(row.content_block_title))
+          )
+          .slice(0, 24)
+          .map((row) => ({
+            content_block_title: row.content_block_title.trim(),
+            criterion_name: row.criterion_name.trim(),
+            focus_note: row.focus_note?.trim() || "Se observa el trabajo del bloque con criterios compartidos.",
+            advanced_level: row.advanced_level?.trim() || "Desempeno destacado y evidencia consistente.",
+            expected_level: row.expected_level?.trim() || "Desempeno esperado y evidencia pertinente.",
+            basic_level: row.basic_level?.trim() || "Desempeno parcial con apoyos y evidencia incompleta.",
+            initial_level: row.initial_level?.trim() || "Desempeno inicial sin evidencia suficiente todavia.",
+          }))
+      : fallback.rubrics;
 
   return {
     fundamentacion:
@@ -624,17 +854,28 @@ function normalizeBootstrapPayload(
             .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
             .slice(0, 8)
         : fallback.objectives,
+    content_blocks: contentBlocks,
+    rubrics: rubrics.length > 0 ? rubrics : fallback.rubrics,
     lessons: Array.from({ length: lessonCount }, (_, index) => {
       const candidate = lessons.find((lesson) => lesson.lesson_number === index + 1) || fallback.lessons[index];
+      const fallbackLesson = fallback.lessons[index];
+      const requestedBlockTitle = candidate.content_block_title?.trim();
+      const contentBlockTitle =
+        requestedBlockTitle && blockKeys.has(normalizeKey(requestedBlockTitle))
+          ? requestedBlockTitle
+          : fallbackLesson.content_block_title;
+      const operation = normalizeActivitiesSummary(
+        candidate.activities_summary,
+        candidate.theme?.trim() || fallbackLesson.theme
+      );
       return {
         lesson_number: index + 1,
-        theme: candidate.theme?.trim() || fallback.lessons[index].theme,
-        justification: candidate.justification?.trim() || fallback.lessons[index].justification,
-        learning_outcome: candidate.learning_outcome?.trim() || fallback.lessons[index].learning_outcome,
-        activities_summary: normalizeActivitiesSummary(
-          candidate.activities_summary,
-          candidate.theme?.trim() || fallback.lessons[index].theme
-        ),
+        content_block_title: contentBlockTitle,
+        theme: candidate.theme?.trim() || fallbackLesson.theme,
+        subtitle: candidate.subtitle?.trim() || fallbackLesson.subtitle || defaultLessonSubtitle(extractOperation(operation), candidate.theme?.trim() || fallbackLesson.theme),
+        justification: candidate.justification?.trim() || fallbackLesson.justification,
+        learning_outcome: candidate.learning_outcome?.trim() || fallbackLesson.learning_outcome,
+        activities_summary: operation,
       };
     }),
   };
@@ -804,7 +1045,7 @@ serve(async (req) => {
           "- Cada clase debe dejar una evidencia minima concreta y verificable.",
           "- Prioriza casos del entorno escolar o productivo antes que enumeraciones abstractas.",
         ].join("\n")
-      : isFilosofiaSubject(course.subject)
+      : isFilosofiaSubject(courseRecord.subject)
         ? [
             "Canon disciplinar obligatorio para Filosofia:",
             "- Organiza la anual por problemas, conceptos, posiciones, argumentos y objeciones.",
@@ -828,10 +1069,31 @@ Debes devolver JSON VALIDO con esta estructura exacta:
   "evaluacion_marco": string,
   "resources": string,
   "objectives": string[],
+  "content_blocks": [
+    {
+      "title": string,
+      "description": string,
+      "topics": string[],
+      "term": number
+    }
+  ],
+  "rubrics": [
+    {
+      "content_block_title": string,
+      "criterion_name": string,
+      "focus_note": string,
+      "advanced_level": string,
+      "expected_level": string,
+      "basic_level": string,
+      "initial_level": string
+    }
+  ],
   "lessons": [
     {
       "lesson_number": number,
+      "content_block_title": string,
       "theme": string,
+      "subtitle": string,
       "justification": string,
       "learning_outcome": string,
       "activities_summary": string
@@ -841,15 +1103,20 @@ Debes devolver JSON VALIDO con esta estructura exacta:
 
 Reglas:
 - fundamentacion: minimo 450 palabras, en prosa y sin metacomentarios.
-- objectives: entre 4 y 8 objetivos observables.
+- objectives: entre 6 y 8 objetivos observables.
+- content_blocks: entre 4 y 6 bloques o unidades; cada uno con descripcion breve y 3 a 6 temas en "topics".
+- rubrics: al menos 1 fila por bloque; deben articular evaluacion con el bloque correspondiente.
 - lessons: exactamente ${planLessons.length} elementos, uno por clase.
-- Cada clase debe tener tema/foco, justificacion, resultado de aprendizaje y resumen canonico.
+- Cada clase debe tener bloque de contenido, tema/foco, subtitulo operativo, justificacion, resultado de aprendizaje y resumen canonico.
 - El campo "theme" debe nombrar solo el foco o recorte de la clase, no una lista larga.
+- El campo "subtitle" debe indicar en una linea como se trabajara el tema en esa clase.
 - El campo "justification" debe explicar por que esa clase importa dentro de la progresion anual.
 - El campo "learning_outcome" debe ser observable y realista para una sola clase.
 - El campo "activities_summary" debe usar exactamente este formato: "Operacion: ... Evidencia minima: ..."
 - La "Operacion" debe describir el movimiento didactico principal de la clase.
 - La "Evidencia minima" debe nombrar el producto o huella verificable que deja esa clase.
+- El bloque de evaluacion debe separar criterios generales de las filas de rubrica por bloque.
+- La bibliografia curricular puede orientar contenidos y evaluacion, pero no debe mezclarse como si fuera un bloque tematico.
 - La anual debe quedar lista para derivar clases y materiales, no solo para archivarse.
 - No inventes la fuente curricular. Usa el documento y los nodos provistos.
 - La forma del documento debe ser administrativa y util para que el docente la edite despues.
@@ -905,6 +1172,8 @@ ${nodeNames.join("\n")}`;
 
     await adminClient.from("plan_objectives").delete().eq("plan_id", body.plan_id);
     await adminClient.from("plan_content_mappings").delete().eq("plan_id", body.plan_id);
+    await adminClient.from("plan_rubrics").delete().eq("plan_id", body.plan_id);
+    await adminClient.from("plan_content_blocks").delete().eq("plan_id", body.plan_id);
 
     const objectiveRows = normalized.objectives.map((objective, index) => ({
       plan_id: body.plan_id!,
@@ -913,6 +1182,48 @@ ${nodeNames.join("\n")}`;
     }));
     if (objectiveRows.length > 0) {
       await adminClient.from("plan_objectives").insert(objectiveRows);
+    }
+
+    const contentBlockRows = normalized.content_blocks.map((block, index) => ({
+      plan_id: body.plan_id!,
+      title: block.title,
+      description: block.description,
+      topics: block.topics,
+      term: block.term,
+      order_index: index,
+    }));
+    let contentBlockIdByTitle = new Map<string, string>();
+    if (contentBlockRows.length > 0) {
+      const { data: insertedBlocks, error: insertedBlocksError } = await adminClient
+        .from("plan_content_blocks")
+        .insert(contentBlockRows)
+        .select("id, title");
+      if (insertedBlocksError) throw insertedBlocksError;
+      contentBlockIdByTitle = new Map(
+        (insertedBlocks || []).map((row: { id: string; title: string }) => [normalizeKey(row.title), row.id])
+      );
+    }
+
+    const rubricRows = normalized.rubrics
+      .map((rubric, index) => {
+        const contentBlockId = contentBlockIdByTitle.get(normalizeKey(rubric.content_block_title));
+        if (!contentBlockId) return null;
+        return {
+          plan_id: body.plan_id!,
+          content_block_id: contentBlockId,
+          criterion_name: rubric.criterion_name,
+          focus_note: rubric.focus_note,
+          advanced_level: rubric.advanced_level,
+          expected_level: rubric.expected_level,
+          basic_level: rubric.basic_level,
+          initial_level: rubric.initial_level,
+          order_index: index,
+        };
+      })
+      .filter(Boolean);
+    if (rubricRows.length > 0) {
+      const { error: rubricInsertError } = await adminClient.from("plan_rubrics").insert(rubricRows);
+      if (rubricInsertError) throw rubricInsertError;
     }
 
     const mappingRows = nodePools.nodesForMappings.map((node, index: number) => ({
@@ -940,7 +1251,9 @@ ${nodeNames.join("\n")}`;
       await adminClient
         .from("plan_lessons")
         .update({
+          content_block_id: contentBlockIdByTitle.get(normalizeKey(lesson.content_block_title)) || null,
           theme: lesson.theme,
+          subtitle: lesson.subtitle,
           justification: lesson.justification,
           learning_outcome: lesson.learning_outcome,
           activities_summary: lesson.activities_summary,
@@ -995,7 +1308,9 @@ ${nodeNames.join("\n")}`;
         prompt_nodes_count: nodePools.nodesForPrompt.length,
         bibliography_nodes_count: nodePools.bibliographyNodes.length,
         objectives_count: objectiveRows.length,
+        content_blocks_count: contentBlockRows.length,
         content_mappings_count: mappingRows.length,
+        rubrics_count: rubricRows.length,
         lessons_count: normalized.lessons.length,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { Archive, ArrowLeft, BookOpen, Sparkles } from "lucide-react";
 
@@ -23,7 +23,6 @@ import { Badge } from "@/components/ui/badge";
 import PlanEditor from "@/components/plan/PlanEditor";
 import AgendaView from "@/components/plan/AgendaView";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { LoadingState } from "@/components/ui/LoadingState";
 import { SkeletonList } from "@/components/ui/SkeletonList";
 import { StatusBadge, briefLabel, briefTone, lessonStatusLabel, lessonStatusTone } from "@/components/ui/StatusBadge";
 import { useEntitlements } from "@/hooks/useEntitlements";
@@ -293,10 +292,10 @@ export default function Course() {
       }
       if (current.length >= maxSelectableLessons) {
         toast({
-          title: "Límite de sesión",
+          title: "LÃ­mite de sesiÃ³n",
           description: isFreePlan
-            ? `En Free podés preparar exactamente ${requiredFreeSelectionCount} clases por sesión.`
-            : `Podés seleccionar hasta ${maxSelectableLessons} clases, que son las clases disponibles en este curso.`,
+            ? `En Free podÃ©s preparar exactamente ${requiredFreeSelectionCount} clases por sesiÃ³n.`
+            : `PodÃ©s seleccionar hasta ${maxSelectableLessons} clases, que son las clases disponibles en este curso.`,
           variant: "destructive",
         });
         return current;
@@ -308,8 +307,8 @@ export default function Course() {
   const handlePrepareSelection = async () => {
     if (selectedLessons.length === 0) {
       toast({
-        title: "Elegí al menos una clase",
-        description: "Seleccioná una clase o una secuencia corta antes de preparar.",
+        title: "ElegÃ­ al menos una clase",
+        description: "SeleccionÃ¡ una clase o una secuencia corta antes de preparar.",
         variant: "destructive",
       });
       return;
@@ -318,7 +317,7 @@ export default function Course() {
     if (isFreePlan && !hasExactFreeSelection) {
       toast({
         title: "El plan Free prepara 3 clases",
-        description: "En Free tenés que elegir exactamente 3 clases del mismo curso.",
+        description: "En Free tenÃ©s que elegir exactamente 3 clases del mismo curso.",
         variant: "destructive",
       });
       return;
@@ -327,7 +326,7 @@ export default function Course() {
     if (!isFreePlan && selectedLessons.length > 1 && !hasSequenceSelection) {
       toast({
         title: "La secuencia debe ser consecutiva",
-        description: "Para preparar varias clases, elegí una secuencia continua sin saltos.",
+        description: "Para preparar varias clases, elegÃ­ una secuencia continua sin saltos.",
         variant: "destructive",
       });
       return;
@@ -379,7 +378,7 @@ export default function Course() {
         description:
           orderedLessonIds.length > 1
             ? `Se prepararon ${orderedLessonIds.length} clases de la secuencia seleccionada.`
-            : "La clase seleccionada quedó preparada.",
+            : "La clase seleccionada quedÃ³ preparada.",
       });
       setSelectedLessonIds([]);
       await fetchData();
@@ -424,7 +423,7 @@ export default function Course() {
             </div>
             {course && (
               <p className="text-sm text-muted-foreground">
-                {course.school_name} · {course.year_level}° año · {course.academic_year}
+                {course.school_name} Â· {course.year_level}Â° aÃ±o Â· {course.academic_year}
               </p>
             )}
           </div>
@@ -457,18 +456,12 @@ export default function Course() {
 
       <main className="mx-auto max-w-4xl px-4 py-8">
         {loading ? (
-          <LoadingState
-            tips={[
-              "Cargando el curso...",
-              "Buscando la planificación y las clases...",
-              "Organizando todo para vos...",
-            ]}
-          />
+          <SkeletonList count={6} />
         ) : plan ? (
           <div className="space-y-4">
             <PageIntro
               eyebrow="Curso"
-              title={`${course?.subject ?? "Curso"}${course?.year_level ? ` · ${course.year_level}° año` : ""}`}
+              title={`${course?.subject ?? "Curso"}${course?.year_level ? ` · ${course.year_level} a\u00f1o` : ""}`}
               description="Revisa la base curricular, valida la planificacion y prepara clases o secuencias con una composicion mas clara para lectura y seguimiento."
             />
             <Card>
@@ -486,7 +479,7 @@ export default function Course() {
                     <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
                       <span>Fuente: {curriculum.source_provider}</span>
                       <span>Contenidos curriculares: {curriculum.node_count ?? 0}</span>
-                      <span>Curso: {course?.subject} {course?.year_level} año</span>
+                      <span>Curso: {course?.subject} {course?.year_level} a\u00f1o</span>
                     </div>
                     {curriculum.source_provider === "ABC_PBA_WEB" && (
                       <p className="text-xs text-muted-foreground">
@@ -572,17 +565,17 @@ export default function Course() {
                           <CardContent className="flex flex-col gap-4 pt-6 md:flex-row md:items-center md:justify-between">
                             <div className="space-y-1">
                               <p className="text-sm font-medium text-foreground">
-                                Elegí una clase o una secuencia para preparar
+                                ElegÃ­ una clase o una secuencia para preparar
                               </p>
                               <p className="text-sm text-muted-foreground">
                                 {isFreePlan
-                                  ? "En Free tenés que elegir exactamente 3 clases del mismo curso. Pueden ser tres clases puntuales o una secuencia."
-                                  : `Podés seleccionar 1 clase o una secuencia de hasta ${maxSelectableLessons} clases, que coincide con las clases existentes en el curso.`}
+                                  ? "En Free tenÃ©s que elegir exactamente 3 clases del mismo curso. Pueden ser tres clases puntuales o una secuencia."
+                                  : `PodÃ©s seleccionar 1 clase o una secuencia de hasta ${maxSelectableLessons} clases, que coincide con las clases existentes en el curso.`}
                               </p>
                               {selectedLessons.length > 0 && (
                                 <p className="text-xs text-muted-foreground">
                                   {isFreePlan && !hasExactFreeSelection
-                                    ? `Llevás ${selectedLessons.length}/3 clases seleccionadas.`
+                                    ? `LlevÃ¡s ${selectedLessons.length}/3 clases seleccionadas.`
                                     : isFreePlan && hasSequenceSelection
                                       ? `Secuencia seleccionada: clases ${selectedLessonNumbers[0]} a ${selectedLessonNumbers[selectedLessonNumbers.length - 1]}.`
                                       : isFreePlan
@@ -591,7 +584,7 @@ export default function Course() {
                                       ? `Clase ${selectedLessonNumbers[0]} seleccionada.`
                                       : hasSequenceSelection
                                       ? `Secuencia seleccionada: clases ${selectedLessonNumbers[0]} a ${selectedLessonNumbers[selectedLessonNumbers.length - 1]}.`
-                                      : "La selección actual no forma una secuencia consecutiva."}
+                                      : "La selecciÃ³n actual no forma una secuencia consecutiva."}
                                 </p>
                               )}
                             </div>
@@ -601,7 +594,7 @@ export default function Course() {
                                 onClick={() => setSelectedLessonIds([])}
                                 disabled={selectedLessonIds.length === 0 || preparingSelection}
                               >
-                                Limpiar selección
+                                Limpiar selecciÃ³n
                               </Button>
                               <Button
                                 onClick={handlePrepareSelection}
@@ -634,7 +627,7 @@ export default function Course() {
                                       preparingSelection ||
                                       (!selectedLessonIds.includes(lesson.id) && selectionLimitReached)
                                     }
-                                    aria-label={`Seleccionar lección ${lesson.lesson_number}`}
+                                    aria-label={`Seleccionar lecciÃ³n ${lesson.lesson_number}`}
                                   />
                                   <div className="space-y-1">
                                     <CardTitle className="text-base">
@@ -689,3 +682,4 @@ export default function Course() {
     </div>
   );
 }
+

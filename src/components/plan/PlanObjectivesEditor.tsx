@@ -1,8 +1,8 @@
-import { useEffect, useState, useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
+
 import { supabase } from "@/integrations/supabase/client";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { X, Plus } from "lucide-react";
+
+import { StructuredListEditor } from "./StructuredListEditor";
 
 interface Objective {
   id: string;
@@ -26,6 +26,7 @@ export default function PlanObjectivesEditor({ planId, readOnly, onDirty }: Prop
       .select("id, description, order_index")
       .eq("plan_id", planId)
       .order("order_index");
+
     if (data) setObjectives(data);
     setLoading(false);
   }, [planId]);
@@ -42,13 +43,14 @@ export default function PlanObjectivesEditor({ planId, readOnly, onDirty }: Prop
       .insert({ plan_id: planId, description: "", order_index: objectives.length })
       .select("id, description, order_index")
       .single();
-    if (data) setObjectives((prev) => [...prev, data]);
+
+    if (data) setObjectives((current) => [...current, data]);
   };
 
   const handleDelete = async (id: string) => {
     await onDirty?.();
     await supabase.from("plan_objectives").delete().eq("id", id);
-    setObjectives((prev) => prev.filter((o) => o.id !== id));
+    setObjectives((current) => current.filter((objective) => objective.id !== id));
   };
 
   const handleBlur = async (id: string, description: string) => {
@@ -57,46 +59,37 @@ export default function PlanObjectivesEditor({ planId, readOnly, onDirty }: Prop
   };
 
   const handleChange = (id: string, value: string) => {
-    setObjectives((prev) =>
-      prev.map((o) => (o.id === id ? { ...o, description: value } : o))
+    setObjectives((current) =>
+      current.map((objective) => (objective.id === id ? { ...objective, description: value } : objective))
     );
   };
 
-  if (loading) return <p className="text-sm text-muted-foreground">Cargando objetivos...</p>;
+  if (loading) {
+    return <p className="text-sm text-muted-foreground">Cargando objetivos...</p>;
+  }
 
   const count = objectives.length;
-  const valid = count >= 4 && count <= 8;
+  const valid = count >= 6 && count <= 8;
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <p className={`text-sm font-medium ${valid ? "text-muted-foreground" : "text-destructive"}`}>
-          {count}/8 objetivos {count < 4 && "(mínimo 4)"}
-        </p>
-      </div>
-
-      {objectives.map((obj) => (
-        <div key={obj.id} className="flex items-center gap-2">
-          <Input
-            value={obj.description}
-            onChange={(e) => handleChange(obj.id, e.target.value)}
-            onBlur={() => handleBlur(obj.id, obj.description)}
-            placeholder="Describir objetivo..."
-            disabled={readOnly}
-          />
-          {!readOnly && (
-            <Button variant="ghost" size="icon" onClick={() => handleDelete(obj.id)}>
-              <X className="h-4 w-4" />
-            </Button>
-          )}
-        </div>
-      ))}
-
-      {!readOnly && (
-        <Button variant="outline" size="sm" onClick={handleAdd} disabled={count >= 8}>
-          <Plus className="h-4 w-4 mr-1" /> Agregar objetivo
-        </Button>
-      )}
-    </div>
+    <StructuredListEditor
+      items={objectives.map((objective) => ({ id: objective.id, value: objective.description }))}
+      label="Objetivos del curso"
+      itemLabel="Objetivo"
+      helper={
+        valid
+          ? `${count}/8 objetivos cargados. La anual pide entre 6 y 8 objetivos observables.`
+          : `${count}/8 objetivos cargados. La anual requiere entre 6 y 8 objetivos observables.`
+      }
+      addLabel="Agregar objetivo"
+      emptyLabel="Todavía no hay objetivos definidos para el curso."
+      readOnly={readOnly}
+      minItems={6}
+      maxItems={8}
+      onAdd={handleAdd}
+      onDelete={handleDelete}
+      onChange={handleChange}
+      onBlur={handleBlur}
+    />
   );
 }
