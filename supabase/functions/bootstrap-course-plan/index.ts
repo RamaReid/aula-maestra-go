@@ -994,6 +994,7 @@ serve(async (req) => {
 
   try {
     console.log("[bootstrap] START", { course_id: body.course_id, plan_id: body.plan_id, curriculum_document_id: body.curriculum_document_id });
+    const { data: course, error: courseError } = await userClient
       .from("courses")
       .select("id, subject, year_level, orientation, speciality, schools(official_name, school_type)")
       .eq("id", body.course_id)
