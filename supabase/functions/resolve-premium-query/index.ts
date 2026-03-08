@@ -33,7 +33,7 @@ type WikipediaSearchRow = {
   snippet?: string;
 };
 
-const PREMIUM_QUERY_REQUESTS_TABLE = "premium_query_requests" as never;
+const PREMIUM_QUERY_REQUESTS_TABLE = "premium_query_requests" as const;
 
 function normalizeText(value: string): string {
   return value

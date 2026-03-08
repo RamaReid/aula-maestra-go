@@ -51,7 +51,7 @@ type ManualPaymentRequestInsert = {
   notes: string | null;
 };
 
-const MANUAL_PAYMENT_REQUESTS_TABLE = "manual_payment_requests" as never;
+const MANUAL_PAYMENT_REQUESTS_TABLE = "manual_payment_requests" as const;
 
 const planCardCopy: Record<
   PlanType,
