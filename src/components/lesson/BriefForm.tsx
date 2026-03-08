@@ -478,7 +478,7 @@ export default function BriefForm({
 
         const { data: createdSource, error: sourceError } = await supabase
           .from(AUTHORIZED_SOURCES_TABLE)
-          .insert(sourcePayload)
+          .insert(sourcePayload as any)
           .select("id")
           .single();
         const createdSourceRow = (createdSource || null) as unknown as Pick<AuthorizedSourceRow, "id"> | null;
