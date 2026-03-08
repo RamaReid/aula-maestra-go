@@ -691,7 +691,7 @@ export default function CourseNew() {
             }
           : {
               title: "Curso creado",
-              description: "El curso quedÃ³ vinculado a su programa oficial y recibiÃ³ un borrador inicial del plan.",
+              description: "El curso quedó vinculado a su programa oficial y recibió un borrador inicial del plan.",
             }
       );
       navigate(courseDetailUrl(course!.id));
