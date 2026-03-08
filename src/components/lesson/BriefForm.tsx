@@ -492,7 +492,7 @@ export default function BriefForm({
           target_type: "LESSON",
           lesson_id: lessonId,
         };
-        const { error: targetError } = await supabase.from(AUTHORIZED_SOURCE_TARGETS_TABLE).insert(targetPayload);
+        const { error: targetError } = await supabase.from(AUTHORIZED_SOURCE_TARGETS_TABLE).insert(targetPayload as any);
         if (targetError) {
           failedCount += 1;
           continue;
