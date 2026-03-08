@@ -1118,12 +1118,20 @@ Reglas:
 - La "Operacion" debe describir el movimiento didactico principal de la clase.
 - La "Evidencia minima" debe nombrar el producto o huella verificable que deja esa clase.
 - El bloque de evaluacion debe separar criterios generales de las filas de rubrica por bloque.
-- La bibliografia curricular puede orientar contenidos y evaluacion, pero no debe mezclarse como si fuera un bloque tematico.
+- La bibliografia curricular puede orientar contenidos y evaluacion, pero NO debe mezclarse como si fuera un bloque tematico ni aparecer dentro de content_blocks.
 - La anual debe quedar lista para derivar clases y materiales, no solo para archivarse.
 - No inventes la fuente curricular. Usa el documento y los nodos provistos.
 - La forma del documento debe ser administrativa y util para que el docente la edite despues.
 - No pongas markdown ni bloques de codigo, solo JSON.
 - Si la materia es FyHyCyT y el curso es de 28 clases, manten 14 clases por cuatrimestre.
+- Los content_blocks deben representar unidades/ejes/modulos del recorrido anual, NO secciones del diseno curricular (no poner "Presentacion" ni "Orientaciones didacticas" como bloque).
+- Cada content_block debe tener un titulo pedagogico claro, una descripcion de 2-3 lineas y entre 3 y 6 topics concretos.
+- Las rubrics deben articularse con los content_blocks: cada fila debe referir un criterio observable del bloque correspondiente.
+- Los objectives deben ser del CURSO, no copia literal de encabezados del diseno; deben ser observables y formulados como logros del estudiantado.
+- estrategias_marco debe ser un parrafo que explique el enfoque metodologico general.
+- estrategias_practicas debe listar entre 3 y 6 estrategias concretas y diferenciadas.
+- evaluacion_marco debe explicar criterios generales de evaluacion separados de las filas de rubrica.
+- resources debe incluir soportes, herramientas, uso pedagogico y alternativas low-tech.
 
 ${subjectCanonNote}
 
@@ -1139,11 +1147,14 @@ Documento curricular:
 - Titulo: ${curriculumDocument.official_title || curriculumDocument.subject}
 - URL oficial: ${curriculumDocument.official_url || "No registrada"}
 
-Texto fuente disponible:
-${curriculumDocument.raw_text || "No hay texto crudo cargado; usar los nodos curriculares como base principal."}
+Texto fuente disponible (primeros 12000 caracteres):
+${truncatedRawText || "No hay texto crudo cargado; usar los nodos curriculares como base principal."}
 
-Nodos curriculares:
-${nodeNames.join("\n")}`;
+Nodos curriculares (contenido):
+${nodeNames.join("\n")}
+
+Bibliografia curricular detectada (${bibliographyNodeNames.length} referencias):
+${bibliographyNodeNames.length > 0 ? bibliographyNodeNames.join("\n") : "No se detecto bibliografia curricular en el documento."}`;
 
     let aiPayload: Partial<BootstrapPayload> | null = null;
     try {
