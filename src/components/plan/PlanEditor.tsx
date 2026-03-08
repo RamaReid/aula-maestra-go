@@ -180,8 +180,18 @@ export default function PlanEditor({ planId, courseId, curriculumDocumentId, pla
 
   useEffect(() => {
     const fetchPlan = async () => {
-      const { data } = await supabase.from("plans").select("fundamentacion, estrategias_marco, estrategias_practicas, evaluacion_marco, resources").eq("id", planId).single();
+      const [{ data }, { count: blocksCount }, { count: rubricsCount }, { count: objectivesCount }, { count: teacherBibsCount }] = await Promise.all([
+        supabase.from("plans").select("fundamentacion, estrategias_marco, estrategias_practicas, evaluacion_marco, resources").eq("id", planId).single(),
+        supabase.from("plan_content_blocks").select("id", { count: "exact", head: true }).eq("plan_id", planId),
+        supabase.from("plan_rubrics").select("id", { count: "exact", head: true }).eq("plan_id", planId),
+        supabase.from("plan_objectives").select("id", { count: "exact", head: true }).eq("plan_id", planId),
+        supabase.from("plan_teacher_bibliography_entries").select("id", { count: "exact", head: true }).eq("plan_id", planId),
+      ]);
       if (data) setPlan(data);
+      setContentBlockCount(blocksCount || 0);
+      setRubricCount(rubricsCount || 0);
+      setObjectiveCount(objectivesCount || 0);
+      setTeacherBibCount(teacherBibsCount || 0);
       await Promise.all([fetchMappedNodes(), fetchCurriculumBibliography()]);
       setLoading(false);
     };
