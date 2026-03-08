@@ -832,7 +832,7 @@ export default function PlanEditor({
                 {bibliographyNodes.length > 0 ? (
                   bibliographyNodes.map((node) => (
                     <p key={node.id} className="text-sm">
-                      <span className="font-medium text-muted-foreground">[FUENTE]</span> {node.name}
+                      {node.name}
                     </p>
                   ))
                 ) : (
