@@ -855,7 +855,8 @@ serve(async (req) => {
     }
 
     // G-2: Validate all lessons belong to the same course and same user
-    const allResults: Array<{ lessonId: string; teachingStatus: string; readingStatus: string }> = [];
+    // deno-lint-ignore no-explicit-any
+    const allResults: Array<Record<string, any>> = [];
     let sharedCourseId: string | null = null;
 
     for (const lessonId of lessonIds) {
