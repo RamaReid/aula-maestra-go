@@ -922,8 +922,8 @@ export default function CourseNew() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="COMUN">ComÃºn</SelectItem>
-                          <SelectItem value="TECNICA">TÃ©cnica</SelectItem>
+                          <SelectItem value="COMUN">Común</SelectItem>
+                          <SelectItem value="TECNICA">Técnica</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
