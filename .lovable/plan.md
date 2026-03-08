@@ -1,89 +1,63 @@
-# Plan: Validación Hard-Stop + Cierre de Evidencia
-
-## Estado actual (verificado ahora)
-
-**Tracking E2E: FUNCIONAL** — 4 filas en `ai_usage_logs`:
 
 
-| #   | Feature  | Model            | Tokens | Cost USD  | Duration |
-| --- | -------- | ---------------- | ------ | --------- | -------- |
-| 1   | teaching | gemini-2.5-flash | 1,871  | $0.000666 | 6,223ms  |
-| 2   | reading  | gemini-2.5-pro   | 5,977  | $0.050311 | 43,795ms |
-| 3   | reading  | gemini-2.5-pro   | 5,004  | $0.040153 | 37,020ms |
-| 4   | reading  | gemini-2.5-pro   | 7,018  | $0.060161 | 53,109ms |
+## Plan: Reparación transversal de extracción curricular
 
+### Diagnóstico
 
-**Total: 19,870 tokens / $0.151291 / 4 llamadas**
+Hay **dos parsers divergentes** para extraer contenidos del raw_text:
 
-Lesson `b1b122c0` estado: `PLANNED`, `is_generating=false`.
-Teaching: `INVALIDATED`. Reading: `INVALIDATED` (1449 palabras, fuera de rango 1000-1300).
+1. **`curriculumImport.ts` → `extractCurriculumNodes()`**: Parser completo con jerarquía EJE/UNIDAD/BLOQUE/CONTENIDO, detección de bibliografía, merge de continuaciones. Usado en importación y en `repairCurriculumDocumentNodes()`.
 
-**Baseline para hard-stop:** count=4, max(created_at)=`2026-03-08 01:26:20.466031+00`
+2. **`repair-curriculum-nodes/index.ts` → `parseModulesFromRawText()`**: Parser alternativo simplificado que solo detecta "Módulo N" / "Unidad N" / "Bloque N", genera UNIDAD+CONTENIDO planos, sin EJE ni bibliografía. No reutiliza nada del shared.
 
----
+El parser 2 es el problema: produce nodos sin jerarquía real, sin bibliografía, y con lógica de merge limitada.
 
-## Pasos a ejecutar
+### Cambios
 
-### Paso 1 — Configurar presupuesto bloqueante
+#### 1. Eliminar parser duplicado en `repair-curriculum-nodes`
 
-Usar `add_secret` para crear `AI_DAILY_BUDGET_USD = 0.0001`.
-El gasto actual del día ($0.151291) ya supera este límite, por lo que el hard-stop debe activarse.
+**Archivo: `supabase/functions/repair-curriculum-nodes/index.ts`**
 
-### Paso 2 — Invocar generate-materials
+- Eliminar `parseModulesFromRawText()` y `isTocLine()` locales (~120 líneas)
+- Importar `repairCurriculumDocumentNodes` de `../_shared/curriculumImport.ts`
+- Delegar toda la lógica al parser compartido, manteniendo la misma interfaz HTTP (auth, validación de ownership, response)
 
-Llamar vía `curl_edge_functions` a `/generate-materials` con `lesson_id=b1b122c0-4161-414c-9e5a-3ffd97913ea8`.
-Resultado esperado: error `"Presupuesto diario de IA agotado"`.
+#### 2. Mejorar el parser compartido para contenidos robustos
 
-### Paso 3 — Verificar no inserción
+**Archivo: `supabase/functions/_shared/curriculumImport.ts`**
 
-Ejecutar dos queries:
+Mejoras puntuales en `extractCurriculumNodes()`:
 
-- `SELECT count(*) FROM ai_usage_logs WHERE lesson_id = '<ID>'` — debe seguir en 4
-- `SELECT max(created_at) FROM ai_usage_logs WHERE lesson_id = '<ID>'` — debe ser idéntico al baseline
+- **Merge de continuaciones en contenidos**: líneas que empiezan con minúscula tras un CONTENIDO deben concatenarse al nodo anterior (ya existe para bibliografía, falta para contenidos generales)
+- **Detección de contenidos sin bullet**: líneas > 20 chars bajo una UNIDAD/BLOQUE que no son heading ni artifact deben registrarse como CONTENIDO (actualmente solo detecta líneas con bullet `•/-` o numeración `1.`)
+- **Filtro de TOC mejorado**: excluir líneas con `...` seguido de número (ya está en repair-curriculum-nodes, falta en el shared)
 
-### Paso 4 — Restaurar presupuesto
+#### 3. Bibliografía en planificación: ya resuelta, verificar paridad
 
-Usar `add_secret` para setear `AI_DAILY_BUDGET_USD = 2.0`.
+**Archivo: `src/components/plan/PlanEditor.tsx`** — El cambio previo ya usa `extractBibliographyProtocolNodes` + auto-repair. Solo falta:
 
-### Paso 5 — Actualizar 4 archivos de evidencia
+- Si el repair falla, mostrar "Requiere reparación curricular" con un botón manual que invoque `repair-curriculum-bibliography`
+- No tocar la lógica de `BibliographySelector.tsx` (clases), ya funciona correctamente
 
-`**docs/evidence/sql_outputs.txt**` — Agregar queries 1-5 con resultados reales:
+#### 4. Frontend: estado explícito de reparación
 
-- Query 1: ai_usage_logs (4 filas con datos completos)
-- Query 2: lessons status/is_generating
-- Query 3: teaching_materials status
-- Query 4: reading_materials status + validation_reasons
-- Query 5: count/max antes y después del bloqueo
+**Archivo: `src/components/plan/PlanEditor.tsx`**
 
-`**docs/evidence/logs_extract.txt**` — Agregar logs de generate-materials:
+- En la pestaña Bibliografía, si `curriculumBibliographyNodes.length === 0` tras el auto-repair, mostrar un botón "Reparar bibliografía curricular" que reintente la invocación
+- Agregar estado `bibliographyRepairStatus: 'idle' | 'repairing' | 'failed'`
 
-- 4 líneas AI_TRACKED (1 teaching + 3 reading)
-- Mensaje de bloqueo por presupuesto agotado
+### Archivos a modificar
 
-`**docs/evidence/e2e_run_ids.txt**` — Agregar sección de validación tracking:
+| Archivo | Cambio |
+|---|---|
+| `supabase/functions/repair-curriculum-nodes/index.ts` | Reemplazar parser local por delegación al shared |
+| `supabase/functions/_shared/curriculumImport.ts` | Mejorar merge de continuaciones + filtro TOC + contenidos sin bullet |
+| `src/components/plan/PlanEditor.tsx` | Botón de reparación manual si auto-repair falla |
 
-- user_id, course_id, lesson_id
-- Resumen de resultados (4 calls, $0.151291)
-- Hard-stop verificado
+### Criterios de aceptación cubiertos
 
-`**docs/CONTEXT_EVIDENCE_REPORT.md**` — Agregar 2 secciones:
+1. Nodos no cortados: merge de continuaciones en el parser compartido
+2. Estructura jerárquica: un solo parser con EJE/UNIDAD/BLOQUE/CONTENIDO
+3. Paridad bibliografía clases-planificación: mismo protocolo, mismo repair
+4. Sin regresión: `repair-curriculum-nodes` delega al mismo `extractCurriculumNodes` que ya usa importación
 
-- "Tracking IA validado" con tabla de costos
-- "Budget hard-stop validado" con evidencia de bloqueo y no-inserción
-
----
-
-## Archivos a modificar
-
-
-| Archivo                           | Acción                                |
-| --------------------------------- | ------------------------------------- |
-| `docs/evidence/sql_outputs.txt`   | Agregar queries 1-5 + resultados      |
-| `docs/evidence/logs_extract.txt`  | Agregar logs tracking + hard-stop     |
-| `docs/evidence/e2e_run_ids.txt`   | Agregar IDs + resumen validación      |
-| `docs/CONTEXT_EVIDENCE_REPORT.md` | Secciones tracking + budget validados |
-
-
-No se modifican archivos de código. Solo evidencia y secreto temporal.
-
-- confirmar explícitamente que AI_DAILY_BUDGET_USD quedó restaurado a 2.0 al terminar.
