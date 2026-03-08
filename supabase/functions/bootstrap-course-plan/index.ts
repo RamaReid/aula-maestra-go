@@ -1170,7 +1170,7 @@ Documento curricular:
 - Titulo: ${curriculumDocument.official_title || curriculumDocument.subject}
 - URL oficial: ${curriculumDocument.official_url || "No registrada"}
 
-Texto fuente disponible (primeros 12000 caracteres):
+Texto fuente disponible (fragmento inicial):
 ${truncatedRawText || "No hay texto crudo cargado; usar los nodos curriculares como base principal."}
 
 Nodos curriculares (contenido):
