@@ -453,9 +453,7 @@ export default function PlanEditor({
     }
   };
 
-  const visibleMappedNodes = mappedNodes.filter((node) => !isAuthorityOrNoiseNode(node.name));
-  const bibliographyNodes = visibleMappedNodes.filter((node) => isLikelyBibliographyNode(node.name));
-  const curricularNodes = visibleMappedNodes.filter((node) => !isLikelyBibliographyNode(node.name));
+  const allContentNodes = groupedContent.flatMap((g) => g.children);
 
   const handleExportPlanPdf = async () => {
     setExportingPdf(true);
