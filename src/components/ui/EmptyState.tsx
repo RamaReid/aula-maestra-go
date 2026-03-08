@@ -16,7 +16,7 @@ export function EmptyState({ icon: Icon, title, description, action }: EmptyStat
       <CardContent className="flex flex-col items-center justify-center gap-4 py-14 text-center">
         {Icon && <Icon className="mb-1 h-12 w-12 text-muted-foreground" />}
         <div className="space-y-2">
-          <p className="font-serif text-2xl font-semibold tracking-tight text-foreground">{title}</p>
+          <p className="text-2xl font-semibold tracking-tight text-foreground">{title}</p>
           {description ? (
             <p className="mx-auto max-w-xl text-sm leading-7 text-muted-foreground">{description}</p>
           ) : null}
