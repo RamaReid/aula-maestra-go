@@ -82,10 +82,10 @@ const TECH_SPECIALITY_SUGGESTIONS = [
 ];
 
 const SPECIALITY_ALIAS_TO_CANON: Record<string, string> = {
-  informatica: "TÃ©cnico en InformÃ¡tica Personal y Profesional",
-  programacion: "TÃ©cnico en InformÃ¡tica Personal y Profesional",
-  alimentos: "TÃ©cnico en ProducciÃ³n Agropecuaria con OrientaciÃ³n en Agroalimentos",
-  "administracion agropecuaria": "TÃ©cnico en ProducciÃ³n Agropecuaria con OrientaciÃ³n en Agroalimentos",
+  informatica: "Técnico en Informática Personal y Profesional",
+  programacion: "Técnico en Informática Personal y Profesional",
+  alimentos: "Técnico en Producción Agropecuaria con Orientación en Agroalimentos",
+  "administracion agropecuaria": "Técnico en Producción Agropecuaria con Orientación en Agroalimentos",
 };
 
 function candidateScopeLabel(candidate: Pick<CurriculumCandidate, "school_type" | "orientation" | "speciality">): string {
