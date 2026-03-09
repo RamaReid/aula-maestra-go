@@ -224,6 +224,8 @@ export default function CopilotPanel({
   isGenerating,
   isLocked,
   copilotoMode = "full",
+  subject,
+  yearLevel,
 }: CopilotPanelProps) {
   const isDisabled = copilotoMode === "none";
   const isPremium = copilotoMode === "full";
