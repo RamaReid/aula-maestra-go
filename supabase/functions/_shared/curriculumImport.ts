@@ -749,29 +749,85 @@ async function upsertDocument(
 
 async function downloadPdfBytesFromUrl(
   url: string,
-  options?: { allowExternalUrl?: boolean }
+  options?: { allowExternalUrl?: boolean; subjectHint?: string; yearLevelHint?: number }
 ): Promise<{ bytes: Uint8Array; fileName: string }> {
   if (!options?.allowExternalUrl && !isAllowedOfficialUrl(url)) {
     throw new Error("La URL oficial no pertenece a un dominio permitido.");
   }
 
-  const response = await fetch(url);
+  const fetchHeaders = { "User-Agent": "Mozilla/5.0 (compatible; CurriculumBot/1.0)" };
+  const response = await fetch(url, { headers: fetchHeaders });
   if (!response.ok) {
-    throw new Error(`No se pudo descargar el PDF remoto (${response.status})`);
+    throw new Error(`No se pudo descargar el recurso remoto (${response.status})`);
   }
 
   const contentType = response.headers.get("content-type")?.toLowerCase() || "";
-  const arrayBuffer = await response.arrayBuffer();
-  const bytes = new Uint8Array(arrayBuffer);
 
-  if (!contentType.includes("pdf") && !url.toLowerCase().endsWith(".pdf")) {
-    throw new Error("La URL no devolvio un PDF.");
+  // ── Caso 1: respuesta directamente es un PDF ──────────────────────────────
+  if (contentType.includes("pdf") || url.toLowerCase().endsWith(".pdf")) {
+    const arrayBuffer = await response.arrayBuffer();
+    const bytes = new Uint8Array(arrayBuffer);
+    const pathname = new URL(url).pathname;
+    const fileName = pathname.split("/").pop() || "programa_oficial.pdf";
+    return { bytes, fileName };
   }
 
-  const pathname = new URL(url).pathname;
-  const fileName = pathname.split("/").pop() || "programa_oficial.pdf";
+  // ── Caso 2: respuesta es HTML → buscar enlaces a PDFs dentro de abc.gob.ar ─
+  if (contentType.includes("html") || contentType.includes("text")) {
+    const html = await response.text();
+    const baseUrl = new URL(url);
 
-  return { bytes, fileName };
+    const linkRegex = /href=["']([^"']*\.pdf[^"']*)/gi;
+    const pdfLinks: string[] = [];
+    let match;
+    while ((match = linkRegex.exec(html)) !== null) {
+      try {
+        const resolved = new URL(match[1], baseUrl).href;
+        const host = new URL(resolved).hostname.toLowerCase();
+        if (host.endsWith("abc.gob.ar") || host.endsWith("abc.gov.ar")) {
+          pdfLinks.push(resolved);
+        }
+      } catch {
+        // ignorar URLs malformadas
+      }
+    }
+
+    if (pdfLinks.length === 0) {
+      throw new Error(
+        "La URL provista es una pagina de ABC pero no contiene enlaces a PDFs. " +
+        "Ingrese la URL directa al archivo PDF del diseno curricular."
+      );
+    }
+
+    // Intentar encontrar el PDF mas relevante usando hints de materia/año
+    let bestLink = pdfLinks[0];
+    const yearHint = options?.yearLevelHint ? String(options.yearLevelHint) : null;
+    if (options?.subjectHint || yearHint) {
+      const hint = normalizeText(options?.subjectHint || "");
+      const hintWords = hint.split(/\s+/).filter((w) => w.length > 3);
+      const scored = pdfLinks.map((link) => {
+        const normalized = normalizeText(decodeURIComponent(link));
+        const subjectScore = hintWords.filter((word) => normalized.includes(word)).length;
+        const yearScore = yearHint && new RegExp(`\\b${yearHint}\\b`).test(normalized) ? 1 : 0;
+        return { link, score: subjectScore + yearScore };
+      });
+      scored.sort((a, b) => b.score - a.score);
+      if (scored[0].score > 0) bestLink = scored[0].link;
+    }
+
+    // Descargar el PDF seleccionado
+    const pdfResponse = await fetch(bestLink, { headers: fetchHeaders });
+    if (!pdfResponse.ok) {
+      throw new Error(`No se pudo descargar el PDF encontrado en la pagina (${pdfResponse.status})`);
+    }
+    const arrayBuffer = await pdfResponse.arrayBuffer();
+    const bytes = new Uint8Array(arrayBuffer);
+    const pathname = new URL(bestLink).pathname;
+    const fileName = pathname.split("/").pop() || "programa_oficial.pdf";
+    return { bytes, fileName };
+  }
+
+  throw new Error("La URL no devolvio un PDF ni una pagina HTML con enlaces a PDFs.");
 }
 
 export async function ingestCurriculumDocument(
@@ -796,6 +852,8 @@ export async function ingestCurriculumDocument(
   } else if (payload.official_url) {
     const downloaded = await downloadPdfBytesFromUrl(payload.official_url, {
       allowExternalUrl: payload.allow_external_url === true,
+      subjectHint: payload.subject,
+      yearLevelHint: payload.year_level,
     });
     bytes = downloaded.bytes;
     fileName = payload.file_name || downloaded.fileName;
