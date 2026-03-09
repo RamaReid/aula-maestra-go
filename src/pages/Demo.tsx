@@ -78,11 +78,19 @@ export default function Demo() {
       </div>
 
       {/* Header */}
-      <header className="border-b bg-card">
-        <div className="mx-auto max-w-4xl px-4 py-4">
-          <p className="text-xs font-bold tracking-tight text-muted-foreground mb-1">Docenc<span className="text-brand-accent">IA</span> · Demo</p>
-          <h1 className="text-lg font-semibold text-foreground">Filosofía e Historia de la Ciencia y la Tecnología — 6.º año EESA</h1>
-          <p className="text-sm text-muted-foreground">Provincia de Buenos Aires · 2 módulos semanales</p>
+      <header className="border-b bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
+        <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3 sm:px-6">
+          <Button variant="ghost" size="sm" asChild className="shrink-0">
+            <Link to="/">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Volver
+            </Link>
+          </Button>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-bold tracking-tight text-muted-foreground mb-0.5">Docenc<span className="text-brand-accent">IA</span> · Demo</p>
+            <h1 className="text-base font-semibold text-foreground truncate">Filosofía e Historia de la Ciencia y la Tecnología — 6.º año EESA</h1>
+          </div>
+          <p className="hidden sm:block text-xs text-muted-foreground shrink-0">Provincia de Buenos Aires · 2 módulos semanales</p>
         </div>
       </header>
 
