@@ -374,6 +374,7 @@ export default function Lesson() {
   };
 
   const handleRegenerateReading = async () => {
+    setLesson((prev) => prev ? { ...prev, is_generating: true } : prev);
     try {
       const { data, error } = await supabase.functions.invoke("generate-materials", {
         body: { lesson_id: lessonId, regenerate_only: "reading" },
@@ -384,11 +385,13 @@ export default function Lesson() {
           description: await formatFunctionErrorMessage(error),
           variant: "destructive",
         });
+        await fetchData();
         return;
       }
       const responseData = data as GenerateMaterialsResponse | null;
       if (responseData?.error) {
         toast({ title: "Error", description: responseData.error, variant: "destructive" });
+        await fetchData();
         return;
       }
       if (responseData?.reading_pdf_base64) {
