@@ -523,14 +523,19 @@ export default function Lesson() {
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-8">
           <div className="space-y-8">
             {lesson.is_generating && (
-              <Card>
-                <CardContent className="pt-6">
-                  <ThinkingBook
-                    title="Estamos elaborando el material de la clase"
-                    detail="Cuando termine, la seccion de materiales se actualiza automaticamente."
-                  />
-                </CardContent>
-              </Card>
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+                <Card className="w-full max-w-md mx-4 shadow-2xl border-primary/20">
+                  <CardContent className="flex flex-col items-center gap-5 py-10 text-center">
+                    <ThinkingBook
+                      title="Estamos elaborando el material de la clase"
+                      detail="Este proceso puede tardar entre 30 segundos y 2 minutos. No cierres ni recargues la pagina."
+                    />
+                    <p className="text-xs text-muted-foreground animate-pulse">
+                      Procesando con inteligencia artificial...
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
             )}
 
             {planLesson && (
