@@ -133,7 +133,14 @@ serve(async (req) => {
         }
 
         const pdfBytes = new Uint8Array(await pdfData.arrayBuffer());
-        const fileBase64 = btoa(String.fromCharCode(...pdfBytes));
+        // Chunk-safe base64 encoding to avoid stack overflow
+        let fileBase64 = "";
+        const chunkSize = 32768;
+        for (let i = 0; i < pdfBytes.length; i += chunkSize) {
+          const chunk = pdfBytes.subarray(i, i + chunkSize);
+          fileBase64 += String.fromCharCode(...chunk);
+        }
+        fileBase64 = btoa(fileBase64);
 
         const ingestResult = await ingestCurriculumDocument(adminClient, {
           file_base64: fileBase64,
