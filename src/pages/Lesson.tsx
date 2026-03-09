@@ -543,210 +543,308 @@ export default function Lesson() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 py-8">
-        <div className="grid grid-cols-1 gap-8">
-          <div className="space-y-8">
-            {lesson.is_generating && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-                <Card className="w-full max-w-md mx-4 shadow-2xl border-primary/20">
-                  <CardContent className="flex flex-col items-center gap-5 py-10 text-center">
-                    <ThinkingBook
-                      title="Estamos elaborando el material de la clase"
-                      detail="Este proceso puede tardar entre 30 segundos y 2 minutos. No cierres ni recargues la pagina."
-                    />
-                    <p className="text-xs text-muted-foreground animate-pulse">
-                      Procesando con inteligencia artificial...
-                    </p>
-                  </CardContent>
-                </Card>
-              </div>
-            )}
-
-            {planLesson && (
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base">Canon de esta clase</CardTitle>
-                </CardHeader>
-                <CardContent className="grid gap-4 md:grid-cols-3">
-                  <div className="space-y-1">
-                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Foco</p>
-                    <p className="text-sm">{planLesson.theme}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Operacion</p>
-                    <p className="text-sm">{canonSummary.operation}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Evidencia minima</p>
-                    <p className="text-sm">{canonSummary.evidence}</p>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {planLesson && (
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base">Vinculacion curricular</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Contenidos curriculares mapeados a esta clase
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {mappedCurriculumNodes.length > 0 ? (
-                        mappedCurriculumNodes.map((node) => (
-                          <Badge key={node.id} variant="outline">
-                            {stripTechnicalLabel(node.name)}
-                          </Badge>
-                        ))
-                      ) : (
-                        <p className="text-sm text-muted-foreground">
-                          Esta clase aun no muestra contenidos curriculares enlazados desde la anual.
+      <ResizablePanelGroup direction="horizontal" className="flex-1 min-h-0">
+        <ResizablePanel defaultSize={copilotOpen ? 65 : 100} minSize={40}>
+          <ScrollArea className="h-full">
+            <main className="mx-auto max-w-5xl px-4 py-8">
+              <div className="space-y-8">
+                {lesson.is_generating && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+                    <Card className="w-full max-w-md mx-4 shadow-2xl border-primary/20">
+                      <CardContent className="flex flex-col items-center gap-5 py-10 text-center">
+                        <ThinkingBook
+                          title="Estamos elaborando el material de la clase"
+                          detail="Este proceso puede tardar entre 30 segundos y 2 minutos. No cierres ni recargues la pagina."
+                        />
+                        <p className="text-xs text-muted-foreground animate-pulse">
+                          Procesando con inteligencia artificial...
                         </p>
-                      )}
-                    </div>
+                      </CardContent>
+                    </Card>
                   </div>
+                )}
 
-                  <div className="space-y-2">
-                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Bibliografia sugerida confirmada para generar
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {bibliographyNodes.length > 0 ? (
-                        bibliographyNodes.map((node) => (
-                          <Badge key={node.id} variant="secondary">
-                            {stripTechnicalLabel(node.name)}
-                          </Badge>
-                        ))
-                      ) : (
-                        <p className="text-sm text-muted-foreground">
-                          Las indicaciones todavia no tienen bibliografia confirmada.
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  {(planType === "BASICO" || planType === "PREMIUM") && (
-                    <div className="space-y-2">
-                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                        Fuentes del docente confirmadas
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        {authorizedSourceNodes.length > 0 ? (
-                          authorizedSourceNodes.map((source) => (
-                            <Badge key={source.id} variant="secondary">
-                              {stripTechnicalLabel(source.title)}
-                            </Badge>
-                          ))
-                        ) : (
-                          <p className="text-sm text-muted-foreground">
-                            Esta clase todavia no tiene fuentes del docente seleccionadas.
-                          </p>
-                        )}
+                {planLesson && (
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">Canon de esta clase</CardTitle>
+                    </CardHeader>
+                    <CardContent className="grid gap-4 md:grid-cols-3">
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Foco</p>
+                        <p className="text-sm">{planLesson.theme}</p>
                       </div>
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Operacion</p>
+                        <p className="text-sm">{canonSummary.operation}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Evidencia minima</p>
+                        <p className="text-sm">{canonSummary.evidence}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {planLesson && (
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">Vinculacion curricular</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="space-y-2">
+                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                          Contenidos curriculares mapeados a esta clase
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {mappedCurriculumNodes.length > 0 ? (
+                            mappedCurriculumNodes.map((node) => (
+                              <Badge key={node.id} variant="outline">
+                                {stripTechnicalLabel(node.name)}
+                              </Badge>
+                            ))
+                          ) : (
+                            <p className="text-sm text-muted-foreground">
+                              Esta clase aun no muestra contenidos curriculares enlazados desde la anual.
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                          Bibliografia sugerida confirmada para generar
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {bibliographyNodes.length > 0 ? (
+                            bibliographyNodes.map((node) => (
+                              <Badge key={node.id} variant="secondary">
+                                {stripTechnicalLabel(node.name)}
+                              </Badge>
+                            ))
+                          ) : (
+                            <p className="text-sm text-muted-foreground">
+                              Las indicaciones todavia no tienen bibliografia confirmada.
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {(planType === "BASICO" || planType === "PREMIUM") && (
+                        <div className="space-y-2">
+                          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                            Fuentes del docente confirmadas
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {authorizedSourceNodes.length > 0 ? (
+                              authorizedSourceNodes.map((source) => (
+                                <Badge key={source.id} variant="secondary">
+                                  {stripTechnicalLabel(source.title)}
+                                </Badge>
+                              ))
+                            ) : (
+                              <p className="text-sm text-muted-foreground">
+                                Esta clase todavia no tiene fuentes del docente seleccionadas.
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {readingMaterial && (
+                        <div className="space-y-2">
+                          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                            Referencias visibles en el material de lectura
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {referencedNodes.length}/{bibliographyNodes.length} fuentes confirmadas quedaron efectivamente marcadas en el texto generado.
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {referencedNodes.length > 0 ? (
+                              referencedNodes.map((node) => (
+                                <Badge key={node.id} variant="outline">
+                                  {stripTechnicalLabel(node.name)}
+                                </Badge>
+                              ))
+                            ) : (
+                              <p className="text-sm text-muted-foreground">
+                                Todavia no hay referencias detectadas en el material de lectura.
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+
+                <section id="brief-form">
+                  <StepHeader
+                    stepNumber={1}
+                    title="Indicaciones"
+                    status={briefLabel(brief?.status)}
+                    statusTone={briefTone(brief?.status)}
+                  />
+                  <BriefForm
+                    lessonId={lessonId!}
+                    courseId={lesson.course_id}
+                    brief={brief}
+                    onUpdate={fetchData}
+                    planType={planType}
+                    planTheme={planLesson?.theme}
+                    learningOutcome={planLesson?.learning_outcome}
+                    canonOperation={canonSummary.operation}
+                    canonEvidence={canonSummary.evidence}
+                    mappedCurriculumNodes={mappedCurriculumNodes}
+                    bibliographyNodes={bibliographyNodes}
+                    authorizedSourceNodes={authorizedSourceNodes}
+                  />
+                </section>
+
+                <Separator />
+
+                <section id="materials-section">
+                  <StepHeader
+                    stepNumber={2}
+                    title="Generación"
+                    status={materialLabel(hasMaterials ? (readingMaterial?.status || teachingMaterial?.status) : null)}
+                    statusTone={materialTone(hasMaterials ? (readingMaterial?.status || teachingMaterial?.status) : null)}
+                  />
+
+                  <GenerateButton
+                    onClick={handleGenerate}
+                    isGenerating={lesson.is_generating}
+                    disabled={!canGenerate}
+                  />
+
+                  {normalizedTeachingMaterial && (
+                    <div className="mt-6">
+                      <TeachingMaterialView
+                        material={normalizedTeachingMaterial}
+                        canExportPdf={canExportValidatedPdf}
+                        exportFileName={`${lessonSlug}-material-didactico.pdf`}
+                        documentTitle={planLesson?.theme ? `Material didactico - ${planLesson.theme}` : "Material didactico"}
+                        documentSummary="Documento de trabajo para aula con proposito, actividades, criterios y cierre listo para uso real."
+                        documentMeta={documentMeta}
+                        generatedAt={normalizedTeachingMaterial.created_at}
+                      />
                     </div>
                   )}
 
                   {readingMaterial && (
-                    <div className="space-y-2">
-                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                        Referencias visibles en el material de lectura
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {referencedNodes.length}/{bibliographyNodes.length} fuentes confirmadas quedaron efectivamente marcadas en el texto generado.
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        {referencedNodes.length > 0 ? (
-                          referencedNodes.map((node) => (
-                            <Badge key={node.id} variant="outline">
-                              {stripTechnicalLabel(node.name)}
-                            </Badge>
-                          ))
-                        ) : (
-                          <p className="text-sm text-muted-foreground">
-                            Todavia no hay referencias detectadas en el material de lectura.
-                          </p>
-                        )}
-                      </div>
+                    <div className="mt-6">
+                      <ReadingMaterialView
+                        material={readingMaterial}
+                        pdfBase64={pdfBase64}
+                        canExportPdf={canExportValidatedPdf}
+                        exportFileName={`${lessonSlug}-material-lectura.pdf`}
+                        documentTitle={planLesson?.theme ? `Material de lectura - ${planLesson.theme}` : "Material de lectura"}
+                        documentSummary="Lectura continua y trazable, preparada como pieza pedagogica presentable y lista para compartir."
+                        documentMeta={documentMeta}
+                        generatedAt={readingMaterial.created_at}
+                      />
                     </div>
                   )}
-                </CardContent>
-              </Card>
-            )}
+                </section>
+              </div>
+            </main>
+          </ScrollArea>
+        </ResizablePanel>
 
-            <section id="brief-form">
-              <StepHeader
-                stepNumber={1}
-                title="Indicaciones"
-                status={briefLabel(brief?.status)}
-                statusTone={briefTone(brief?.status)}
-              />
-              <BriefForm
-                lessonId={lessonId!}
-                courseId={lesson.course_id}
-                brief={brief}
-                onUpdate={fetchData}
-                planType={planType}
-                planTheme={planLesson?.theme}
-                learningOutcome={planLesson?.learning_outcome}
-                canonOperation={canonSummary.operation}
-                canonEvidence={canonSummary.evidence}
-                mappedCurriculumNodes={mappedCurriculumNodes}
-                bibliographyNodes={bibliographyNodes}
-                authorizedSourceNodes={authorizedSourceNodes}
-              />
-            </section>
-
-            <Separator />
-
-            <section id="materials-section">
-              <StepHeader
-                stepNumber={2}
-                title="Generación"
-                status={materialLabel(hasMaterials ? (readingMaterial?.status || teachingMaterial?.status) : null)}
-                statusTone={materialTone(hasMaterials ? (readingMaterial?.status || teachingMaterial?.status) : null)}
-              />
-
-              <GenerateButton
-                onClick={handleGenerate}
-                isGenerating={lesson.is_generating}
-                disabled={!canGenerate}
-              />
-
-              {normalizedTeachingMaterial && (
-                <div className="mt-6">
-                  <TeachingMaterialView
-                    material={normalizedTeachingMaterial}
-                    canExportPdf={canExportValidatedPdf}
-                    exportFileName={`${lessonSlug}-material-didactico.pdf`}
-                    documentTitle={planLesson?.theme ? `Material didactico - ${planLesson.theme}` : "Material didactico"}
-                    documentSummary="Documento de trabajo para aula con proposito, actividades, criterios y cierre listo para uso real."
-                    documentMeta={documentMeta}
-                    generatedAt={normalizedTeachingMaterial.created_at}
-                  />
+        {copilotOpen && (
+          <>
+            <ResizableHandle withHandle />
+            <ResizablePanel defaultSize={35} minSize={25}>
+              <div className="h-full flex flex-col border-l bg-card">
+                {/* Copilot header */}
+                <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-semibold">Copiloto</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={entitlements.copiloto_mode === "full" ? "default" : "outline"}>
+                      {entitlements.copiloto_mode === "full" ? "Premium" : entitlements.copiloto_mode === "limited" ? "Básico" : "Bloqueado"}
+                    </Badge>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setCopilotOpen(false)}>
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
-              )}
 
-              {readingMaterial && (
-                <div className="mt-6">
-                  <ReadingMaterialView
-                    material={readingMaterial}
-                    pdfBase64={pdfBase64}
-                    canExportPdf={canExportValidatedPdf}
-                    exportFileName={`${lessonSlug}-material-lectura.pdf`}
-                    documentTitle={planLesson?.theme ? `Material de lectura - ${planLesson.theme}` : "Material de lectura"}
-                    documentSummary="Lectura continua y trazable, preparada como pieza pedagogica presentable y lista para compartir."
-                    documentMeta={documentMeta}
-                    generatedAt={readingMaterial.created_at}
-                  />
+                {/* Copilot content */}
+                <div className="flex-1 min-h-0 flex flex-col overflow-y-auto px-4 py-4">
+                  {(brief?.status === "READY_FOR_PRODUCTION" || brief?.status === "PRODUCED") && (
+                    <div className="mb-4">
+                      <CopilotPanel
+                        bibliographyNodes={bibliographyNodes}
+                        referencedNodeIds={referencedNodeIds}
+                        mappedCurriculumNodes={mappedCurriculumNodes}
+                        authorizedSources={authorizedSourceNodes}
+                        depthLevel={brief.nivel_profundidad}
+                        planTheme={planLesson?.theme}
+                        learningOutcome={planLesson?.learning_outcome}
+                        canonOperation={canonSummary.operation}
+                        canonEvidence={canonSummary.evidence}
+                        briefFocus={brief?.enfoque_deseado}
+                        briefDynamic={brief?.tipo_dinamica_sugerida}
+                        briefObservations={brief?.observaciones_docente}
+                        briefStatus={brief?.status}
+                        teachingStatus={teachingMaterial?.status}
+                        readingStatus={readingMaterial?.status}
+                        onDepthChange={handleDepthChange}
+                        onRegenerateTeaching={handleRegenerateTeaching}
+                        onRegenerateReading={handleRegenerateReading}
+                        onFocusBrief={scrollToBrief}
+                        isGenerating={lesson.is_generating}
+                        isLocked={lesson.status === "LOCKED"}
+                        copilotoMode={entitlements.copiloto_mode}
+                        subject={courseContext?.subject}
+                        yearLevel={courseContext?.year_level}
+                      />
+                    </div>
+                  )}
+
+                  {entitlements.copiloto_mode === "full" && (
+                    <CopilotChat
+                      copilotoMode={entitlements.copiloto_mode}
+                      lessonContext={{
+                        theme: planLesson?.theme,
+                        learningOutcome: planLesson?.learning_outcome,
+                        canonOperation: canonSummary.operation,
+                        canonEvidence: canonSummary.evidence,
+                        briefFocus: brief?.enfoque_deseado,
+                        briefDynamic: brief?.tipo_dinamica_sugerida,
+                        depthLevel: brief?.nivel_profundidad,
+                        teachingStatus: teachingMaterial?.status,
+                        readingStatus: readingMaterial?.status,
+                        subject: courseContext?.subject,
+                        yearLevel: courseContext?.year_level,
+                        curriculumNodeNames: mappedCurriculumNodes.map((n) => n.name),
+                        bibliographyNames: bibliographyNodes.map((n) => n.name),
+                        authorizedSourceTitles: authorizedSourceNodes.map((s) => s.title),
+                      }}
+                      placeholder="¿Cómo mejorar las indicaciones o los materiales de esta clase?"
+                    />
+                  )}
+
+                  {entitlements.copiloto_mode === "limited" && !(brief?.status === "READY_FOR_PRODUCTION" || brief?.status === "PRODUCED") && (
+                    <p className="text-xs text-muted-foreground text-center py-4">
+                      El chat del copiloto está disponible en el plan Premium. Desde una lección con indicaciones listas, podés usar los controles de profundidad y regeneración.
+                    </p>
+                  )}
+
+                  {entitlements.copiloto_mode === "none" && (
+                    <p className="text-xs text-muted-foreground text-center py-4">
+                      Actualizá tu plan para usar el Copiloto.
+                    </p>
+                  )}
                 </div>
-              )}
-            </section>
-          </div>
-        </div>
-      </main>
+              </div>
+            </ResizablePanel>
+          </>
+        )}
+      </ResizablePanelGroup>
     </div>
   );
 }
