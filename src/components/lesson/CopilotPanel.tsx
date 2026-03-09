@@ -458,6 +458,34 @@ export default function CopilotPanel({
           </Button>
         </div>
       </div>
+
+      {!isDisabled && (
+        <>
+          <Separator />
+          <div className="space-y-2">
+            <Label className="text-xs">Chat con el copiloto</Label>
+            <CopilotChat
+              copilotoMode={copilotoMode}
+              lessonContext={{
+                theme: planTheme,
+                learningOutcome,
+                canonOperation,
+                canonEvidence,
+                briefFocus,
+                briefDynamic,
+                depthLevel,
+                teachingStatus,
+                readingStatus,
+                subject,
+                yearLevel,
+                curriculumNodeNames: mappedCurriculumNodes.map((n) => n.name),
+                bibliographyNames: bibliographyNodes.map((n) => n.name),
+                authorizedSourceTitles: authorizedSources.map((s) => s.title),
+              }}
+            />
+          </div>
+        </>
+      )}
     </div>
   );
 }
