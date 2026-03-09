@@ -54,6 +54,8 @@ interface CopilotPanelProps {
   isGenerating: boolean;
   isLocked: boolean;
   copilotoMode?: CopilotoMode;
+  subject?: string | null;
+  yearLevel?: number | null;
 }
 
 function normalize(value: string | null | undefined): string {
