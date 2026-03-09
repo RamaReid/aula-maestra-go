@@ -531,6 +531,7 @@ export default function Lesson() {
               size="sm"
               className="gap-2"
               onClick={() => setCopilotOpen((prev) => !prev)}
+              data-tour="lesson-copilot"
             >
               <Bot className="h-4 w-4" />
               <span>Copiloto</span>
