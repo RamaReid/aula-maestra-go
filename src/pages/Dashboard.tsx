@@ -69,7 +69,7 @@ type CourseQueryRow = Pick<Tables<"courses">, "id" | "subject" | "year_level" | 
   plans: { status: string } | null;
 };
 
-const QA_EMAILS = new Set(["rgarciareid@gmail.com", "bigscholl@test.docencia.ai"]);
+const QA_EMAILS = new Set(["rgarciareid@gmail.com", "bigschool@test.docencia.ai"]);
 
 export default function Dashboard() {
   const { profile, logout } = useAuth();

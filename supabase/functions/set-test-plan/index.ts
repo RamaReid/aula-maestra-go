@@ -7,7 +7,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const QA_EMAILS = new Set(["rgarciareid@gmail.com", "bigscholl@test.docencia.ai"]);
+const QA_EMAILS = new Set(["rgarciareid@gmail.com", "bigschool@test.docencia.ai"]);
 const ALLOWED_PLANS = new Set(["FREE", "BASICO", "PREMIUM"]);
 
 serve(async (req) => {
