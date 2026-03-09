@@ -492,7 +492,7 @@ export default function PlanEditor({ planId, courseId, curriculumDocumentId, pla
           </TabsContent>
           <TabsContent value="clases"><PlanLessonsEditor planId={planId} courseId={courseId} readOnly={readOnly} onDirty={transitionToEdited} /></TabsContent>
           <TabsContent value="recursos" className="space-y-4">
-            <Card><CardContent className="space-y-4 pt-5"><div className="flex items-center justify-between gap-3"><Label>Recursos y soportes de trabajo</Label><Button type="button" variant="ghost" size="sm" onClick={() => setExpandedField("resources")}><Maximize2 className="mr-2 h-4 w-4" />Expandir</Button></div><Textarea value={plan.resources} onChange={(event) => updateField("resources", event.target.value)} rows={7} disabled={readOnly} placeholder="Describe recursos, soportes, bibliografía de trabajo, formas de uso y alternativas low-tech." /></CardContent></Card>
+            <Card><CardContent className="space-y-4 pt-5"><div className="flex items-center justify-between gap-3"><Label>Recursos y soportes de trabajo</Label><Button type="button" variant="ghost" size="sm" onClick={() => setExpandedField("resources")}><Pencil className="mr-2 h-4 w-4" />Editar</Button></div><Textarea value={plan.resources} onChange={(event) => updateField("resources", event.target.value)} rows={7} disabled={readOnly} placeholder="Describe recursos, soportes, bibliografía de trabajo, formas de uso y alternativas low-tech." /></CardContent></Card>
           </TabsContent>
           <TabsContent value="bibliografia" className="space-y-4">
             <Card>
