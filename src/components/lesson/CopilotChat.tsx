@@ -29,6 +29,7 @@ interface LessonContext {
 interface CopilotChatProps {
   lessonContext: LessonContext;
   copilotoMode: CopilotoMode;
+  placeholder?: string;
 }
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/copilot-chat`;
