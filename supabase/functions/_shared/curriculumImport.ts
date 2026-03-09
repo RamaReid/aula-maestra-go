@@ -799,20 +799,20 @@ async function downloadPdfBytesFromUrl(
       );
     }
 
-    // Intentar encontrar el PDF mas relevante usando el hint de materia
+    // Intentar encontrar el PDF mas relevante usando hints de materia/año
     let bestLink = pdfLinks[0];
-    if (options?.subjectHint) {
-      const hint = normalizeText(options.subjectHint);
+    const yearHint = options?.yearLevelHint ? String(options.yearLevelHint) : null;
+    if (options?.subjectHint || yearHint) {
+      const hint = normalizeText(options?.subjectHint || "");
       const hintWords = hint.split(/\s+/).filter((w) => w.length > 3);
-      if (hintWords.length > 0) {
-        const scored = pdfLinks.map((link) => {
-          const normalized = normalizeText(decodeURIComponent(link));
-          const score = hintWords.filter((word) => normalized.includes(word)).length;
-          return { link, score };
-        });
-        scored.sort((a, b) => b.score - a.score);
-        if (scored[0].score > 0) bestLink = scored[0].link;
-      }
+      const scored = pdfLinks.map((link) => {
+        const normalized = normalizeText(decodeURIComponent(link));
+        const subjectScore = hintWords.filter((word) => normalized.includes(word)).length;
+        const yearScore = yearHint && new RegExp(`\\b${yearHint}\\b`).test(normalized) ? 1 : 0;
+        return { link, score: subjectScore + yearScore };
+      });
+      scored.sort((a, b) => b.score - a.score);
+      if (scored[0].score > 0) bestLink = scored[0].link;
     }
 
     // Descargar el PDF seleccionado
