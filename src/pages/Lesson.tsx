@@ -768,37 +768,7 @@ export default function Lesson() {
             </section>
           </div>
 
-          {(brief?.status === "READY_FOR_PRODUCTION" || brief?.status === "PRODUCED") && (
-            <aside className="sticky top-4 h-fit rounded-[1.5rem] border border-border/70 bg-card/90 p-4 shadow-sm">
-              <CopilotPanel
-                bibliographyNodes={bibliographyNodes}
-                referencedNodeIds={referencedNodeIds}
-                mappedCurriculumNodes={mappedCurriculumNodes}
-                authorizedSources={authorizedSourceNodes}
-                depthLevel={brief.nivel_profundidad}
-                planTheme={planLesson?.theme}
-                learningOutcome={planLesson?.learning_outcome}
-                canonOperation={canonSummary.operation}
-                canonEvidence={canonSummary.evidence}
-                briefFocus={brief?.enfoque_deseado}
-                briefDynamic={brief?.tipo_dinamica_sugerida}
-                briefObservations={brief?.observaciones_docente}
-                briefStatus={brief?.status}
-                teachingStatus={teachingMaterial?.status}
-                readingStatus={readingMaterial?.status}
-                onDepthChange={handleDepthChange}
-                onRegenerateTeaching={handleRegenerateTeaching}
-                onRegenerateReading={handleRegenerateReading}
-                onFocusBrief={scrollToBrief}
-                isGenerating={lesson.is_generating}
-                isLocked={lesson.status === "LOCKED"}
-                copilotoMode={entitlements.copiloto_mode}
-                subject={courseContext?.subject}
-                yearLevel={courseContext?.year_level}
-              />
-            </aside>
-          )}
-        </div>
+          </div>
       </main>
     </div>
   );
