@@ -21,13 +21,13 @@ type RequestBody = {
  * Known official PDF URLs for PBA curriculum documents that may have been
  * seeded without raw_text.  Keyed by `subject|cycle|year_level`.
  */
-const KNOWN_OFFICIAL_URLS: Record<string, string> = {
-  "Historia|UPPER|5": "https://abc.gob.ar/secretarias/sites/default/files/2021-05/Historia%20%281%29.pdf",
-  "Matemática|UPPER|5": "https://abc.gob.ar/secretarias/sites/default/files/2021-05/Matem%C3%A1tica%20%281%29.pdf",
-  "Matemática|UPPER|6": "https://abc.gob.ar/secretarias/sites/default/files/2021-05/Matem%C3%A1tica%20%282%29.pdf",
-  "Filosofía|UPPER|6": "https://abc.gob.ar/secretarias/sites/default/files/2021-05/Filosof%C3%ADa.pdf",
-  "Filosofía e Historia de la Ciencia y la Tecnología|UPPER|6":
-    "https://abc.gob.ar/secretarias/sites/default/files/2021-05/Filosof%C3%ADa%20e%20Histria%20de%20la%20Ciencia%20y%20la%20Tecnolog%C3%ADa.pdf",
+/**
+ * Known seed PDF paths in Supabase storage (bucket: authorized-sources)
+ * for PBA curriculum documents that may have been seeded without raw_text.
+ * Keyed by `subject|cycle|year_level`.
+ */
+const KNOWN_SEED_STORAGE_PATHS: Record<string, string> = {
+  "Historia|UPPER|5": "seed-pdfs/Historia_5to.pdf",
 };
 
 serve(async (req) => {
