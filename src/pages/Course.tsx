@@ -434,6 +434,7 @@ export default function Course() {
                 copilotoMode={entitlements.copiloto_mode}
                 subject={course.subject}
                 yearLevel={course.year_level}
+                chatPlaceholder="¿Cómo organizar los contenidos o mejorar la planificación?"
               />
               <AlertDialog>
                 <AlertDialogTrigger asChild>

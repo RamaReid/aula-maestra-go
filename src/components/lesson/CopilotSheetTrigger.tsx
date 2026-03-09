@@ -32,6 +32,8 @@ interface CopilotSheetTriggerProps {
   lessonContext?: LessonContext;
   subject?: string | null;
   yearLevel?: number | null;
+  /** Placeholder for the chat input, contextual to the current page */
+  chatPlaceholder?: string;
 }
 
 export default function CopilotSheetTrigger({
@@ -40,6 +42,7 @@ export default function CopilotSheetTrigger({
   lessonContext,
   subject,
   yearLevel,
+  chatPlaceholder = "Preguntá algo...",
 }: CopilotSheetTriggerProps) {
   const isDisabled = copilotoMode === "none";
   const isPremium = copilotoMode === "full";
@@ -107,6 +110,7 @@ export default function CopilotSheetTrigger({
                   <CopilotChat
                     copilotoMode={copilotoMode}
                     lessonContext={defaultContext}
+                    placeholder={chatPlaceholder}
                   />
                 ) : (
                   <p className="text-xs text-muted-foreground text-center py-4">

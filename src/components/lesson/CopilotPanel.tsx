@@ -466,6 +466,7 @@ export default function CopilotPanel({
             <Label className="text-xs">Chat con el copiloto</Label>
             <CopilotChat
               copilotoMode={copilotoMode}
+              placeholder="¿Cómo mejorar las indicaciones o los materiales de esta clase?"
               lessonContext={{
                 theme: planTheme,
                 learningOutcome,

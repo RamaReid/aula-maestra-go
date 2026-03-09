@@ -29,6 +29,7 @@ interface LessonContext {
 interface CopilotChatProps {
   lessonContext: LessonContext;
   copilotoMode: CopilotoMode;
+  placeholder?: string;
 }
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/copilot-chat`;
@@ -126,7 +127,7 @@ async function streamChat({
   onDone();
 }
 
-export default function CopilotChat({ lessonContext, copilotoMode }: CopilotChatProps) {
+export default function CopilotChat({ lessonContext, copilotoMode, placeholder = "Preguntá algo sobre tu clase..." }: CopilotChatProps) {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -200,7 +201,7 @@ export default function CopilotChat({ lessonContext, copilotoMode }: CopilotChat
       <ScrollArea className="h-[300px] rounded-xl border border-border/70 bg-background p-3" ref={scrollRef}>
         {messages.length === 0 && (
           <p className="text-xs text-muted-foreground text-center py-8">
-            Preguntale al copiloto sobre tu clase, el currículum, la bibliografía o cómo mejorar las indicaciones.
+            {placeholder}
           </p>
         )}
         <div className="space-y-3">
@@ -245,7 +246,7 @@ export default function CopilotChat({ lessonContext, copilotoMode }: CopilotChat
           ref={inputRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Preguntá algo sobre tu clase..."
+          placeholder={placeholder}
           disabled={isLoading}
           className="text-sm h-9"
         />
