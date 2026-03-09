@@ -61,7 +61,7 @@ const fieldTitles: Record<ExpandableField, string> = {
   fundamentacion: "Fundamentación",
   estrategias_marco: "Estrategia marco",
   evaluacion_marco: "Criterios de evaluación",
-  resources: "Recursos",
+  resources: "Recursos y articulación pedagógica",
 };
 
 interface Props {
