@@ -8,7 +8,7 @@ import { PageIntro } from "@/components/editorial/PageIntro";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { LogOut, Plus, ChevronDown, BookOpen, Upload, Trash2, Archive, MoreVertical, CreditCard, RefreshCw } from "lucide-react";
+import { LogOut, Plus, ChevronDown, BookOpen, Upload, Trash2, Archive, MoreVertical, CreditCard, RefreshCw, Pencil } from "lucide-react";
 import { PlanType, useEntitlements } from "@/hooks/useEntitlements";
 import { PlanSwitcher } from "@/components/PlanSwitcher";
 import { StatusBadge, planTone, planLabel } from "@/components/ui/StatusBadge";
@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/components/ui/use-toast";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { EditCourseDialog } from "@/components/EditCourseDialog";
 import type { Tables } from "@/integrations/supabase/types";
 import { formatErrorMessage } from "@/lib/errors";
 
@@ -35,11 +36,12 @@ interface CourseWithDetails {
   year_level: number;
   academic_year: number;
   status: string;
+  school_id: string;
   school: { official_name: string } | null;
   plan: { status: string } | null;
 }
 
-type CourseQueryRow = Pick<Tables<"courses">, "id" | "subject" | "year_level" | "academic_year" | "status"> & {
+type CourseQueryRow = Pick<Tables<"courses">, "id" | "subject" | "year_level" | "academic_year" | "status" | "school_id"> & {
   schools: Pick<Tables<"schools">, "official_name"> | null;
   plans: { status: string } | null;
 };
@@ -56,6 +58,7 @@ export default function Dashboard() {
   const [archivedOpen, setArchivedOpen] = useState(false);
   const [courseToDelete, setCourseToDelete] = useState<CourseWithDetails | null>(null);
   const [courseToArchive, setCourseToArchive] = useState<CourseWithDetails | null>(null);
+  const [courseToEdit, setCourseToEdit] = useState<CourseWithDetails | null>(null);
   const [deletingCourseId, setDeletingCourseId] = useState<string | null>(null);
   const [archivingCourseId, setArchivingCourseId] = useState<string | null>(null);
   const [switchingPlan, setSwitchingPlan] = useState(false);
@@ -63,7 +66,7 @@ export default function Dashboard() {
   const fetchCourses = useCallback(async () => {
     const { data } = await supabase
       .from("courses")
-      .select("id, subject, year_level, academic_year, status, schools(official_name), plans(status)")
+      .select("id, subject, year_level, academic_year, status, school_id, schools(official_name), plans(status)")
       .order("academic_year", { ascending: false });
 
     if (data) {
@@ -74,6 +77,7 @@ export default function Dashboard() {
           year_level: c.year_level,
           academic_year: c.academic_year,
           status: c.status,
+          school_id: c.school_id,
           school: c.schools ? { official_name: c.schools.official_name } : null,
           plan: c.plans ? { status: c.plans.status } : null,
         }))
@@ -328,6 +332,10 @@ export default function Dashboard() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => setCourseToEdit(course)}>
+                            <Pencil className="mr-2 h-4 w-4" />
+                            Editar curso
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => navigate(`/curriculum/import?course_id=${course.id}`)}>
                             <RefreshCw className="mr-2 h-4 w-4" />
                             Recargar diseño curricular
@@ -442,6 +450,13 @@ export default function Dashboard() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <EditCourseDialog
+        course={courseToEdit}
+        open={!!courseToEdit}
+        onOpenChange={(open) => !open && setCourseToEdit(null)}
+        onSaved={fetchCourses}
+      />
     </div>
   );
 }
