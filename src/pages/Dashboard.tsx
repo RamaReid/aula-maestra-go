@@ -298,7 +298,7 @@ export default function Dashboard() {
                   Sincronizar ABC
                 </Link>
               </Button>
-              <Button size="sm" onClick={handleNewCourse}>
+              <Button size="sm" onClick={handleNewCourse} data-tour="dashboard-new-course">
                 <Plus className="mr-2 h-4 w-4" />
                 Nuevo curso
               </Button>
