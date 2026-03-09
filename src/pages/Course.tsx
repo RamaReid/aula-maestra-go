@@ -31,6 +31,17 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { getMaxSelectableLessons, isConsecutiveSequence, isValidFreeSelection } from "@/lib/courseSelectionRules";
 import type { Tables } from "@/integrations/supabase/types";
 import { formatErrorMessage, formatFunctionErrorMessage } from "@/lib/errors";
+import GuidedTour from "@/components/GuidedTour";
+import type { TourStep } from "@/hooks/useTour";
+
+const COURSE_TOUR_STEPS: TourStep[] = [
+  {
+    id: "tabs",
+    targetSelector: '[data-tour="course-tabs"]',
+    title: "Secciones del curso",
+    description: "Navegá entre Planificación, Agenda y Lecciones usando estas pestañas.",
+  },
+];
 
 interface LessonWithPlanLesson {
   id: string;
@@ -539,7 +550,7 @@ export default function Course() {
               </Card>
             ) : (
               <Tabs key={`${planType}-${plan?.status ?? "no-plan"}`} defaultValue={defaultTab}>
-                <TabsList className={`grid w-full ${tabGridCols}`}>
+                <TabsList className={`grid w-full ${tabGridCols}`} data-tour="course-tabs">
                   {!isFreePlan && <TabsTrigger value="planificacion">Planificacion</TabsTrigger>}
                   {planValidated && <TabsTrigger value="agenda">{isFreePlan ? "Secuencia" : "Agenda"}</TabsTrigger>}
                   {planValidated && <TabsTrigger value="lecciones">{isFreePlan ? "Clases" : "Lecciones"}</TabsTrigger>}
@@ -688,6 +699,7 @@ export default function Course() {
           </div>
         ) : null}
       </main>
+      {plan && <GuidedTour steps={COURSE_TOUR_STEPS} />}
     </div>
   );
 }

@@ -22,6 +22,29 @@ import { SkeletonList } from "@/components/ui/SkeletonList";
 import { ThinkingBook } from "@/components/ui/ThinkingBook";
 import type { Tables } from "@/integrations/supabase/types";
 import { formatErrorMessage, formatFunctionErrorMessage } from "@/lib/errors";
+import GuidedTour from "@/components/GuidedTour";
+import type { TourStep } from "@/hooks/useTour";
+
+const LESSON_TOUR_STEPS: TourStep[] = [
+  {
+    id: "brief",
+    targetSelector: '[data-tour="lesson-brief"]',
+    title: "Indicaciones de la clase",
+    description: "Completá los datos del brief: enfoque, dinámica y observaciones. Es lo que la IA usa para generar.",
+  },
+  {
+    id: "generate",
+    targetSelector: '[data-tour="lesson-generate"]',
+    title: "Generar materiales",
+    description: "Una vez que las indicaciones estén listas, usá este botón para generar los materiales con IA.",
+  },
+  {
+    id: "copilot",
+    targetSelector: '[data-tour="lesson-copilot"]',
+    title: "Copiloto IA",
+    description: "Abrí el panel lateral para trabajar con el asistente mientras editás la clase.",
+  },
+];
 
 type LessonRow = Tables<"lessons">;
 type PlanLessonRow = Tables<"plan_lessons">;
@@ -531,6 +554,7 @@ export default function Lesson() {
               size="sm"
               className="gap-2"
               onClick={() => setCopilotOpen((prev) => !prev)}
+              data-tour="lesson-copilot"
             >
               <Bot className="h-4 w-4" />
               <span>Copiloto</span>
@@ -682,7 +706,7 @@ export default function Lesson() {
                   </Card>
                 )}
 
-                <section id="brief-form">
+                <section id="brief-form" data-tour="lesson-brief">
                   <StepHeader
                     stepNumber={1}
                     title="Indicaciones"
@@ -715,11 +739,13 @@ export default function Lesson() {
                     statusTone={materialTone(hasMaterials ? (readingMaterial?.status || teachingMaterial?.status) : null)}
                   />
 
-                  <GenerateButton
-                    onClick={handleGenerate}
-                    isGenerating={lesson.is_generating}
-                    disabled={!canGenerate}
-                  />
+                  <div data-tour="lesson-generate">
+                    <GenerateButton
+                      onClick={handleGenerate}
+                      isGenerating={lesson.is_generating}
+                      disabled={!canGenerate}
+                    />
+                  </div>
 
                   {normalizedTeachingMaterial && (
                     <div className="mt-6">
@@ -849,6 +875,7 @@ export default function Lesson() {
           </>
         )}
       </ResizablePanelGroup>
+      <GuidedTour steps={LESSON_TOUR_STEPS} />
     </div>
   );
 }

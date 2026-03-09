@@ -29,6 +29,29 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { EditCourseDialog } from "@/components/EditCourseDialog";
 import type { Tables } from "@/integrations/supabase/types";
 import { formatErrorMessage } from "@/lib/errors";
+import GuidedTour from "@/components/GuidedTour";
+import type { TourStep } from "@/hooks/useTour";
+
+const DASHBOARD_TOUR_STEPS: TourStep[] = [
+  {
+    id: "new-course",
+    targetSelector: '[data-tour="dashboard-new-course"]',
+    title: "Crear un curso",
+    description: "Creá un nuevo curso desde acá. Es el primer paso para empezar a planificar.",
+  },
+  {
+    id: "courses",
+    targetSelector: '[data-tour="dashboard-courses"]',
+    title: "Tus cursos",
+    description: "Cada tarjeta muestra un curso con su estado. Hacé clic en 'Abrir curso' para entrar.",
+  },
+  {
+    id: "sync-abc",
+    targetSelector: '[data-tour="dashboard-sync-abc"]',
+    title: "Sincronizar diseño curricular",
+    description: "Importá el diseño curricular oficial de tu provincia para que el sistema lo use como referencia.",
+  },
+];
 
 interface CourseWithDetails {
   id: string;
@@ -292,13 +315,13 @@ export default function Dashboard() {
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-xl font-semibold text-foreground">Mis cursos activos</h2>
             <div className="flex items-center gap-2">
-              <Button asChild variant="outline" size="sm">
+              <Button asChild variant="outline" size="sm" data-tour="dashboard-sync-abc">
                 <Link to="/curriculum/import">
                   <Upload className="mr-2 h-4 w-4" />
                   Sincronizar ABC
                 </Link>
               </Button>
-              <Button size="sm" onClick={handleNewCourse}>
+              <Button size="sm" onClick={handleNewCourse} data-tour="dashboard-new-course">
                 <Plus className="mr-2 h-4 w-4" />
                 Nuevo curso
               </Button>
@@ -315,7 +338,7 @@ export default function Dashboard() {
               action={{ label: "Crear primer curso", onClick: () => navigate("/course/new") }}
             />
           ) : (
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-2" data-tour="dashboard-courses">
               {activeCourses.map((course) => (
                 <Card key={course.id} className="flex flex-col rounded-[1.5rem] border-border/80 bg-card/90 transition-colors hover:border-primary/50">
                   <CardHeader className="pb-2">
@@ -457,6 +480,8 @@ export default function Dashboard() {
         onOpenChange={(open) => !open && setCourseToEdit(null)}
         onSaved={fetchCourses}
       />
+
+      {!loading && activeCourses.length > 0 && <GuidedTour steps={DASHBOARD_TOUR_STEPS} />}
     </div>
   );
 }
