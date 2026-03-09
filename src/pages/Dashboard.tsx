@@ -450,6 +450,13 @@ export default function Dashboard() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <EditCourseDialog
+        course={courseToEdit}
+        open={!!courseToEdit}
+        onOpenChange={(open) => !open && setCourseToEdit(null)}
+        onSaved={fetchCourses}
+      />
     </div>
   );
 }
