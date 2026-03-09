@@ -147,27 +147,13 @@ export default function AgendaView({ courseId, readOnly = false }: Props) {
       <CardContent className="pt-6 space-y-4">
         {/* Sync header */}
         {scheduleSlots.length > 0 && (
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/30 p-3">
-            <div className="space-y-0.5">
-              <p className="text-sm font-medium">
-                Cursada: {scheduleSlots.map((s) => formatScheduleSlot(s)).join(" · ")}
-              </p>
-              {outOfSync > 0 ? (
-                <p className="text-xs text-amber-600">
-                  {outOfSync} clase{outOfSync > 1 ? "s" : ""} con fecha distinta a la planificación.
-                </p>
-              ) : (
-                <p className="text-xs text-muted-foreground">
-                  Todas las fechas coinciden con la planificación.
-                </p>
-              )}
-            </div>
-            {!readOnly && outOfSync > 0 && (
-              <Button size="sm" variant="outline" onClick={handleSyncAll} disabled={syncing}>
-                <RefreshCw className={`h-3.5 w-3.5 mr-1 ${syncing ? "animate-spin" : ""}`} />
-                Sincronizar fechas
-              </Button>
-            )}
+          <div className="rounded-lg border bg-muted/30 p-3">
+            <p className="text-sm font-medium">
+              Cursada: {scheduleSlots.map((s) => formatScheduleSlot(s)).join(" · ")}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Las fechas se sincronizan automáticamente según el horario configurado.
+            </p>
           </div>
         )}
 
