@@ -492,7 +492,36 @@ export default function PlanEditor({ planId, courseId, curriculumDocumentId, pla
           </TabsContent>
           <TabsContent value="clases"><PlanLessonsEditor planId={planId} courseId={courseId} readOnly={readOnly} onDirty={transitionToEdited} /></TabsContent>
           <TabsContent value="recursos" className="space-y-4">
-            <Card><CardContent className="space-y-4 pt-5"><div className="flex items-center justify-between gap-3"><Label>Recursos y soportes de trabajo</Label><Button type="button" variant="ghost" size="sm" onClick={() => setExpandedField("resources")}><Pencil className="mr-2 h-4 w-4" />Editar</Button></div><Textarea value={plan.resources} onChange={(event) => updateField("resources", event.target.value)} rows={7} disabled={readOnly} placeholder="Describe recursos, soportes, bibliografía de trabajo, formas de uso y alternativas low-tech." /></CardContent></Card>
+            <Card>
+              <CardContent className="space-y-4 pt-5">
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <Label className="text-base">Recursos y articulación pedagógica</Label>
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setExpandedField("resources")}>
+                      <Pencil className="mr-2 h-4 w-4" />
+                      Expandir
+                    </Button>
+                  </div>
+                  <div className="text-sm text-muted-foreground leading-relaxed space-y-2">
+                    <p>Esta sección metodológica-instrumental debe explicitar con qué se va a enseñar y cómo se aprovechará pedagógicamente (no es un inventario aislado). Considerá incluir:</p>
+                    <ul className="list-disc list-inside ml-2 space-y-1">
+                      <li>Qué recursos, herramientas y soportes transmitirán los conocimientos.</li>
+                      <li>Bibliografía de trabajo y explicitación de cómo se usará.</li>
+                      <li>Formas de trabajo y uso de programas específicos.</li>
+                      <li>Alineación con la orientación y cómo se aprovecha esa sinergia.</li>
+                    </ul>
+                  </div>
+                </div>
+                <Textarea 
+                  value={plan.resources} 
+                  onChange={(event) => updateField("resources", event.target.value)} 
+                  rows={10} 
+                  disabled={readOnly} 
+                  placeholder="Ej: Se utilizará el entorno de laboratorio para simulaciones prácticas, articulando con la bibliografía técnica mediante guías de lectura guiada. El uso del software X permitirá modelar los casos antes de la implementación física, aprovechando la orientación técnica de la escuela..." 
+                  className="leading-relaxed resize-none"
+                />
+              </CardContent>
+            </Card>
           </TabsContent>
           <TabsContent value="bibliografia" className="space-y-4">
             <Card>
