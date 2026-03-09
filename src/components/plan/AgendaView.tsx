@@ -66,21 +66,41 @@ export default function AgendaView({ courseId, readOnly = false }: Props) {
 
         const plMap = new Map((pls || []).map((p) => [p.id, { theme: p.theme, term: p.term }]));
 
-        setLessons(
-          lessonsData.map((l) => {
-            const plData = plMap.get(l.plan_lesson_id) || { theme: "", term: 1 };
-            const preview = getSchedulePreviewForLesson(year, slots, l.lesson_number, plData.term);
-            return {
-              id: l.id,
-              lesson_number: l.lesson_number,
-              term: plData.term,
-              theme: plData.theme,
-              scheduled_date: l.scheduled_date,
-              computed_date: preview.scheduledDate,
-              status: l.status,
-            };
-          })
-        );
+        const mapped = lessonsData.map((l) => {
+          const plData = plMap.get(l.plan_lesson_id) || { theme: "", term: 1 };
+          const preview = getSchedulePreviewForLesson(year, slots, l.lesson_number, plData.term);
+          return {
+            id: l.id,
+            lesson_number: l.lesson_number,
+            term: plData.term,
+            theme: plData.theme,
+            scheduled_date: l.scheduled_date,
+            computed_date: preview.scheduledDate,
+            status: l.status,
+          };
+        });
+
+        // Auto-sync: update any lesson whose date doesn't match the computed one
+        if (slots.length > 0) {
+          const toSync = mapped.filter(
+            (l) => l.computed_date && l.scheduled_date !== l.computed_date
+          );
+          if (toSync.length > 0) {
+            const promises = toSync.map((l) =>
+              supabase
+                .from("lessons")
+                .update({ scheduled_date: l.computed_date })
+                .eq("id", l.id)
+            );
+            await Promise.all(promises);
+            // Reflect synced dates locally
+            for (const l of toSync) {
+              l.scheduled_date = l.computed_date;
+            }
+          }
+        }
+
+        setLessons(mapped);
       }
       setLoading(false);
     };
