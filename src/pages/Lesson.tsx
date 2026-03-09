@@ -570,7 +570,7 @@ export default function Lesson() {
                       <div className="flex items-baseline gap-4">
                         <CardTitle className="text-base">Canon de esta clase</CardTitle>
                         <p className="text-sm text-muted-foreground">
-                          <span className="text-[10px] font-bold uppercase tracking-wide">Tema: </span>
+                          <span className="text-xs font-medium uppercase tracking-wide">Tema: </span>
                           <span className="font-medium text-foreground">{planLesson.theme}</span>
                         </p>
                       </div>
