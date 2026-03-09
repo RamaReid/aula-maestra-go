@@ -118,13 +118,27 @@ function isCurriculumNoiseText(normalized: string): boolean {
     normalized.startsWith("equipo de especialistas") ||
     normalized.startsWith("direccion general") ||
     normalized.startsWith("dgcye") ||
+    normalized.startsWith("fundamentacion") ||
+    normalized.startsWith("orientaciones didacticas") ||
+    normalized.startsWith("orientaciones para la ensenanza") ||
+    normalized.startsWith("orientaciones para la evaluacion") ||
+    normalized.startsWith("bibliografia") ||
+    normalized.startsWith("distribucion gratuita") ||
+    normalized.startsWith("creditos") ||
+    normalized.startsWith("prologo") ||
+    normalized.startsWith("resolucion") ||
+    normalized.startsWith("anexo") ||
+    normalized.startsWith("mapa curricular") ||
+    normalized.startsWith("carga horaria") ||
     compact.includes("directorageneral") ||
     compact.includes("presidentadelconsejo") ||
     compact.includes("subsecretariadeeducacion") ||
     compact.includes("directoraprovincialdegestioneducativa") ||
     compact.includes("gobernador") ||
     compact.includes("ministro") ||
-    compact.includes("autoridades")
+    compact.includes("autoridades") ||
+    compact.includes("leyendalegal") ||
+    compact.includes("derechosdeautor")
   );
 }
 
@@ -133,6 +147,7 @@ function isCurriculumNoiseNode(node: CurriculumNodeRow): boolean {
   if (!normalized) return true;
   if (isCurriculumNoiseText(normalized)) return true;
   if (/^\d+$/.test(normalized)) return true;
+  if (node.name.trim().length > 150) return true; // Descarta párrafos largos sin estructura temática
   return false;
 }
 
@@ -1148,8 +1163,10 @@ Reglas:
 - La forma del documento debe ser administrativa y util para que el docente la edite despues.
 - No pongas markdown ni bloques de codigo, solo JSON.
 - Si la materia es FyHyCyT y el curso es de 28 clases, manten 14 clases por cuatrimestre.
-- Los content_blocks deben representar unidades/ejes/modulos del recorrido anual, NO secciones del diseno curricular (no poner "Presentacion" ni "Orientaciones didacticas" como bloque).
-- Cada content_block debe tener un titulo pedagogico claro, una descripcion de 2-3 lineas y entre 3 y 6 topics concretos.
+- Los content_blocks deben representar SOLO unidades/ejes/modulos reales de contenido especifico de la materia (NO secciones institucionales como "Presentacion", "Fundamentacion", "Orientaciones didacticas" o "Evaluacion").
+- Detecta y extrae EXCLUSIVAMENTE los nucleos tematicos, modulos o ejes conceptuales de la materia (ej. "Unidad 1: Problemas del conocimiento", "Eje 2: La ciencia").
+- Descarta todo el ruido narrativo, parrafos sueltos, orientaciones pedagogicas completas y creditos editoriales que aparezcan en el texto.
+- Cada content_block debe tener un titulo pedagogico claro asociado a los temas reales, una descripcion de 2-3 lineas y entre 3 y 6 topics concretos.
 - Las rubrics deben articularse con los content_blocks: cada fila debe referir un criterio observable del bloque correspondiente.
 - Los objectives deben ser del CURSO, no copia literal de encabezados del diseno; deben ser observables y formulados como logros del estudiantado.
 - estrategias_marco debe ser un parrafo que explique el enfoque metodologico general.
