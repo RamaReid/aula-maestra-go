@@ -62,10 +62,11 @@ export default function Dashboard() {
   const [deletingCourseId, setDeletingCourseId] = useState<string | null>(null);
   const [archivingCourseId, setArchivingCourseId] = useState<string | null>(null);
   const [switchingPlan, setSwitchingPlan] = useState(false);
+
   const fetchCourses = useCallback(async () => {
     const { data } = await supabase
       .from("courses")
-      .select("id, subject, year_level, academic_year, status, schools(official_name), plans(status)")
+      .select("id, subject, year_level, academic_year, status, school_id, schools(official_name), plans(status)")
       .order("academic_year", { ascending: false });
 
     if (data) {
@@ -76,6 +77,7 @@ export default function Dashboard() {
           year_level: c.year_level,
           academic_year: c.academic_year,
           status: c.status,
+          school_id: c.school_id,
           school: c.schools ? { official_name: c.schools.official_name } : null,
           plan: c.plans ? { status: c.plans.status } : null,
         }))
