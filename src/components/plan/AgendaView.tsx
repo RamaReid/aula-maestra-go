@@ -138,9 +138,6 @@ export default function AgendaView({ courseId, readOnly = false }: Props) {
 
   if (lessons.length === 0) return null;
 
-  const outOfSync = lessons.filter(
-    (l) => l.computed_date && l.scheduled_date !== l.computed_date
-  ).length;
 
   return (
     <Card>
