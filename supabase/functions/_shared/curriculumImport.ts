@@ -759,6 +759,7 @@ async function fetchViaFirecrawl(url: string): Promise<Uint8Array> {
 
   console.log(`Fetching via Firecrawl proxy: ${url}`);
 
+  // For PDF files, use scrape with timeout disabled and minimal processing
   const response = await fetch("https://api.firecrawl.dev/v1/scrape", {
     method: "POST",
     headers: {
@@ -768,7 +769,8 @@ async function fetchViaFirecrawl(url: string): Promise<Uint8Array> {
     body: JSON.stringify({
       url,
       formats: ["rawHtml"],
-      waitFor: 5000,
+      timeout: 60000, // 60 second timeout for large PDFs
+      skipTlsVerification: true,
     }),
   });
 
@@ -776,6 +778,15 @@ async function fetchViaFirecrawl(url: string): Promise<Uint8Array> {
 
   if (!response.ok) {
     console.error("Firecrawl API error:", data);
+    
+    // If timeout error, suggest manual upload
+    if (data.code === "SCRAPE_TIMEOUT") {
+      throw new Error(
+        "El servidor de ABC tardó demasiado en responder. " +
+        "Por favor, descargue el PDF manualmente y súbalo directamente."
+      );
+    }
+    
     throw new Error(data.error || `Error de Firecrawl: ${response.status}`);
   }
 
@@ -785,7 +796,7 @@ async function fetchViaFirecrawl(url: string): Promise<Uint8Array> {
     throw new Error("No se recibió contenido del recurso remoto via Firecrawl");
   }
 
-  // Check if we got HTML instead of PDF (error page)
+  // Check if we got HTML instead of PDF (index page)
   if (rawHtml.includes("<!DOCTYPE") || rawHtml.includes("<html")) {
     // Try to extract PDF links from the HTML page
     const linkRegex = /href=["']([^"']*\.pdf[^"']*)/gi;
@@ -805,29 +816,23 @@ async function fetchViaFirecrawl(url: string): Promise<Uint8Array> {
 
     if (pdfLinks.length > 0) {
       console.log(`Found ${pdfLinks.length} PDF links in HTML, fetching first: ${pdfLinks[0]}`);
-      // Recursively fetch the PDF link
-      return fetchViaFirecrawl(pdfLinks[0]);
+      // Return the links so caller can handle with manual upload suggestion
+      throw new Error(
+        `La URL es una página índice. Encontré ${pdfLinks.length} enlaces a PDFs. ` +
+        `URL directa sugerida: ${pdfLinks[0]}`
+      );
     }
 
     throw new Error(
-      "La URL devolvió una página HTML en lugar del PDF. " +
+      "La URL devolvió una página HTML sin enlaces a PDFs. " +
       "Proporcione la URL directa al archivo PDF."
     );
   }
 
   // Convert raw content to bytes
-  // Firecrawl returns binary content as string, encode to bytes
   const encoder = new TextEncoder();
   const bytes = encoder.encode(rawHtml);
   
-  // Verify it's a PDF by checking magic bytes
-  if (bytes.length > 4) {
-    const header = String.fromCharCode(bytes[0], bytes[1], bytes[2], bytes[3]);
-    if (!header.startsWith("%PDF")) {
-      console.warn("Downloaded content doesn't appear to be a PDF");
-    }
-  }
-
   console.log(`Successfully fetched ${bytes.length} bytes via Firecrawl`);
   return bytes;
 }
