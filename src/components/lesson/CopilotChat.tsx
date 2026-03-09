@@ -197,8 +197,8 @@ export default function CopilotChat({ lessonContext, copilotoMode, placeholder =
   }
 
   return (
-    <div className="flex flex-col gap-3">
-      <ScrollArea className="h-[300px] rounded-xl border border-border/70 bg-background p-3" ref={scrollRef}>
+    <div className="flex flex-col gap-3 flex-1 min-h-0">
+      <ScrollArea className="flex-1 min-h-0 rounded-xl border border-border/70 bg-background p-3" ref={scrollRef}>
         {messages.length === 0 && (
           <p className="text-xs text-muted-foreground text-center py-8">
             {placeholder}
@@ -240,7 +240,7 @@ export default function CopilotChat({ lessonContext, copilotoMode, placeholder =
           e.preventDefault();
           send();
         }}
-        className="flex gap-2"
+        className="flex gap-2 shrink-0"
       >
         <Input
           ref={inputRef}
