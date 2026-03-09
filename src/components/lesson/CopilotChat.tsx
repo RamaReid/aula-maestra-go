@@ -201,7 +201,7 @@ export default function CopilotChat({ lessonContext, copilotoMode, placeholder =
       <ScrollArea className="h-[300px] rounded-xl border border-border/70 bg-background p-3" ref={scrollRef}>
         {messages.length === 0 && (
           <p className="text-xs text-muted-foreground text-center py-8">
-            Preguntale al copiloto sobre tu clase, el currículum, la bibliografía o cómo mejorar las indicaciones.
+            {placeholder}
           </p>
         )}
         <div className="space-y-3">
