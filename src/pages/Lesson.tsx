@@ -13,7 +13,7 @@ import BriefForm from "@/components/lesson/BriefForm";
 import TeachingMaterialView from "@/components/lesson/TeachingMaterialView";
 import ReadingMaterialView from "@/components/lesson/ReadingMaterialView";
 import CopilotPanel from "@/components/lesson/CopilotPanel";
-import CopilotSheetTrigger from "@/components/lesson/CopilotSheetTrigger";
+import CopilotChat from "@/components/lesson/CopilotChat";
 import GenerateButton from "@/components/lesson/GenerateButton";
 import { useEntitlements } from "@/hooks/useEntitlements";
 import { StatusBadge, briefLabel, briefTone, materialLabel, materialTone, lessonStatusLabel, lessonStatusTone } from "@/components/ui/StatusBadge";
