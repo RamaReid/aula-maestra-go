@@ -566,20 +566,20 @@ export default function Lesson() {
 
                 {planLesson && (
                   <Card>
-                    <CardHeader className="pb-3">
+                    <CardHeader className="flex flex-row items-start justify-between gap-4 pb-3">
                       <CardTitle className="text-base">Canon de esta clase</CardTitle>
-                    </CardHeader>
-                    <CardContent className="grid gap-4 md:grid-cols-3">
-                      <div className="space-y-1">
-                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Tema</p>
-                        <p className="text-sm">{planLesson.theme}</p>
+                      <div className="max-w-[45%] text-right">
+                        <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Tema</p>
+                        <p className="text-sm font-medium text-foreground">{planLesson.theme}</p>
                       </div>
+                    </CardHeader>
+                    <CardContent className="grid gap-6 md:grid-cols-[3fr_2fr]">
                       <div className="space-y-1">
-                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Operacion</p>
+                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Operación</p>
                         <p className="text-sm">{canonSummary.operation}</p>
                       </div>
                       <div className="space-y-1">
-                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Evidencia minima</p>
+                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Evidencia mínima</p>
                         <p className="text-sm">{canonSummary.evidence}</p>
                       </div>
                     </CardContent>
