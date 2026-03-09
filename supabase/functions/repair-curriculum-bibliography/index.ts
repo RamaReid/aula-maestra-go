@@ -117,23 +117,22 @@ serve(async (req) => {
       if (storagePath) {
         console.log(`[repair-bibliography] Re-ingesting from storage: ${key} -> ${storagePath}`);
 
-        // Download PDF from Supabase storage using service role
-        const storageUrl = `${supabaseUrl}/storage/v1/object/authorized-sources/${storagePath}`;
-        const pdfResponse = await fetch(storageUrl, {
-          headers: { Authorization: `Bearer ${serviceRoleKey}` },
-        });
+        // Download PDF from Supabase storage using admin client
+        const { data: pdfData, error: storageError } = await adminClient.storage
+          .from("authorized-sources")
+          .download(storagePath);
 
-        if (!pdfResponse.ok) {
+        if (storageError || !pdfData) {
           return new Response(
             JSON.stringify({
               success: false,
-              error: `No se pudo descargar el PDF seed desde storage (${pdfResponse.status})`,
+              error: `No se pudo descargar el PDF seed desde storage: ${storageError?.message || "unknown"}`,
             }),
             { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
 
-        const pdfBytes = new Uint8Array(await pdfResponse.arrayBuffer());
+        const pdfBytes = new Uint8Array(await pdfData.arrayBuffer());
         const fileBase64 = btoa(String.fromCharCode(...pdfBytes));
 
         const ingestResult = await ingestCurriculumDocument(adminClient, {
