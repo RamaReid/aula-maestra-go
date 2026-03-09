@@ -566,11 +566,13 @@ export default function Lesson() {
 
                 {planLesson && (
                   <Card>
-                    <CardHeader className="flex flex-row items-start justify-between gap-4 pb-3">
-                      <CardTitle className="text-base">Canon de esta clase</CardTitle>
-                      <div className="max-w-[45%] text-right">
-                        <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Tema</p>
-                        <p className="text-sm font-medium text-foreground">{planLesson.theme}</p>
+                    <CardHeader className="pb-3">
+                      <div className="flex items-baseline justify-between gap-4">
+                        <CardTitle className="text-base">Canon de esta clase</CardTitle>
+                        <p className="text-sm text-muted-foreground">
+                          <span className="text-[10px] font-bold uppercase tracking-wide">Tema: </span>
+                          <span className="font-medium text-foreground">{planLesson.theme}</span>
+                        </p>
                       </div>
                     </CardHeader>
                     <CardContent className="grid gap-6 md:grid-cols-[3fr_2fr]">
