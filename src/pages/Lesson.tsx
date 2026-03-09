@@ -769,8 +769,7 @@ export default function Lesson() {
               )}
             </section>
           </div>
-
-          </div>
+        </div>
       </main>
     </div>
   );
