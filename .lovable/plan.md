@@ -1,20 +1,29 @@
 
-**Modificación de la pestaña "Contenidos" para ocultar la trazabilidad técnica**
 
-He analizado la estructura de la pestaña "Contenidos" dentro de `PlanEditor.tsx`. Actualmente, debajo del editor de bloques anuales (`PlanContentBlocksEditor`), se está renderizando una tarjeta visible y desplegada por defecto con el listado completo de los nodos crudos del anclaje curricular, lo que efectivamente ensucia la lectura.
+## Plan: Layout armónico para Canon de esta clase
 
-### Cambios a realizar
+El problema actual es que los 3 campos (Tema, Operación, Evidencia mínima) están en `grid-cols-3` iguales, pero Tema es siempre corto (1-2 oraciones) mientras que Operación es mucho más largo. Esto genera espacio desperdiciado y desbalance visual.
 
-1.  **Relegar el Anclaje Curricular a una Capa Secundaria (`src/components/plan/PlanEditor.tsx`)**
-    Modificaremos el bloque de "Anclaje curricular mapeado" para que deje de ser una tarjeta visible a simple vista. En su lugar, lo envolveremos dentro de un componente `Accordion` colapsado por defecto, tratándolo como un metadato técnico/interno.
+### Cambio
 
-    *   **Vista por defecto:** Se verá únicamente el título y el editor de los bloques anuales de contenido (con sus temas, descripciones y unidades), dejando la pantalla completamente limpia.
-    *   **Capa técnica (Expandible):** Al final de la vista se añadirá un pequeño texto/botón discreto (ej: *"Ver detalles técnicos de trazabilidad curricular"*). Solo si el docente o el sistema necesitan auditar de dónde viene el plan, podrán desplegarlo para ver la lista de nodos.
+**`src/pages/Lesson.tsx` (líneas 572-585)** — Reemplazar el grid de 3 columnas iguales por un layout de 2 filas:
 
-2.  **Importar y aplicar los componentes visuales necesarios**
-    *   Importaremos `Accordion`, `AccordionItem`, `AccordionTrigger` y `AccordionContent` desde `@/components/ui/accordion`.
-    *   Añadiremos un estilo sutil y atenuado (colores `muted` y fuentes pequeñas) para la lista de nodos crudos, reafirmando que no es contenido de lectura principal.
+- **Fila 1:** Título "Canon de esta clase" + Tema al lado (inline), ya que Tema es corto y funciona como subtítulo contextual.
+- **Fila 2:** Grid de 2 columnas para Operación (col-span mayor o ~60%) y Evidencia mínima (~40%).
 
-3.  **Mantener la funcionalidad intacta**
-    *   La trazabilidad del sistema y los metadatos internos (`visibleMappedNodes`) seguirán presentes en el DOM y en el estado del componente, garantizando que el PDF exportable y la base de datos sigan funcionando correctamente sin verse afectados por esta limpieza de la interfaz.
+Estructura resultante:
+
+```text
+┌─────────────────────────────────────────────────┐
+│ Canon de esta clase          Tema: [texto corto]│
+├────────────────────────────┬────────────────────┤
+│ Operación                  │ Evidencia mínima   │
+│ [texto largo, el que más   │ [texto mediano]    │
+│  espacio necesita]         │                    │
+└────────────────────────────┴────────────────────┘
+```
+
+Concretamente:
+- El `CardHeader` pasa a ser `flex items-start justify-between` con el título a la izquierda y el Tema a la derecha (texto corto, `text-sm text-muted-foreground`, max-w para que no se estire).
+- El `CardContent` cambia de `grid md:grid-cols-3` a `grid md:grid-cols-[3fr_2fr]` con solo Operación y Evidencia mínima.
 
