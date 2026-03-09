@@ -118,7 +118,7 @@ serve(async (req) => {
         console.log(`[repair-bibliography] Re-ingesting from storage: ${key} -> ${storagePath}`);
 
         // Download PDF from Supabase storage using service role
-        const storageUrl = `${supabaseUrl}/storage/v1/object/authenticated/authorized-sources/${storagePath}`;
+        const storageUrl = `${supabaseUrl}/storage/v1/object/authorized-sources/${storagePath}`;
         const pdfResponse = await fetch(storageUrl, {
           headers: { Authorization: `Bearer ${serviceRoleKey}` },
         });
