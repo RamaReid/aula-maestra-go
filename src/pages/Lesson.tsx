@@ -22,6 +22,29 @@ import { SkeletonList } from "@/components/ui/SkeletonList";
 import { ThinkingBook } from "@/components/ui/ThinkingBook";
 import type { Tables } from "@/integrations/supabase/types";
 import { formatErrorMessage, formatFunctionErrorMessage } from "@/lib/errors";
+import GuidedTour from "@/components/GuidedTour";
+import type { TourStep } from "@/hooks/useTour";
+
+const LESSON_TOUR_STEPS: TourStep[] = [
+  {
+    id: "brief",
+    targetSelector: '[data-tour="lesson-brief"]',
+    title: "Indicaciones de la clase",
+    description: "Completá los datos del brief: enfoque, dinámica y observaciones. Es lo que la IA usa para generar.",
+  },
+  {
+    id: "generate",
+    targetSelector: '[data-tour="lesson-generate"]',
+    title: "Generar materiales",
+    description: "Una vez que las indicaciones estén listas, usá este botón para generar los materiales con IA.",
+  },
+  {
+    id: "copilot",
+    targetSelector: '[data-tour="lesson-copilot"]',
+    title: "Copiloto IA",
+    description: "Abrí el panel lateral para trabajar con el asistente mientras editás la clase.",
+  },
+];
 
 type LessonRow = Tables<"lessons">;
 type PlanLessonRow = Tables<"plan_lessons">;
