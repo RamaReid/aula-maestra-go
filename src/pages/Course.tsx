@@ -1,6 +1,7 @@
 ﻿import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { Archive, ArrowLeft, BookOpen, Sparkles } from "lucide-react";
+import CopilotSheetTrigger from "@/components/lesson/CopilotSheetTrigger";
 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -428,28 +429,35 @@ export default function Course() {
             )}
           </div>
           {course && !isArchived && (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <Archive className="h-4 w-4 mr-2" />
-                  Archivar
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Archivar este curso</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    No podras editar el plan, las lecciones ni la agenda una vez archivado.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleArchive} disabled={archiving}>
-                    {archiving ? "Archivando..." : "Archivar"}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+            <div className="flex items-center gap-2">
+              <CopilotSheetTrigger
+                copilotoMode={entitlements.copiloto_mode}
+                subject={course.subject}
+                yearLevel={course.year_level}
+              />
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <Archive className="h-4 w-4 mr-2" />
+                    Archivar
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Archivar este curso</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      No podras editar el plan, las lecciones ni la agenda una vez archivado.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleArchive} disabled={archiving}>
+                      {archiving ? "Archivando..." : "Archivar"}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
           )}
         </div>
       </header>

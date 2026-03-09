@@ -5,14 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, ClipboardEdit, Bot } from "lucide-react";
+import { ArrowLeft, ClipboardEdit } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import BriefForm from "@/components/lesson/BriefForm";
 import TeachingMaterialView from "@/components/lesson/TeachingMaterialView";
 import ReadingMaterialView from "@/components/lesson/ReadingMaterialView";
 import CopilotPanel from "@/components/lesson/CopilotPanel";
+import CopilotSheetTrigger from "@/components/lesson/CopilotSheetTrigger";
 import GenerateButton from "@/components/lesson/GenerateButton";
 import { useEntitlements } from "@/hooks/useEntitlements";
 import { StatusBadge, briefLabel, briefTone, materialLabel, materialTone, lessonStatusLabel, lessonStatusTone } from "@/components/ui/StatusBadge";
@@ -519,51 +518,58 @@ export default function Lesson() {
             </Button>
           )}
 
-          {/* Copilot sidebar trigger */}
-          {(brief?.status === "READY_FOR_PRODUCTION" || brief?.status === "PRODUCED") && (
-            <Sheet>
-              <SheetTrigger asChild>
-                <Button variant="outline" size="icon" className="relative">
-                  <Bot className="h-4 w-4" />
-                  <span className="sr-only">Abrir copiloto</span>
-                  <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-primary animate-pulse" />
-                </Button>
-              </SheetTrigger>
-              <SheetContent side="right" className="w-[380px] sm:w-[420px] p-0 flex flex-col">
-                <SheetHeader className="px-5 pt-5 pb-3 border-b">
-                  <SheetTitle className="text-base">Copiloto IA</SheetTitle>
-                </SheetHeader>
-                <ScrollArea className="flex-1 px-5 py-4">
-                  <CopilotPanel
-                    bibliographyNodes={bibliographyNodes}
-                    referencedNodeIds={referencedNodeIds}
-                    mappedCurriculumNodes={mappedCurriculumNodes}
-                    authorizedSources={authorizedSourceNodes}
-                    depthLevel={brief.nivel_profundidad}
-                    planTheme={planLesson?.theme}
-                    learningOutcome={planLesson?.learning_outcome}
-                    canonOperation={canonSummary.operation}
-                    canonEvidence={canonSummary.evidence}
-                    briefFocus={brief?.enfoque_deseado}
-                    briefDynamic={brief?.tipo_dinamica_sugerida}
-                    briefObservations={brief?.observaciones_docente}
-                    briefStatus={brief?.status}
-                    teachingStatus={teachingMaterial?.status}
-                    readingStatus={readingMaterial?.status}
-                    onDepthChange={handleDepthChange}
-                    onRegenerateTeaching={handleRegenerateTeaching}
-                    onRegenerateReading={handleRegenerateReading}
-                    onFocusBrief={scrollToBrief}
-                    isGenerating={lesson.is_generating}
-                    isLocked={lesson.status === "LOCKED"}
-                    copilotoMode={entitlements.copiloto_mode}
-                    subject={courseContext?.subject}
-                    yearLevel={courseContext?.year_level}
-                  />
-                </ScrollArea>
-              </SheetContent>
-            </Sheet>
-          )}
+          {/* Copilot sidebar trigger — always visible */}
+          <CopilotSheetTrigger
+            copilotoMode={entitlements.copiloto_mode}
+            subject={courseContext?.subject}
+            yearLevel={courseContext?.year_level}
+            lessonContext={{
+              theme: planLesson?.theme,
+              learningOutcome: planLesson?.learning_outcome,
+              canonOperation: canonSummary.operation,
+              canonEvidence: canonSummary.evidence,
+              briefFocus: brief?.enfoque_deseado,
+              briefDynamic: brief?.tipo_dinamica_sugerida,
+              depthLevel: brief?.nivel_profundidad,
+              teachingStatus: teachingMaterial?.status,
+              readingStatus: readingMaterial?.status,
+              subject: courseContext?.subject,
+              yearLevel: courseContext?.year_level,
+              curriculumNodeNames: mappedCurriculumNodes.map((n) => n.name),
+              bibliographyNames: bibliographyNodes.map((n) => n.name),
+              authorizedSourceTitles: authorizedSourceNodes.map((s) => s.title),
+            }}
+            panelContent={
+              (brief?.status === "READY_FOR_PRODUCTION" || brief?.status === "PRODUCED") ? (
+                <CopilotPanel
+                  bibliographyNodes={bibliographyNodes}
+                  referencedNodeIds={referencedNodeIds}
+                  mappedCurriculumNodes={mappedCurriculumNodes}
+                  authorizedSources={authorizedSourceNodes}
+                  depthLevel={brief.nivel_profundidad}
+                  planTheme={planLesson?.theme}
+                  learningOutcome={planLesson?.learning_outcome}
+                  canonOperation={canonSummary.operation}
+                  canonEvidence={canonSummary.evidence}
+                  briefFocus={brief?.enfoque_deseado}
+                  briefDynamic={brief?.tipo_dinamica_sugerida}
+                  briefObservations={brief?.observaciones_docente}
+                  briefStatus={brief?.status}
+                  teachingStatus={teachingMaterial?.status}
+                  readingStatus={readingMaterial?.status}
+                  onDepthChange={handleDepthChange}
+                  onRegenerateTeaching={handleRegenerateTeaching}
+                  onRegenerateReading={handleRegenerateReading}
+                  onFocusBrief={scrollToBrief}
+                  isGenerating={lesson.is_generating}
+                  isLocked={lesson.status === "LOCKED"}
+                  copilotoMode={entitlements.copiloto_mode}
+                  subject={courseContext?.subject}
+                  yearLevel={courseContext?.year_level}
+                />
+              ) : undefined
+            }
+          />
         </div>
       </header>
 
