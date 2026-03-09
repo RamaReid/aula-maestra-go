@@ -852,6 +852,8 @@ export async function ingestCurriculumDocument(
   } else if (payload.official_url) {
     const downloaded = await downloadPdfBytesFromUrl(payload.official_url, {
       allowExternalUrl: payload.allow_external_url === true,
+      subjectHint: payload.subject,
+      yearLevelHint: payload.year_level,
     });
     bytes = downloaded.bytes;
     fileName = payload.file_name || downloaded.fileName;
