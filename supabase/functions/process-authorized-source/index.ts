@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getDocument } from "https://esm.sh/pdfjs-serverless@0.5.0";
+import { getDocument } from "https://esm.sh/pdfjs-serverless@0.3.2";
 import mammoth from "https://esm.sh/mammoth@1.8.0";
 import * as XLSX from "https://esm.sh/xlsx@0.18.5";
 
@@ -70,7 +70,7 @@ function lineFromItems(items: Array<{ str: string; x: number; width: number }>):
 }
 
 async function extractPdfText(bytes: Uint8Array): Promise<string> {
-  const pdf = await getDocument(bytes);
+  const pdf = await getDocument(bytes).promise;
   const pages: string[] = [];
 
   for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
