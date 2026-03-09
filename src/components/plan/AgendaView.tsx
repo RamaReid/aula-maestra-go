@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Eye, RefreshCw } from "lucide-react";
+import { Eye } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { StatusBadge, lessonStatusLabel, lessonStatusTone } from "@/components/ui/StatusBadge";
 import {
@@ -34,7 +34,7 @@ export default function AgendaView({ courseId, readOnly = false }: Props) {
   const [scheduleSlots, setScheduleSlots] = useState<CourseScheduleSlot[]>([]);
   const [academicYear, setAcademicYear] = useState<number>(new Date().getFullYear());
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
+  
 
   useEffect(() => {
     const fetch = async () => {
@@ -66,21 +66,41 @@ export default function AgendaView({ courseId, readOnly = false }: Props) {
 
         const plMap = new Map((pls || []).map((p) => [p.id, { theme: p.theme, term: p.term }]));
 
-        setLessons(
-          lessonsData.map((l) => {
-            const plData = plMap.get(l.plan_lesson_id) || { theme: "", term: 1 };
-            const preview = getSchedulePreviewForLesson(year, slots, l.lesson_number, plData.term);
-            return {
-              id: l.id,
-              lesson_number: l.lesson_number,
-              term: plData.term,
-              theme: plData.theme,
-              scheduled_date: l.scheduled_date,
-              computed_date: preview.scheduledDate,
-              status: l.status,
-            };
-          })
-        );
+        const mapped = lessonsData.map((l) => {
+          const plData = plMap.get(l.plan_lesson_id) || { theme: "", term: 1 };
+          const preview = getSchedulePreviewForLesson(year, slots, l.lesson_number, plData.term);
+          return {
+            id: l.id,
+            lesson_number: l.lesson_number,
+            term: plData.term,
+            theme: plData.theme,
+            scheduled_date: l.scheduled_date,
+            computed_date: preview.scheduledDate,
+            status: l.status,
+          };
+        });
+
+        // Auto-sync: update any lesson whose date doesn't match the computed one
+        if (slots.length > 0) {
+          const toSync = mapped.filter(
+            (l) => l.computed_date && l.scheduled_date !== l.computed_date
+          );
+          if (toSync.length > 0) {
+            const promises = toSync.map((l) =>
+              supabase
+                .from("lessons")
+                .update({ scheduled_date: l.computed_date })
+                .eq("id", l.id)
+            );
+            await Promise.all(promises);
+            // Reflect synced dates locally
+            for (const l of toSync) {
+              l.scheduled_date = l.computed_date;
+            }
+          }
+        }
+
+        setLessons(mapped);
       }
       setLoading(false);
     };
@@ -98,58 +118,6 @@ export default function AgendaView({ courseId, readOnly = false }: Props) {
     if (error) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     }
-  };
-
-  const handleSyncAll = async () => {
-    if (scheduleSlots.length === 0) {
-      toast({
-        title: "Sin horarios configurados",
-        description: "Configurá los días y horarios del curso antes de sincronizar.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setSyncing(true);
-    const updates = lessons
-      .filter((l) => l.computed_date && l.scheduled_date !== l.computed_date)
-      .map((l) => ({ id: l.id, scheduled_date: l.computed_date }));
-
-    if (updates.length === 0) {
-      toast({ title: "Todo sincronizado", description: "Las fechas ya están al día." });
-      setSyncing(false);
-      return;
-    }
-
-    let errorCount = 0;
-    for (const upd of updates) {
-      const { error } = await supabase
-        .from("lessons")
-        .update({ scheduled_date: upd.scheduled_date })
-        .eq("id", upd.id);
-      if (error) errorCount++;
-    }
-
-    if (errorCount > 0) {
-      toast({
-        title: "Sincronización parcial",
-        description: `${updates.length - errorCount} de ${updates.length} fechas actualizadas.`,
-        variant: "destructive",
-      });
-    } else {
-      toast({
-        title: "Agenda sincronizada",
-        description: `${updates.length} fechas actualizadas según la planificación.`,
-      });
-    }
-
-    setLessons((prev) =>
-      prev.map((l) => {
-        const upd = updates.find((u) => u.id === l.id);
-        return upd ? { ...l, scheduled_date: upd.scheduled_date } : l;
-      })
-    );
-    setSyncing(false);
   };
 
   if (loading) {
@@ -170,36 +138,19 @@ export default function AgendaView({ courseId, readOnly = false }: Props) {
 
   if (lessons.length === 0) return null;
 
-  const outOfSync = lessons.filter(
-    (l) => l.computed_date && l.scheduled_date !== l.computed_date
-  ).length;
 
   return (
     <Card>
       <CardContent className="pt-6 space-y-4">
         {/* Sync header */}
         {scheduleSlots.length > 0 && (
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/30 p-3">
-            <div className="space-y-0.5">
-              <p className="text-sm font-medium">
-                Cursada: {scheduleSlots.map((s) => formatScheduleSlot(s)).join(" · ")}
-              </p>
-              {outOfSync > 0 ? (
-                <p className="text-xs text-amber-600">
-                  {outOfSync} clase{outOfSync > 1 ? "s" : ""} con fecha distinta a la planificación.
-                </p>
-              ) : (
-                <p className="text-xs text-muted-foreground">
-                  Todas las fechas coinciden con la planificación.
-                </p>
-              )}
-            </div>
-            {!readOnly && outOfSync > 0 && (
-              <Button size="sm" variant="outline" onClick={handleSyncAll} disabled={syncing}>
-                <RefreshCw className={`h-3.5 w-3.5 mr-1 ${syncing ? "animate-spin" : ""}`} />
-                Sincronizar fechas
-              </Button>
-            )}
+          <div className="rounded-lg border bg-muted/30 p-3">
+            <p className="text-sm font-medium">
+              Cursada: {scheduleSlots.map((s) => formatScheduleSlot(s)).join(" · ")}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Las fechas se sincronizan automáticamente según el horario configurado.
+            </p>
           </div>
         )}
 
