@@ -523,59 +523,22 @@ export default function Lesson() {
               </Button>
             )}
 
-          {/* Copilot sidebar trigger — always visible */}
-          <CopilotSheetTrigger
-            copilotoMode={entitlements.copiloto_mode}
-            subject={courseContext?.subject}
-            yearLevel={courseContext?.year_level}
-            chatPlaceholder="¿Cómo mejorar las indicaciones o los materiales de esta clase?"
-            lessonContext={{
-              theme: planLesson?.theme,
-              learningOutcome: planLesson?.learning_outcome,
-              canonOperation: canonSummary.operation,
-              canonEvidence: canonSummary.evidence,
-              briefFocus: brief?.enfoque_deseado,
-              briefDynamic: brief?.tipo_dinamica_sugerida,
-              depthLevel: brief?.nivel_profundidad,
-              teachingStatus: teachingMaterial?.status,
-              readingStatus: readingMaterial?.status,
-              subject: courseContext?.subject,
-              yearLevel: courseContext?.year_level,
-              curriculumNodeNames: mappedCurriculumNodes.map((n) => n.name),
-              bibliographyNames: bibliographyNodes.map((n) => n.name),
-              authorizedSourceTitles: authorizedSourceNodes.map((s) => s.title),
-            }}
-            panelContent={
-              (brief?.status === "READY_FOR_PRODUCTION" || brief?.status === "PRODUCED") ? (
-                <CopilotPanel
-                  bibliographyNodes={bibliographyNodes}
-                  referencedNodeIds={referencedNodeIds}
-                  mappedCurriculumNodes={mappedCurriculumNodes}
-                  authorizedSources={authorizedSourceNodes}
-                  depthLevel={brief.nivel_profundidad}
-                  planTheme={planLesson?.theme}
-                  learningOutcome={planLesson?.learning_outcome}
-                  canonOperation={canonSummary.operation}
-                  canonEvidence={canonSummary.evidence}
-                  briefFocus={brief?.enfoque_deseado}
-                  briefDynamic={brief?.tipo_dinamica_sugerida}
-                  briefObservations={brief?.observaciones_docente}
-                  briefStatus={brief?.status}
-                  teachingStatus={teachingMaterial?.status}
-                  readingStatus={readingMaterial?.status}
-                  onDepthChange={handleDepthChange}
-                  onRegenerateTeaching={handleRegenerateTeaching}
-                  onRegenerateReading={handleRegenerateReading}
-                  onFocusBrief={scrollToBrief}
-                  isGenerating={lesson.is_generating}
-                  isLocked={lesson.status === "LOCKED"}
-                  copilotoMode={entitlements.copiloto_mode}
-                  subject={courseContext?.subject}
-                  yearLevel={courseContext?.year_level}
-                />
-              ) : undefined
-            }
-          />
+            {/* Copilot toggle button */}
+            <Button
+              variant={copilotOpen ? "default" : "outline"}
+              size="sm"
+              className="gap-2"
+              onClick={() => setCopilotOpen((prev) => !prev)}
+            >
+              <Bot className="h-4 w-4" />
+              <span>Copiloto</span>
+              {entitlements.copiloto_mode === "full" && (
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
+                </span>
+              )}
+            </Button>
           </div>
         </div>
       </header>
