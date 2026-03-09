@@ -500,7 +500,7 @@ export default function Billing() {
                 return (
                   <div
                     key={plan}
-                    className={`flex h-full min-h-[22rem] flex-col rounded-xl border p-4 ${
+                    className={`flex h-full flex-col rounded-xl border p-4 ${
                       isCurrent ? "border-primary bg-primary/5" : ""
                     }`}
                   >
