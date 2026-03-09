@@ -118,13 +118,27 @@ function isCurriculumNoiseText(normalized: string): boolean {
     normalized.startsWith("equipo de especialistas") ||
     normalized.startsWith("direccion general") ||
     normalized.startsWith("dgcye") ||
+    normalized.startsWith("fundamentacion") ||
+    normalized.startsWith("orientaciones didacticas") ||
+    normalized.startsWith("orientaciones para la ensenanza") ||
+    normalized.startsWith("orientaciones para la evaluacion") ||
+    normalized.startsWith("bibliografia") ||
+    normalized.startsWith("distribucion gratuita") ||
+    normalized.startsWith("creditos") ||
+    normalized.startsWith("prologo") ||
+    normalized.startsWith("resolucion") ||
+    normalized.startsWith("anexo") ||
+    normalized.startsWith("mapa curricular") ||
+    normalized.startsWith("carga horaria") ||
     compact.includes("directorageneral") ||
     compact.includes("presidentadelconsejo") ||
     compact.includes("subsecretariadeeducacion") ||
     compact.includes("directoraprovincialdegestioneducativa") ||
     compact.includes("gobernador") ||
     compact.includes("ministro") ||
-    compact.includes("autoridades")
+    compact.includes("autoridades") ||
+    compact.includes("leyendalegal") ||
+    compact.includes("derechosdeautor")
   );
 }
 
