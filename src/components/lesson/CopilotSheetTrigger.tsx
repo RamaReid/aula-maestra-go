@@ -32,6 +32,8 @@ interface CopilotSheetTriggerProps {
   lessonContext?: LessonContext;
   subject?: string | null;
   yearLevel?: number | null;
+  /** Placeholder for the chat input, contextual to the current page */
+  chatPlaceholder?: string;
 }
 
 export default function CopilotSheetTrigger({
