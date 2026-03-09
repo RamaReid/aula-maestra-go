@@ -261,6 +261,7 @@ export default function BriefForm({
   const [approvingCandidateUrl, setApprovingCandidateUrl] = useState<string | null>(null);
   const [invalidCurricularSelections, setInvalidCurricularSelections] = useState<string[]>([]);
   const [invalidAuthorizedSelections, setInvalidAuthorizedSelections] = useState<string[]>([]);
+  const [aiAutocompleting, setAiAutocompleting] = useState(false);
 
   const initialState = useMemo(
     () => ({
