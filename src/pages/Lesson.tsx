@@ -716,11 +716,13 @@ export default function Lesson() {
                     statusTone={materialTone(hasMaterials ? (readingMaterial?.status || teachingMaterial?.status) : null)}
                   />
 
-                  <GenerateButton
-                    onClick={handleGenerate}
-                    isGenerating={lesson.is_generating}
-                    disabled={!canGenerate}
-                  />
+                  <div data-tour="lesson-generate">
+                    <GenerateButton
+                      onClick={handleGenerate}
+                      isGenerating={lesson.is_generating}
+                      disabled={!canGenerate}
+                    />
+                  </div>
 
                   {normalizedTeachingMaterial && (
                     <div className="mt-6">

@@ -539,7 +539,7 @@ export default function Course() {
               </Card>
             ) : (
               <Tabs key={`${planType}-${plan?.status ?? "no-plan"}`} defaultValue={defaultTab}>
-                <TabsList className={`grid w-full ${tabGridCols}`}>
+                <TabsList className={`grid w-full ${tabGridCols}`} data-tour="course-tabs">
                   {!isFreePlan && <TabsTrigger value="planificacion">Planificacion</TabsTrigger>}
                   {planValidated && <TabsTrigger value="agenda">{isFreePlan ? "Secuencia" : "Agenda"}</TabsTrigger>}
                   {planValidated && <TabsTrigger value="lecciones">{isFreePlan ? "Clases" : "Lecciones"}</TabsTrigger>}

@@ -292,7 +292,7 @@ export default function Dashboard() {
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-xl font-semibold text-foreground">Mis cursos activos</h2>
             <div className="flex items-center gap-2">
-              <Button asChild variant="outline" size="sm">
+              <Button asChild variant="outline" size="sm" data-tour="dashboard-sync-abc">
                 <Link to="/curriculum/import">
                   <Upload className="mr-2 h-4 w-4" />
                   Sincronizar ABC
