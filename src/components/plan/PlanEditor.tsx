@@ -484,7 +484,30 @@ export default function PlanEditor({ planId, courseId, curriculumDocumentId, pla
           </TabsContent>
           <TabsContent value="contenidos" className="space-y-4">
             <PlanContentBlocksEditor planId={planId} readOnly={readOnly} onDirty={onContentBlocksDirty} />
-            <Card><CardContent className="space-y-3 pt-5"><div><p className="text-sm font-medium text-foreground">Anclaje curricular mapeado</p><p className="text-xs text-muted-foreground">Estos nodos sostienen la trazabilidad curricular del plan, pero no reemplazan la organización anual en bloques.</p></div><div className="space-y-2">{visibleMappedNodes.length > 0 ? visibleMappedNodes.map((node) => <p key={node.id} className="text-sm text-foreground">{node.name}</p>) : <p className="text-sm text-muted-foreground">No hay contenidos curriculares mapeados. Revisa el programa oficial y reconstruye el borrador anual.</p>}</div></CardContent></Card>
+            <Card>
+              <CardContent className="space-y-3 pt-5">
+                <div>
+                  <p className="text-sm font-medium text-foreground">Anclaje curricular mapeado</p>
+                  <p className="text-xs text-muted-foreground">
+                    Esta capa sostiene la trazabilidad curricular y la elaboración posterior del plan, pero no forma parte del contenido visible del documento.
+                  </p>
+                </div>
+                {visibleMappedNodes.length > 0 ? (
+                  <div className="rounded-xl border bg-muted/20 p-4">
+                    <p className="text-sm text-foreground">
+                      Se vincularon <span className="font-medium">{visibleMappedNodes.length}</span> nodos curriculares al plan anual.
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      El sistema los conserva como base de trazabilidad para bloques, clases y evaluación, sin volcarlos como texto crudo dentro de Contenidos.
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No hay contenidos curriculares mapeados. Revisa el programa oficial y reconstruye el borrador anual.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
           <TabsContent value="evaluacion" className="space-y-4">
             <Card><CardContent className="space-y-4 pt-5"><div className="flex items-center justify-between gap-3"><Label>Criterios de evaluación</Label><Button type="button" variant="ghost" size="sm" onClick={() => setExpandedField("evaluacion_marco")}><Pencil className="mr-2 h-4 w-4" />Editar</Button></div><Textarea value={plan.evaluacion_marco} onChange={(event) => updateField("evaluacion_marco", event.target.value)} rows={6} disabled={readOnly} placeholder="Explica los criterios generales de evaluación del curso." /></CardContent></Card>
