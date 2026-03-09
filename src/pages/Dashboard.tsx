@@ -332,6 +332,10 @@ export default function Dashboard() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => setCourseToEdit(course)}>
+                            <Pencil className="mr-2 h-4 w-4" />
+                            Editar curso
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => navigate(`/curriculum/import?course_id=${course.id}`)}>
                             <RefreshCw className="mr-2 h-4 w-4" />
                             Recargar diseño curricular
