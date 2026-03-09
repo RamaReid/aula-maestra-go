@@ -566,7 +566,7 @@ export default function Lesson() {
           )}
 
       <main className="mx-auto max-w-6xl px-4 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-8">
+        <div className="grid grid-cols-1 gap-8">
           <div className="space-y-8">
             {lesson.is_generating && (
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
