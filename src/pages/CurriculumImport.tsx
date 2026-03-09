@@ -326,6 +326,9 @@ export default function CurriculumImport() {
                 onChange={(e) => setOfficialUrl(e.target.value)}
                 placeholder="https://abc.gob.ar/.../programa.pdf"
               />
+              <p className="text-xs text-muted-foreground">
+                Puede ser la URL directa al PDF <em>o</em> la URL de la página índice de ABC (por ejemplo, la de Diseños Curriculares). El sistema detecta el PDF automáticamente.
+              </p>
             </div>
 
             <div className="rounded-lg border bg-muted/30 p-4 text-sm text-muted-foreground">
