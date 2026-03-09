@@ -1,41 +1,20 @@
 
-## Understanding the problem
+**Modificación de la pestaña "Contenidos" para ocultar la trazabilidad técnica**
 
-The user's point is clear and correct: the URL path doesn't work (server blocks automated fetches), and the manual PDF upload is currently gated behind paid plans (BASICO/PREMIUM). The user wants ALL users — including FREE plan — to be able to upload a PDF manually, since they can download the files themselves from Google or ABC directly.
+He analizado la estructura de la pestaña "Contenidos" dentro de `PlanEditor.tsx`. Actualmente, debajo del editor de bloques anuales (`PlanContentBlocksEditor`), se está renderizando una tarjeta visible y desplegada por defecto con el listado completo de los nodos crudos del anclaje curricular, lo que efectivamente ensucia la lectura.
 
-This is a policy change, not a technical problem. Two places need to change:
+### Cambios a realizar
 
-1. **Edge function** `import-curriculum-pdf/index.ts` — line 100-108 blocks `file_base64` for FREE plan users with a 403
-2. **Frontend** `CurriculumImport.tsx` — line 75 sets `canUploadManualPdf = planType === "BASICO" || planType === "PREMIUM"`, which hides the file upload field and the submit button for FREE users
+1.  **Relegar el Anclaje Curricular a una Capa Secundaria (`src/components/plan/PlanEditor.tsx`)**
+    Modificaremos el bloque de "Anclaje curricular mapeado" para que deje de ser una tarjeta visible a simple vista. En su lugar, lo envolveremos dentro de un componente `Accordion` colapsado por defecto, tratándolo como un metadato técnico/interno.
 
-## Plan
+    *   **Vista por defecto:** Se verá únicamente el título y el editor de los bloques anuales de contenido (con sus temas, descripciones y unidades), dejando la pantalla completamente limpia.
+    *   **Capa técnica (Expandible):** Al final de la vista se añadirá un pequeño texto/botón discreto (ej: *"Ver detalles técnicos de trazabilidad curricular"*). Solo si el docente o el sistema necesitan auditar de dónde viene el plan, podrán desplegarlo para ver la lista de nodos.
 
-### 1. Edge Function: remove the FREE plan block on manual upload
+2.  **Importar y aplicar los componentes visuales necesarios**
+    *   Importaremos `Accordion`, `AccordionItem`, `AccordionTrigger` y `AccordionContent` desde `@/components/ui/accordion`.
+    *   Añadiremos un estilo sutil y atenuado (colores `muted` y fuentes pequeñas) para la lista de nodos crudos, reafirmando que no es contenido de lectura principal.
 
-Remove lines 100–108 in `import-curriculum-pdf/index.ts`:
-```typescript
-// DELETE THIS BLOCK:
-if (wantsManualUpload && planType === "FREE") {
-  return new Response(
-    JSON.stringify({ error: "La carga manual de PDF requiere un plan BASICO o PREMIUM." }),
-    { status: 403, ... }
-  );
-}
-```
+3.  **Mantener la funcionalidad intacta**
+    *   La trazabilidad del sistema y los metadatos internos (`visibleMappedNodes`) seguirán presentes en el DOM y en el estado del componente, garantizando que el PDF exportable y la base de datos sigan funcionando correctamente sin verse afectados por esta limpieza de la interfaz.
 
-The validation that `file_base64` or `official_url` must be present stays. The plan check is simply removed.
-
-### 2. Frontend: show the file upload field to all users
-
-- Change line 75: `const canUploadManualPdf = true;` (all plans can upload)  
-- Remove the `{!canUploadManualPdf && (...)}` block that shows the "Plan FREE: Solo sincronización por URL" banner — it no longer applies
-- Keep the optional URL field for all users (for traceability)
-- Update `canSubmit` to accept a file from any user: `!!file || (officialUrl.trim().startsWith("https://abc.gob.ar/") && ...)`
-- Simplify the instructions text to just say "download PDF from ABC and upload it here"
-
-### Files to modify
-
-| File | Change |
-|------|--------|
-| `supabase/functions/import-curriculum-pdf/index.ts` | Remove FREE plan gate on `file_base64` (lines 100–108) |
-| `src/pages/CurriculumImport.tsx` | Open file upload to all plans, simplify UI |
