@@ -765,12 +765,23 @@ export default function BriefForm({
       {canUsePremiumQuery && isEditable && (
         <div className="section-shell space-y-3 border-primary/20 bg-primary/5">
           <div className="space-y-1">
-            <Label className="field-label">Copiloto premium para indicaciones</Label>
+            <Label className="field-label">Copiloto IA para indicaciones</Label>
             <p className="field-help">{premiumAutocompleteDraft.summary}</p>
           </div>
-          <Button type="button" variant="outline" onClick={handleApplyPremiumAutocomplete} disabled={saving || uploading}>
-            Autocompletar indicaciones con contexto de la clase
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="default"
+              onClick={handleAiAutocomplete}
+              disabled={saving || uploading || aiAutocompleting}
+            >
+              <Sparkles className="h-4 w-4 mr-1" />
+              {aiAutocompleting ? "Generando con IA..." : "Autocompletar con IA"}
+            </Button>
+            <Button type="button" variant="outline" onClick={handleApplyPremiumAutocomplete} disabled={saving || uploading || aiAutocompleting}>
+              Usar heurística
+            </Button>
+          </div>
         </div>
       )}
 
