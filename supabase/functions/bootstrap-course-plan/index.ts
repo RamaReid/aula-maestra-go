@@ -52,6 +52,7 @@ type BootstrapPayload = {
 
 type CurriculumNodeRow = {
   id: string;
+  parent_id: string | null;
   name: string;
   node_type: "EJE" | "UNIDAD" | "BLOQUE" | "CONTENIDO";
   order_index: number;
@@ -67,6 +68,13 @@ type CourseSummary = {
     official_name: string | null;
     school_type: string | null;
   } | null;
+};
+
+type CoursePlanningContext = {
+  subject: string;
+  orientation: string | null;
+  speciality: string | null;
+  school_type: string | null;
 };
 
 type PlanLessonSummary = {
@@ -115,6 +123,9 @@ function isCurriculumNoiseText(normalized: string): boolean {
     normalized.startsWith("cdd") ||
     normalized.startsWith("indice") ||
     normalized.startsWith("presentacion") ||
+    normalized.startsWith("objetivos de ensenanza") ||
+    normalized.startsWith("objetivos de aprendizaje") ||
+    normalized.startsWith("propositos") ||
     normalized.startsWith("equipo de especialistas") ||
     normalized.startsWith("direccion general") ||
     normalized.startsWith("dgcye") ||
@@ -122,6 +133,9 @@ function isCurriculumNoiseText(normalized: string): boolean {
     normalized.startsWith("orientaciones didacticas") ||
     normalized.startsWith("orientaciones para la ensenanza") ||
     normalized.startsWith("orientaciones para la evaluacion") ||
+    normalized.startsWith("criterios de evaluacion") ||
+    normalized.startsWith("evaluacion") ||
+    normalized.startsWith("fuentes bibliograficas") ||
     normalized.startsWith("bibliografia") ||
     normalized.startsWith("distribucion gratuita") ||
     normalized.startsWith("creditos") ||
@@ -211,7 +225,7 @@ function uniqueNodes(nodes: CurriculumNodeRow[]): CurriculumNodeRow[] {
 function selectPlanningNodes(nodes: CurriculumNodeRow[]): CurriculumNodeRow[] {
   const preferred = nodes.filter(
     (node) =>
-      ["CONTENIDO", "BLOQUE", "UNIDAD"].includes(node.node_type) &&
+      ["CONTENIDO", "BLOQUE", "UNIDAD", "EJE"].includes(node.node_type) &&
       !isCurriculumNoiseNode(node)
   );
   if (preferred.length > 0) return preferred;
@@ -226,6 +240,7 @@ function buildNodePools(nodes: CurriculumNodeRow[]): {
   nodesForPrompt: CurriculumNodeRow[];
   nodesForMappings: CurriculumNodeRow[];
   coreNodes: CurriculumNodeRow[];
+  structuralNodes: CurriculumNodeRow[];
   bibliographyNodes: CurriculumNodeRow[];
 } {
   const planningNodes = selectPlanningNodes(nodes);
@@ -246,13 +261,15 @@ function buildNodePools(nodes: CurriculumNodeRow[]): {
       : nonBibliographyDocumentNodes.length > 0
         ? nonBibliographyDocumentNodes
         : planningNodes;
+  const structuralNodes = uniqueNodes(resolveStructuredPlanningNodes(safeCoreNodes));
   const nodesForPrompt = uniqueNodes([...safeCoreNodes, ...bibliographyNodes]).slice(0, 60);
-  const nodesForMappings = uniqueNodes(safeCoreNodes).slice(0, 260);
+  const nodesForMappings = uniqueNodes(structuralNodes.length > 0 ? structuralNodes : safeCoreNodes).slice(0, 260);
 
   return {
     nodesForPrompt,
     nodesForMappings,
     coreNodes: safeCoreNodes,
+    structuralNodes,
     bibliographyNodes,
   };
 }
@@ -308,6 +325,183 @@ function createGenericContentBlocks(nodeNames: string[]): ContentBlockDraft[] {
     title: block.title,
     topics: block.topics.length > 0 ? block.topics : [`Tema central ${index + 1}`],
   }));
+}
+
+function cleanTopicLine(value: string): string {
+  return value
+    .replace(/^[•*-]\s+/u, "")
+    .replace(/^\d+[).]\s+/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function uniqueStrings(values: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const value of values) {
+    const key = normalizeKey(value);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    result.push(value);
+  }
+  return result;
+}
+
+function buildLessonRanges(
+  blocks: ContentBlockDraft[],
+  lessonCount: number
+): Array<ContentBlockDraft & { lesson_range: [number, number] }> {
+  if (blocks.length === 0) return [];
+
+  const baseSize = Math.floor(lessonCount / blocks.length);
+  let remainder = lessonCount % blocks.length;
+  let lessonCursor = 1;
+
+  return blocks.map((block) => {
+    const size = baseSize + (remainder > 0 ? 1 : 0);
+    if (remainder > 0) remainder -= 1;
+    const start = lessonCursor;
+    const end = lessonCursor + Math.max(size, 1) - 1;
+    lessonCursor = end + 1;
+    return { ...block, lesson_range: [start, end] };
+  });
+}
+
+function buildLessonsFromBlocks(subject: string, blocks: ContentBlockDraft[], lessonCount: number): LessonDraft[] {
+  const rangedBlocks = buildLessonRanges(blocks, lessonCount);
+  if (rangedBlocks.length === 0) return [];
+
+  return Array.from({ length: lessonCount }, (_, index) => {
+    const lessonNumber = index + 1;
+    const block =
+      rangedBlocks.find((candidate) => lessonNumber >= candidate.lesson_range[0] && lessonNumber <= candidate.lesson_range[1]) ||
+      rangedBlocks[rangedBlocks.length - 1];
+    const topicIndex = Math.max(0, lessonNumber - block.lesson_range[0]) % Math.max(block.topics.length, 1);
+    const theme = block.topics[topicIndex] || block.title;
+    const operation = `Trabajo guiado de problematización, lectura y argumentación sobre "${theme}".`;
+
+    return {
+      lesson_number: lessonNumber,
+      content_block_title: block.title,
+      theme,
+      subtitle: defaultLessonSubtitle(operation, theme),
+      justification: `La clase ${lessonNumber} desarrolla un recorte del bloque "${block.title}" para sostener una progresión anual clara y vinculada con el programa oficial de ${subject}.`,
+      learning_outcome: `Al finalizar la clase ${lessonNumber}, el estudiantado podrá explicar, relacionar y trabajar con mayor precisión el tema "${theme}".`,
+      activities_summary: buildActivitiesSummary(
+        operation,
+        `Producción breve verificable o puesta en común argumentada sobre "${theme}".`
+      ),
+    };
+  });
+}
+
+function isStructuralPlanningNode(node: CurriculumNodeRow): boolean {
+  return ["EJE", "UNIDAD", "BLOQUE"].includes(node.node_type) && !isCurriculumNoiseNode(node) && !isLikelyBibliographyNodeName(node.name);
+}
+
+function collectDescendantContent(
+  nodeId: string,
+  childrenByParent: Map<string, CurriculumNodeRow[]>
+): CurriculumNodeRow[] {
+  const directChildren = childrenByParent.get(nodeId) || [];
+  const collected: CurriculumNodeRow[] = [];
+
+  for (const child of directChildren) {
+    if (child.node_type === "CONTENIDO" && !isCurriculumNoiseNode(child) && !isLikelyBibliographyNodeName(child.name)) {
+      collected.push(child);
+      continue;
+    }
+
+    if (["EJE", "UNIDAD", "BLOQUE"].includes(child.node_type)) {
+      collected.push(...collectDescendantContent(child.id, childrenByParent));
+    }
+  }
+
+  return collected;
+}
+
+function buildCanonicalBlockTitle(nodeName: string, topics: string[]): string {
+  const cleanName = nodeName.trim();
+  if (/^(eje|unidad|bloque|m[oó]dulo)\s+\d+$/i.test(cleanName) && topics[0]) {
+    return `${cleanName}: ${topics[0].replace(/[.:;]+$/g, "").trim()}`;
+  }
+  return cleanName;
+}
+
+function buildCanonicalBlockDescription(nodeName: string, topics: string[]): string {
+  const meaningfulTopics = topics.slice(0, 3);
+  if (meaningfulTopics.length === 0) {
+    return `Este bloque organiza un tramo del recorrido anual a partir de ${nodeName.toLowerCase()}.`;
+  }
+
+  if (meaningfulTopics.length === 1) {
+    return `Este bloque organiza un tramo del recorrido anual centrado en ${meaningfulTopics[0].replace(/[.]+$/g, "").toLowerCase()}.`;
+  }
+
+  const joined = meaningfulTopics
+    .map((topic) => topic.replace(/[.]+$/g, "").trim())
+    .join("; ");
+  return `Este bloque organiza un tramo del recorrido anual a partir de estos nucleos: ${joined}.`;
+}
+
+function resolveStructuredPlanningNodes(
+  nodes: CurriculumNodeRow[],
+  childrenByParent?: Map<string, CurriculumNodeRow[]>
+): CurriculumNodeRow[] {
+  const resolvedChildrenByParent = childrenByParent || new Map<string, CurriculumNodeRow[]>();
+  if (!childrenByParent) {
+    for (const node of nodes) {
+      const parentKey = node.parent_id || "root";
+      if (!resolvedChildrenByParent.has(parentKey)) resolvedChildrenByParent.set(parentKey, []);
+      resolvedChildrenByParent.get(parentKey)!.push(node);
+    }
+  }
+
+  return nodes
+    .filter(isStructuralPlanningNode)
+    .sort((a, b) => a.order_index - b.order_index)
+    .filter((node) => {
+      const descendantContent = collectDescendantContent(node.id, resolvedChildrenByParent);
+      if (descendantContent.length === 0) return false;
+
+      const structuralChildren = (resolvedChildrenByParent.get(node.id) || []).filter(isStructuralPlanningNode);
+      const hasMoreSpecificChild = structuralChildren.some(
+        (child) => collectDescendantContent(child.id, resolvedChildrenByParent).length > 0
+      );
+
+      return !hasMoreSpecificChild;
+    });
+}
+
+function buildStructuredContentBlocksFromNodes(nodes: CurriculumNodeRow[]): ContentBlockDraft[] {
+  const childrenByParent = new Map<string, CurriculumNodeRow[]>();
+  for (const node of nodes) {
+    const parentKey = node.parent_id || "root";
+    if (!childrenByParent.has(parentKey)) childrenByParent.set(parentKey, []);
+    childrenByParent.get(parentKey)!.push(node);
+  }
+
+  const structuralCandidates = resolveStructuredPlanningNodes(nodes, childrenByParent);
+
+  if (structuralCandidates.length === 0) return [];
+
+  const midpoint = Math.ceil(structuralCandidates.length / 2);
+  return structuralCandidates.map((node, index) => {
+    const topics = uniqueStrings(
+      collectDescendantContent(node.id, childrenByParent)
+        .sort((a, b) => a.order_index - b.order_index)
+        .map((candidate) => cleanTopicLine(candidate.name))
+        .filter((candidate) => candidate.length >= 8 && candidate.length <= 220)
+    ).slice(0, 6);
+
+    const safeTopics = topics.length > 0 ? topics : [`Temas centrales de ${node.name}`];
+    return {
+      title: buildCanonicalBlockTitle(node.name, safeTopics),
+      description: buildCanonicalBlockDescription(node.name, safeTopics),
+      topics: safeTopics,
+      term: index < midpoint ? 1 : 2,
+    } satisfies ContentBlockDraft;
+  });
 }
 
 function buildFallbackRubrics(blocks: ContentBlockDraft[]): RubricRowDraft[] {
@@ -654,6 +848,26 @@ function fallbackObjectives(subject: string): string[] {
   ];
 }
 
+function buildFallbackResources(context: CoursePlanningContext): string {
+  const orientationClause =
+    context.orientation || context.speciality
+      ? `La selección de recursos se alinea con la orientación ${context.orientation || "del curso"}${
+          context.speciality ? ` y la especialidad ${context.speciality}` : ""
+        }, para que la materia dialogue con problemas, casos y vocabulario propios de ese trayecto.`
+      : "La selección de recursos se organiza para que la materia dialogue con el perfil formativo del curso y no quede aislada de sus prácticas reales.";
+
+  const schoolTypeClause = context.school_type
+    ? `En ${context.school_type.toLowerCase()}, el programa oficial se usa como marco de secuenciación y selección de contenidos.`
+    : "El programa oficial se usa como marco de secuenciación y selección de contenidos.";
+
+  return (
+    `${schoolTypeClause} Se trabajará con bibliografía curricular, fragmentos de lectura, apuntes del docente y fuentes complementarias breves para introducir conceptos, comparar posiciones y sostener producciones argumentadas. ` +
+    `${orientationClause} ` +
+    `Como soportes se prevén carpeta o cuaderno, pizarrón, guías impresas, registros de trabajo, recursos audiovisuales y herramientas digitales disponibles, siempre con alternativa low-tech equivalente. ` +
+    `Estos recursos se aprovecharán mediante lectura guiada, análisis de casos, producción breve, puesta en común, revisión y trabajo con consignas, de modo que la sección funcione como marco metodológico-instrumental y no como inventario aislado.`
+  );
+}
+
 function buildFyHctFallbackBootstrap(lessonCount: number): BootstrapPayload {
   const contentBlocks = buildFyHctContentBlocks();
   const lessons = Array.from({ length: lessonCount }, (_, index) => {
@@ -692,7 +906,7 @@ function buildFyHctFallbackBootstrap(lessonCount: number): BootstrapPayload {
     evaluacion_marco:
       "La evaluacion sera continua, global y formativa. Se observaran comprension conceptual, evidencias y registros, argumentacion y comunicacion, relacion teoria-practica y calidad del trabajo sostenido. Habra autoevaluacion, coevaluacion, devoluciones breves y una recuperacion equivalente por cuatrimestre.",
     resources:
-      "Pizarron, carpeta o cuaderno, impresos con glosario y lecturas breves, planillas de registro, fotografias o descripciones de casos del taller, proyector o TV segun disponibilidad y alternativa low-tech para cada actividad.",
+      "Se trabajará con el programa oficial como marco de secuenciación y con bibliografía curricular, fragmentos filosóficos, textos sobre ciencia y tecnología, apuntes del docente y casos situados del entorno agro para introducir conceptos, comparar posiciones y sostener decisiones argumentadas. Estos recursos dialogan con la orientación técnica del curso y se aprovechan mediante lectura guiada, análisis de casos, matrices de impacto, registros de evidencias, producción breve y revisión entre pares. Como soportes se prevén carpeta, pizarrón, impresos, planillas de trabajo, material audiovisual y herramientas digitales disponibles, con alternativa low-tech equivalente.",
     objectives: fallbackObjectives("Filosofia e Historia de la Ciencia y la Tecnologia"),
     content_blocks: contentBlocks.map(({ lesson_range: _lessonRange, ...block }) => block),
     rubrics: buildFallbackRubrics(contentBlocks),
@@ -700,13 +914,22 @@ function buildFyHctFallbackBootstrap(lessonCount: number): BootstrapPayload {
   };
 }
 
-function fallbackBootstrap(subject: string, nodeNames: string[], lessonCount: number): BootstrapPayload {
+function fallbackBootstrap(context: CoursePlanningContext, nodes: CurriculumNodeRow[], lessonCount: number): BootstrapPayload {
+  const { subject } = context;
   if (isFyHctSubject(subject) && lessonCount === 28) {
     return buildFyHctFallbackBootstrap(lessonCount);
   }
 
-  const baseTopics = nodeNames.length > 0 ? nodeNames : [subject];
-  const contentBlocks = createGenericContentBlocks(baseTopics);
+  const structuredBlocks = buildStructuredContentBlocksFromNodes(nodes);
+  const baseTopicsFromNodes = nodes
+    .filter((node) => node.node_type === "CONTENIDO" && !isCurriculumNoiseNode(node) && !isLikelyBibliographyNodeName(node.name))
+    .sort((a, b) => a.order_index - b.order_index)
+    .map((node) => node.name);
+  const baseTopics = baseTopicsFromNodes.length > 0 ? baseTopicsFromNodes : [subject];
+  const contentBlocks =
+    structuredBlocks.length > 0
+      ? structuredBlocks
+      : createGenericContentBlocks(baseTopics);
 
   return {
     fundamentacion:
@@ -741,38 +964,11 @@ function fallbackBootstrap(subject: string, nodeNames: string[], lessonCount: nu
     ],
     evaluacion_marco:
       "La evaluacion sera continua, formativa y basada en criterios explicitos. Se observaran comprension conceptual, calidad de las producciones, uso de evidencias, comunicacion y transferencia. Se preve una instancia de recuperacion equivalente por cuatrimestre.",
-    resources:
-      "Pizarron, cuaderno o carpeta, materiales impresos, textos del curso, proyector o TV segun disponibilidad y alternativa low-tech para cada actividad.",
+    resources: buildFallbackResources(context),
     objectives: fallbackObjectives(subject),
     content_blocks: contentBlocks,
     rubrics: buildFallbackRubrics(contentBlocks),
-    lessons: Array.from({ length: lessonCount }, (_, index) => {
-      const topic = baseTopics[index % baseTopics.length];
-      const contentBlockTitle = blockTitleForLesson(
-        index + 1,
-        contentBlocks.map((block, blockIndex) => ({
-          ...block,
-          lesson_range:
-            blockIndex === 0
-              ? [1, 7]
-              : blockIndex === 1
-                ? [8, 14]
-                : blockIndex === 2
-                  ? [15, 21]
-                  : [22, 28],
-        }))
-      );
-      const operation = `Apertura con recuperacion breve y desarrollo guiado sobre "${topic}".`;
-      return {
-        lesson_number: index + 1,
-        content_block_title: contentBlockTitle,
-        theme: `${topic}`,
-        subtitle: defaultLessonSubtitle(operation, topic),
-        justification: `La clase ${index + 1} desarrolla un recorte del diseno curricular para sostener una progresion anual clara y contextualizada.`,
-        learning_outcome: `Al finalizar la clase ${index + 1}, el estudiantado podra explicar y trabajar de manera situada el eje "${topic}".`,
-        activities_summary: buildActivitiesSummary(operation, `Produccion breve verificable vinculada al eje "${topic}" y puesta en comun final.`),
-      };
-    }),
+    lessons: buildLessonsFromBlocks(subject, contentBlocks, lessonCount),
   };
 }
 
@@ -798,14 +994,17 @@ function normalizeActivitiesSummary(summary: string | null | undefined, fallback
 
 function normalizeBootstrapPayload(
   payload: Partial<BootstrapPayload> | null | undefined,
-  subject: string,
-  nodeNames: string[],
+  context: CoursePlanningContext,
+  nodes: CurriculumNodeRow[],
   lessonCount: number
 ): BootstrapPayload {
-  const fallback = fallbackBootstrap(subject, nodeNames, lessonCount);
+  const fallback = fallbackBootstrap(context, nodes, lessonCount);
   const lessons = Array.isArray(payload?.lessons) ? payload!.lessons : fallback.lessons;
+  const canonicalBlocks = buildStructuredContentBlocksFromNodes(nodes);
   const contentBlocks =
-    Array.isArray(payload?.content_blocks) && payload.content_blocks.length > 0
+    canonicalBlocks.length > 0
+      ? canonicalBlocks
+      : Array.isArray(payload?.content_blocks) && payload.content_blocks.length > 0
       ? payload.content_blocks
           .filter((block): block is ContentBlockDraft => typeof block?.title === "string" && block.title.trim().length > 0)
           .slice(0, 8)
@@ -868,7 +1067,7 @@ function normalizeBootstrapPayload(
         ? payload.evaluacion_marco.trim()
         : fallback.evaluacion_marco,
     resources:
-      typeof payload?.resources === "string" && payload.resources.trim().length > 0
+      typeof payload?.resources === "string" && payload.resources.trim().length >= 120
         ? payload.resources.trim()
         : fallback.resources,
     objectives:
@@ -912,7 +1111,7 @@ async function ensureCurriculumNodes(
 ): Promise<{ nodes: CurriculumNodeRow[]; synthetic: boolean }> {
   const { data: existingNodes, error: existingNodesError } = await adminClient
     .from("curriculum_nodes")
-    .select("id, name, node_type, order_index")
+    .select("id, parent_id, name, node_type, order_index")
     .eq("curriculum_document_id", curriculumDocumentId)
     .order("order_index");
 
@@ -929,7 +1128,7 @@ async function ensureCurriculumNodes(
       name: `Eje general de ${subject}`,
       order_index: 0,
     })
-    .select("id, name, node_type, order_index")
+    .select("id, parent_id, name, node_type, order_index")
     .single();
 
   if (syntheticAxisError || !syntheticAxis) {
@@ -945,7 +1144,7 @@ async function ensureCurriculumNodes(
       name: officialTitle || `Contenido base de ${subject}`,
       order_index: 1,
     })
-    .select("id, name, node_type, order_index")
+    .select("id, parent_id, name, node_type, order_index")
     .single();
 
   if (syntheticContentError || !syntheticContent) {
@@ -1076,8 +1275,13 @@ serve(async (req) => {
     const targetPlanStatus = (lessonCount || 0) > 0 ? "EDITED" : "INCOMPLETE";
 
     const nodeNames = nodePools.nodesForPrompt.map((node) => `[${node.node_type}] ${node.name}`);
+    const structuredBlocks = buildStructuredContentBlocksFromNodes(nodePools.coreNodes);
     const bibliographyNodeNames = nodePools.bibliographyNodes.map((node) => node.name);
     const truncatedRawText = (curriculumDocument.raw_text || "").slice(0, 8000);
+    const contentBlockRule =
+      structuredBlocks.length > 0
+        ? `- content_blocks: exactamente ${structuredBlocks.length} bloques, respetando la estructura real detectada del documento curricular (modulos, unidades, ejes o bloques).`
+        : "- content_blocks: entre 4 y 6 bloques o unidades; cada uno con descripcion breve y 3 a 6 temas en \"topics\".";
     const subjectCanonNote = isFyHctSubject(courseRecord.subject)
       ? [
           "Canon disciplinar obligatorio para FyHyCyT:",
@@ -1145,7 +1349,7 @@ Debes devolver JSON VALIDO con esta estructura exacta:
 Reglas:
 - fundamentacion: minimo 450 palabras, en prosa y sin metacomentarios.
 - objectives: entre 6 y 8 objetivos observables.
-- content_blocks: entre 4 y 6 bloques o unidades; cada uno con descripcion breve y 3 a 6 temas en "topics".
+${contentBlockRule}
 - rubrics: al menos 1 fila por bloque; deben articular evaluacion con el bloque correspondiente.
 - lessons: exactamente ${planLessons.length} elementos, uno por clase.
 - Cada clase debe tener bloque de contenido, tema/foco, subtitulo operativo, justificacion, resultado de aprendizaje y resumen canonico.
@@ -1172,7 +1376,8 @@ Reglas:
 - estrategias_marco debe ser un parrafo que explique el enfoque metodologico general.
 - estrategias_practicas debe listar entre 3 y 6 estrategias concretas y diferenciadas.
 - evaluacion_marco debe explicar criterios generales de evaluacion separados de las filas de rubrica.
-- resources debe incluir soportes, herramientas, uso pedagogico y alternativas low-tech.
+- resources debe ser breve pero suficiente, y explicitar: con que recursos se ensena, que bibliografia se usara y para que, como se usa el programa oficial, como dialoga con la orientacion/especialidad del curso, y que herramientas, soportes y formas de trabajo sostienen esa sinergia, incluyendo alternativa low-tech.
+- No devuelvas una lista suelta de materiales: redacta resources como una seccion metodologico-instrumental coherente.
 
 ${subjectCanonNote}
 
@@ -1210,8 +1415,13 @@ ${bibliographyNodeNames.length > 0 ? bibliographyNodeNames.join("\n") : "No se d
 
     const normalized = normalizeBootstrapPayload(
       aiPayload,
-      courseRecord.subject,
-      nodePools.nodesForPrompt.map((node) => node.name),
+      {
+        subject: courseRecord.subject,
+        orientation: courseRecord.orientation,
+        speciality: courseRecord.speciality,
+        school_type: courseRecord.schools?.school_type || null,
+      },
+      nodePools.coreNodes,
       planLessons.length
     );
     console.log("[bootstrap] Normalized payload", { blocks: normalized.content_blocks.length, objectives: normalized.objectives.length, rubrics: normalized.rubrics.length, lessons: normalized.lessons.length });
