@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
-import { formatErrorMessage } from "@/lib/errors";
+import { formatFunctionErrorMessage } from "@/lib/errors";
 
 type SchoolType = "COMUN" | "TECNICA";
 type CurriculumCycle = "BASIC" | "UPPER";
@@ -70,9 +70,9 @@ export default function CurriculumImport() {
   const [existingDocs, setExistingDocs] = useState<CurriculumDocument[]>([]);
   const [loadingDocs, setLoadingDocs] = useState(true);
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
+
   const officialIndexUrl =
     "https://abc.gob.ar/secretarias/areas/subsecretaria-de-educacion/educacion-secundaria/educacion-secundaria/disenos-curriculares";
-  const canUploadManualPdf = planType === "BASICO" || planType === "PREMIUM";
 
   const selectedDoc = useMemo(
     () => existingDocs.find((doc) => doc.id === selectedDocId) || null,
@@ -91,7 +91,7 @@ export default function CurriculumImport() {
 
     if (selectedDoc.orientation) params.set("orientation", selectedDoc.orientation);
     if (selectedDoc.speciality) params.set("speciality", selectedDoc.speciality);
-    if (schoolTypeParam(selectedDoc.school_type)) params.set("school_type", selectedDoc.school_type!);
+    if (schoolTypeParam(selectedDoc.school_type)) params.set("school_type", selectedDoc.school_type);
 
     return `/course/new?${params.toString()}`;
   }, [selectedDoc]);
@@ -101,7 +101,7 @@ export default function CurriculumImport() {
     setSubject(doc.subject);
     setCycle(doc.cycle);
     setYearLevel(String(doc.year_level));
-    setSchoolType(doc.school_type ? doc.school_type : "ANY");
+    setSchoolType(doc.school_type || "ANY");
     setOrientation(doc.orientation || "");
     setSpeciality(doc.speciality || "");
     setOfficialTitle(doc.official_title || "");
@@ -128,36 +128,31 @@ export default function CurriculumImport() {
   const canSubmit = useMemo(() => {
     const trimmedUrl = officialUrl.trim();
     return (
-      (trimmedUrl.length > 0 && trimmedUrl.startsWith("https://abc.gob.ar/") || (!!file && canUploadManualPdf)) &&
+      ((trimmedUrl.length > 0 && trimmedUrl.startsWith("https://abc.gob.ar/")) || !!file) &&
       subject.trim().length > 0 &&
       yearLevel.trim().length > 0
     );
-  }, [canUploadManualPdf, file, officialUrl, subject, yearLevel]);
+  }, [file, officialUrl, subject, yearLevel]);
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const nextFile = event.target.files?.[0] || null;
     setFile(nextFile);
-    if (nextFile) {
-      const baseName = nextFile.name.replace(/\.pdf$/i, "");
-      
-      // Try to extract year from filename (e.g., "Matemática 5to" or "Historia 5")
-      const yearMatch = baseName.match(/(\d+)(?:to|°|º)?$/i);
-      const extractedYear = yearMatch ? yearMatch[1] : null;
-      
-      // Extract subject (remove year suffix if present)
-      const extractedSubject = baseName
-        .replace(/\s*\d+(?:to|°|º)?$/i, "")
-        .trim();
-      
-      if (!officialTitle.trim()) {
-        setOfficialTitle(baseName);
-      }
-      if (extractedSubject && !subject.trim()) {
-        setSubject(extractedSubject);
-      }
-      if (extractedYear && yearLevel === "6") {
-        setYearLevel(extractedYear);
-      }
+
+    if (!nextFile) return;
+
+    const baseName = nextFile.name.replace(/\.pdf$/i, "");
+    const yearMatch = baseName.match(/(\d+)(?:to|°|º)?$/i);
+    const extractedYear = yearMatch ? yearMatch[1] : null;
+    const extractedSubject = baseName.replace(/\s*\d+(?:to|°|º)?$/i, "").trim();
+
+    if (!officialTitle.trim()) {
+      setOfficialTitle(baseName);
+    }
+    if (extractedSubject && !subject.trim()) {
+      setSubject(extractedSubject);
+    }
+    if (extractedYear && yearLevel === "6") {
+      setYearLevel(extractedYear);
     }
   };
 
@@ -227,7 +222,7 @@ export default function CurriculumImport() {
     } catch (error) {
       toast({
         title: "No se pudo importar el programa",
-        description: formatErrorMessage(error),
+        description: await formatFunctionErrorMessage(error),
         variant: "destructive",
       });
     } finally {
@@ -241,7 +236,7 @@ export default function CurriculumImport() {
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4">
           <div>
             <p className="text-sm text-muted-foreground">Carga administrativa</p>
-            <h1 className="text-lg font-semibold text-foreground">Sincronizar programa oficial desde ABC</h1>
+            <h1 className="text-lg font-semibold text-foreground">Importar programa oficial desde ABC</h1>
           </div>
           <Button asChild variant="ghost" size="sm">
             <Link to="/dashboard">
@@ -257,67 +252,45 @@ export default function CurriculumImport() {
           <CardHeader>
             <CardTitle>Importar programa oficial desde ABC</CardTitle>
             <CardDescription>
-              Sube el PDF del diseño curricular descargado de abc.gob.ar para extraer contenidos y ejes.
+              Sube el PDF del diseno curricular descargado de abc.gob.ar o usa una URL oficial para extraer contenidos y ejes.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
-            {/* Workflow explanation */}
             <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
-              <h4 className="font-medium text-foreground mb-2">¿Cómo importar un programa?</h4>
-              <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
+              <h4 className="mb-2 font-medium text-foreground">Como importar un programa</h4>
+              <ol className="list-inside list-decimal space-y-1 text-sm text-muted-foreground">
                 <li>
                   Abrir el{" "}
                   <a href={officialIndexUrl} target="_blank" rel="noreferrer" className="text-primary underline">
-                    índice de diseños curriculares de ABC
+                    indice de disenos curriculares de ABC
                   </a>
                 </li>
                 <li>Buscar y descargar el PDF del programa deseado</li>
-                <li>Subir el PDF aquí y completar los datos</li>
+                <li>Subir el PDF aqui o pegar la URL oficial</li>
               </ol>
             </div>
 
-            {canUploadManualPdf ? (
-              <div className="space-y-2">
-                <Label htmlFor="pdf-file">Subir PDF del diseño curricular</Label>
-                <Input id="pdf-file" type="file" accept="application/pdf" onChange={handleFileChange} />
-                {file && (
-                  <p className="text-sm text-primary">
-                    <CheckCircle2 className="inline h-4 w-4 mr-1" />
-                    Archivo seleccionado: {file.name}
-                  </p>
-                )}
-              </div>
-            ) : (
-              <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-                <p className="font-medium">Plan FREE: Solo sincronización por URL</p>
-                <p className="mt-1">
-                  Tu plan actual permite usar URLs oficiales de abc.gob.ar. Para subir PDFs manualmente, actualiza a plan BASICO o PREMIUM.
+            <div className="space-y-2">
+              <Label htmlFor="pdf-file">Subir PDF del diseno curricular</Label>
+              <Input id="pdf-file" type="file" accept="application/pdf" onChange={handleFileChange} />
+              <p className="text-sm text-muted-foreground">
+                Disponible para todos los planes. Si cargas un PDF, la URL oficial sigue siendo opcional.
+              </p>
+              {file ? (
+                <p className="text-sm text-primary">
+                  <CheckCircle2 className="mr-1 inline h-4 w-4" />
+                  Archivo seleccionado: {file.name}
                 </p>
-              </div>
-            )}
-
-            {!canUploadManualPdf && (
-              <div className="space-y-2">
-                <Label htmlFor="official-url">URL oficial del programa en ABC</Label>
-                <Input
-                  id="official-url"
-                  value={officialUrl}
-                  onChange={(e) => setOfficialUrl(e.target.value)}
-                  placeholder="https://abc.gob.ar/.../programa.pdf"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Pega la URL directa al PDF desde abc.gob.ar. Nota: Algunos servidores de ABC pueden tener problemas de conexión.
-                </p>
-              </div>
-            )}
+              ) : null}
+            </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="subject">Materia *</Label>
-                <Input id="subject" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Ej. Filosofía" />
+                <Input id="subject" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Ej. Filosofia" />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="year-level">Año *</Label>
+                <Label htmlFor="year-level">Ano *</Label>
                 <Input id="year-level" type="number" min={1} max={6} value={yearLevel} onChange={(e) => setYearLevel(e.target.value)} />
               </div>
             </div>
@@ -330,8 +303,8 @@ export default function CurriculumImport() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="BASIC">Básico (1°-3°)</SelectItem>
-                    <SelectItem value="UPPER">Superior (4°-6°)</SelectItem>
+                    <SelectItem value="BASIC">Basico (1-3)</SelectItem>
+                    <SelectItem value="UPPER">Superior (4-6)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -342,9 +315,9 @@ export default function CurriculumImport() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ANY">Genérico / todos los tipos</SelectItem>
-                    <SelectItem value="COMUN">Común</SelectItem>
-                    <SelectItem value="TECNICA">Técnica</SelectItem>
+                    <SelectItem value="ANY">Generico / todos los tipos</SelectItem>
+                    <SelectItem value="COMUN">Comun</SelectItem>
+                    <SelectItem value="TECNICA">Tecnica</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -352,8 +325,8 @@ export default function CurriculumImport() {
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="orientation">Orientación</Label>
-                <Input id="orientation" value={orientation} onChange={(e) => setOrientation(e.target.value)} placeholder="Ej. Ciencias Sociales" />
+                <Label htmlFor="orientation">Orientacion</Label>
+                <Input id="orientation" value={orientation} onChange={(e) => setOrientation(e.target.value)} placeholder="Opcional" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="speciality">Especialidad</Label>
@@ -362,62 +335,71 @@ export default function CurriculumImport() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="official-title">Título oficial del documento</Label>
+              <Label htmlFor="official-title">Titulo oficial</Label>
               <Textarea
                 id="official-title"
                 value={officialTitle}
                 onChange={(e) => setOfficialTitle(e.target.value)}
-                placeholder="Copiar el título tal como figura en el PDF"
-                rows={2}
+                placeholder="Conviene cargar el titulo tal como figura en el documento"
+                rows={3}
               />
             </div>
 
-            {canUploadManualPdf && (
-              <div className="space-y-2">
-                <Label htmlFor="official-url">URL oficial (opcional)</Label>
-                <Input
-                  id="official-url"
-                  value={officialUrl}
-                  onChange={(e) => setOfficialUrl(e.target.value)}
-                  placeholder="https://abc.gob.ar/.../programa.pdf"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Si conoces la URL original del documento en ABC, inclúyela para trazabilidad.
-                </p>
-              </div>
-            )}
+            <div className="space-y-2">
+              <Label htmlFor="official-url">URL oficial del programa en ABC</Label>
+              <Input
+                id="official-url"
+                value={officialUrl}
+                onChange={(e) => setOfficialUrl(e.target.value)}
+                placeholder="https://abc.gob.ar/.../programa.pdf"
+              />
+              <p className="text-sm text-muted-foreground">
+                Puede pegar la URL directa del PDF o una pagina indice de ABC. Si recibe una pagina de listado,
+                el sistema intentara derivarla a un PDF oficial directo, por ejemplo{" "}
+                <span className="font-mono text-xs">
+                  https://abc.gob.ar/secretarias/sites/default/files/.../programa.pdf
+                </span>
+                .
+              </p>
+            </div>
+
+            <div className="rounded-lg border bg-muted/30 p-4 text-sm text-muted-foreground">
+              <p>{profile?.email || "usuario autenticado"}</p>
+              <p>Plan activo: {planType}.</p>
+              <p>Provincia fija de esta etapa: PBA.</p>
+              <p>Si el mismo programa aplica a comun y tecnica, usar "Generico / mas de un tipo".</p>
+              <p>Si usas URL, debe pertenecer a `abc.gob.ar`. Puede ser una URL de indice o del PDF directo publicado por ABC.</p>
+              <p>Si el programa ya aparece en "Base curricular reciente", puede usarlo directo para crear un curso.</p>
+            </div>
 
             <div className="flex flex-wrap gap-3">
-              <Button asChild variant="outline">
+              <Button asChild variant="outline" className="w-full sm:w-auto">
                 <a href={officialIndexUrl} target="_blank" rel="noreferrer">
                   <ExternalLink className="mr-2 h-4 w-4" />
-                  Abrir índice ABC
+                  Abrir indice oficial de ABC
                 </a>
               </Button>
 
-              <Button onClick={handleImport} disabled={!canSubmit || importing}>
+              <Button onClick={handleImport} disabled={!canSubmit || importing} className="w-full sm:w-auto">
                 {importing ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Procesando PDF...
+                    Importando
                   </>
                 ) : (
                   <>
-                    <FileUp className="mr-2 h-4 w-4" />
-                    Importar programa
+                    {file ? <FileUp className="mr-2 h-4 w-4" /> : <ExternalLink className="mr-2 h-4 w-4" />}
+                    {file ? "Importar PDF manual" : "Sincronizar programa"}
                   </>
                 )}
               </Button>
-            </div>
 
-            {useSelectedDocUrl && (
-              <Button asChild variant="secondary" className="w-full">
-                <Link to={useSelectedDocUrl}>
-                  <CheckCircle2 className="mr-2 h-4 w-4" />
-                  Usar programa seleccionado para crear curso
-                </Link>
-              </Button>
-            )}
+              {useSelectedDocUrl ? (
+                <Button asChild variant="outline" className="w-full sm:w-auto">
+                  <Link to={useSelectedDocUrl}>Usar programa seleccionado</Link>
+                </Button>
+              ) : null}
+            </div>
           </CardContent>
         </Card>
 
@@ -444,7 +426,9 @@ export default function CurriculumImport() {
                     {doc.subject} · {doc.year_level}° · {doc.cycle === "UPPER" ? "Ciclo Superior" : "Ciclo Basico"}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {doc.school_type || "Generico"}{doc.orientation ? ` · ${doc.orientation}` : ""}{doc.speciality ? ` · ${doc.speciality}` : ""}
+                    {doc.school_type || "Generico"}
+                    {doc.orientation ? ` · ${doc.orientation}` : ""}
+                    {doc.speciality ? ` · ${doc.speciality}` : ""}
                   </p>
                   <p className="text-xs text-muted-foreground">Fuente: {doc.source_provider}</p>
                   <div className="mt-3 flex flex-wrap gap-2">
@@ -463,11 +447,11 @@ export default function CurriculumImport() {
                         "Seleccionar programa"
                       )}
                     </Button>
-                    {selectedDocId === doc.id && useSelectedDocUrl && (
+                    {selectedDocId === doc.id && useSelectedDocUrl ? (
                       <Button asChild type="button" size="sm" variant="ghost">
                         <Link to={useSelectedDocUrl}>Trabajar con este programa</Link>
                       </Button>
-                    )}
+                    ) : null}
                   </div>
                 </div>
               ))

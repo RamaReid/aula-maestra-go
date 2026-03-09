@@ -59,21 +59,6 @@ serve(async (req) => {
     });
   }
 
-  const { data: activeSubscription, error: subscriptionError } = await userClient
-    .from("subscriptions")
-    .select("plan_type, status")
-    .eq("user_id", userData.user.id)
-    .eq("status", "ACTIVE")
-    .maybeSingle();
-  if (subscriptionError) {
-    return new Response(JSON.stringify({ error: subscriptionError.message }), {
-      status: 400,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-
-  const planType = activeSubscription?.plan_type || "FREE";
-
   let body: RequestBody;
   try {
     body = await req.json();
@@ -96,7 +81,6 @@ serve(async (req) => {
       }
     );
   }
-
 
   try {
     const result = await ingestCurriculumDocument(adminClient, {
