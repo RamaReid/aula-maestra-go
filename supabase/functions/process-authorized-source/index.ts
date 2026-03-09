@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getDocument } from "https://esm.sh/pdfjs-dist@4.10.38/legacy/build/pdf.mjs";
+import { getDocument } from "https://esm.sh/pdfjs-serverless@0.5.0";
 import mammoth from "https://esm.sh/mammoth@1.8.0";
 import * as XLSX from "https://esm.sh/xlsx@0.18.5";
 
