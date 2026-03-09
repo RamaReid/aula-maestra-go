@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Plus, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { formatErrorMessage } from "@/lib/errors";
@@ -20,10 +21,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
 
 interface SchoolOption {
   id: string;
   official_name: string;
+}
+
+interface ScheduleSlot {
+  id?: string;
+  day_of_week: string;
+  start_time: string;
+  end_time: string;
+  module_count: string;
 }
 
 interface CourseData {
@@ -41,12 +51,21 @@ interface Props {
   onSaved: () => void;
 }
 
+const WEEKDAY_OPTIONS = [
+  { value: "1", label: "Lunes" },
+  { value: "2", label: "Martes" },
+  { value: "3", label: "Miércoles" },
+  { value: "4", label: "Jueves" },
+  { value: "5", label: "Viernes" },
+];
+
 export function EditCourseDialog({ course, open, onOpenChange, onSaved }: Props) {
   const [subject, setSubject] = useState("");
   const [yearLevel, setYearLevel] = useState<number>(1);
   const [academicYear, setAcademicYear] = useState<number>(new Date().getFullYear());
   const [schoolId, setSchoolId] = useState("");
   const [schools, setSchools] = useState<SchoolOption[]>([]);
+  const [scheduleSlots, setScheduleSlots] = useState<ScheduleSlot[]>([]);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -55,6 +74,28 @@ export function EditCourseDialog({ course, open, onOpenChange, onSaved }: Props)
       setYearLevel(course.year_level);
       setAcademicYear(course.academic_year);
       setSchoolId(course.school_id);
+
+      // Load schedule slots
+      supabase
+        .from("course_schedule_slots")
+        .select("id, day_of_week, start_time, end_time, module_count")
+        .eq("course_id", course.id)
+        .order("order_index")
+        .then(({ data }) => {
+          if (data && data.length > 0) {
+            setScheduleSlots(
+              data.map((s) => ({
+                id: s.id,
+                day_of_week: String(s.day_of_week),
+                start_time: s.start_time.slice(0, 5),
+                end_time: s.end_time.slice(0, 5),
+                module_count: String(s.module_count),
+              }))
+            );
+          } else {
+            setScheduleSlots([{ day_of_week: "1", start_time: "", end_time: "", module_count: "2" }]);
+          }
+        });
     }
   }, [open, course]);
 
@@ -70,12 +111,41 @@ export function EditCourseDialog({ course, open, onOpenChange, onSaved }: Props)
     }
   }, [open]);
 
+  const updateSlot = (index: number, field: keyof ScheduleSlot, value: string) => {
+    setScheduleSlots((prev) =>
+      prev.map((slot, i) => (i === index ? { ...slot, [field]: value } : slot))
+    );
+  };
+
+  const addSlot = () => {
+    setScheduleSlots((prev) => [
+      ...prev,
+      { day_of_week: "1", start_time: "", end_time: "", module_count: "2" },
+    ]);
+  };
+
+  const removeSlot = (index: number) => {
+    setScheduleSlots((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const scheduleIsValid =
+    scheduleSlots.length > 0 &&
+    scheduleSlots.every(
+      (slot) =>
+        !!slot.day_of_week &&
+        !!slot.start_time &&
+        !!slot.end_time &&
+        !!slot.module_count &&
+        slot.end_time > slot.start_time
+    );
+
   const handleSave = async () => {
     if (!course) return;
 
     setSaving(true);
     try {
-      const { error } = await supabase
+      // Update course
+      const { error: courseError } = await supabase
         .from("courses")
         .update({
           subject,
@@ -85,7 +155,28 @@ export function EditCourseDialog({ course, open, onOpenChange, onSaved }: Props)
         })
         .eq("id", course.id);
 
-      if (error) throw error;
+      if (courseError) throw courseError;
+
+      // Delete existing slots
+      await supabase.from("course_schedule_slots").delete().eq("course_id", course.id);
+
+      // Insert new slots
+      if (scheduleSlots.length > 0 && scheduleIsValid) {
+        const slotsToInsert = scheduleSlots.map((slot, index) => ({
+          course_id: course.id,
+          day_of_week: Number(slot.day_of_week),
+          start_time: slot.start_time,
+          end_time: slot.end_time,
+          module_count: Number(slot.module_count),
+          order_index: index,
+        }));
+
+        const { error: slotsError } = await supabase
+          .from("course_schedule_slots")
+          .insert(slotsToInsert);
+
+        if (slotsError) throw slotsError;
+      }
 
       toast({
         title: "Curso actualizado",
@@ -109,11 +200,11 @@ export function EditCourseDialog({ course, open, onOpenChange, onSaved }: Props)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Editar curso</DialogTitle>
           <DialogDescription>
-            Modificá los datos básicos del curso.
+            Modificá los datos básicos y el horario del curso.
           </DialogDescription>
         </DialogHeader>
 
@@ -183,13 +274,81 @@ export function EditCourseDialog({ course, open, onOpenChange, onSaved }: Props)
               </SelectContent>
             </Select>
           </div>
+
+          <Separator />
+
+          <div className="space-y-3">
+            <Label>Días y horarios de cursada</Label>
+            {scheduleSlots.map((slot, index) => (
+              <div key={index} className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-2 items-end">
+                <Select
+                  value={slot.day_of_week}
+                  onValueChange={(v) => updateSlot(index, "day_of_week", v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Día" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {WEEKDAY_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Input
+                  type="time"
+                  value={slot.start_time}
+                  onChange={(e) => updateSlot(index, "start_time", e.target.value)}
+                  className="w-24"
+                />
+                <Input
+                  type="time"
+                  value={slot.end_time}
+                  onChange={(e) => updateSlot(index, "end_time", e.target.value)}
+                  className="w-24"
+                />
+                <Select
+                  value={slot.module_count}
+                  onValueChange={(v) => updateSlot(index, "module_count", v)}
+                >
+                  <SelectTrigger className="w-20">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[1, 2, 3, 4].map((m) => (
+                      <SelectItem key={m} value={String(m)}>
+                        {m} mód
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => removeSlot(index)}
+                  disabled={scheduleSlots.length === 1}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+            <Button type="button" variant="outline" size="sm" onClick={addSlot}>
+              <Plus className="h-4 w-4 mr-1" />
+              Agregar horario
+            </Button>
+          </div>
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
             Cancelar
           </Button>
-          <Button onClick={handleSave} disabled={saving || !subject.trim() || !schoolId}>
+          <Button
+            onClick={handleSave}
+            disabled={saving || !subject.trim() || !schoolId || !scheduleIsValid}
+          >
             {saving ? "Guardando..." : "Guardar cambios"}
           </Button>
         </DialogFooter>
