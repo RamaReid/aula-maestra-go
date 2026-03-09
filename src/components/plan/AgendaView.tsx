@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Eye, RefreshCw } from "lucide-react";
+import { Eye } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { StatusBadge, lessonStatusLabel, lessonStatusTone } from "@/components/ui/StatusBadge";
 import {
