@@ -8,7 +8,7 @@ import { InlineValidationSummary } from "@/components/ui/InlineValidationSummary
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { AlertTriangle, Download, Maximize2, RotateCcw, ShieldCheck } from "lucide-react";
+import { AlertTriangle, Download, Pencil, RotateCcw, ShieldCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { toast } from "@/hooks/use-toast";
