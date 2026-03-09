@@ -20,6 +20,7 @@ import { StatusBadge, briefLabel, briefTone, materialLabel, materialTone, lesson
 import { StepHeader } from "@/components/ui/StepHeader";
 import { SkeletonList } from "@/components/ui/SkeletonList";
 import { ThinkingBook } from "@/components/ui/ThinkingBook";
+import { LoadingState } from "@/components/ui/LoadingState";
 import type { Tables } from "@/integrations/supabase/types";
 import { formatErrorMessage, formatFunctionErrorMessage } from "@/lib/errors";
 import GuidedTour from "@/components/GuidedTour";
@@ -199,7 +200,13 @@ function isNoiseNode(name: string): boolean {
 
 export default function Lesson() {
   const { lessonId } = useParams<{ lessonId: string }>();
-  const { entitlements, planType } = useEntitlements();
+  const {
+    entitlements,
+    planType,
+    loading: entitlementsLoading,
+    error: entitlementsError,
+    refetch: refetchEntitlements,
+  } = useEntitlements();
   const [lesson, setLesson] = useState<LessonRow | null>(null);
   const [courseContext, setCourseContext] = useState<CourseContextRow | null>(null);
   const [planLesson, setPlanLesson] = useState<PlanLessonRow | null>(null);
@@ -468,7 +475,45 @@ export default function Lesson() {
     document.getElementById("brief-form")?.scrollIntoView({ behavior: "smooth" });
   };
 
-  if (loading) {
+  if ((!planType || !entitlements) && !entitlementsError) {
+    return (
+      <LoadingState
+        variant="page"
+        tips={[
+          "Verificando tu plan...",
+          "Cargando la leccion...",
+          "Ya casi estamos...",
+        ]}
+      />
+    );
+  }
+
+  if ((!planType || !entitlements) && entitlementsError) {
+    return (
+      <div className="min-h-screen bg-background">
+        <main className="mx-auto flex min-h-screen max-w-4xl items-center justify-center px-4 py-8">
+          <Card className="w-full max-w-xl">
+            <CardContent className="flex flex-col items-center gap-5 py-14 text-center">
+              <Sparkles className="h-10 w-10 text-muted-foreground" />
+              <div className="space-y-2">
+                <h2 className="text-2xl font-semibold text-foreground">No se pudo cargar tu plan</h2>
+                <p className="text-sm text-muted-foreground">{entitlementsError}</p>
+              </div>
+              <Button size="lg" onClick={() => refetchEntitlements()}>
+                Reintentar
+              </Button>
+            </CardContent>
+          </Card>
+        </main>
+      </div>
+    );
+  }
+
+  if (!planType || !entitlements) {
+    return null;
+  }
+
+  if (loading || entitlementsLoading) {
     return (
       <div className="min-h-screen bg-background p-8">
         <SkeletonList count={4} />

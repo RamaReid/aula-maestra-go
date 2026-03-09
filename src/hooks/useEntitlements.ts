@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { formatErrorMessage } from "@/lib/errors";
 
 export type PlanType = "FREE" | "BASICO" | "PREMIUM";
 export type CopilotoMode = "none" | "limited" | "full";
@@ -31,58 +32,78 @@ const FREE_DEFAULTS: Entitlements = {
 
 export function useEntitlements() {
   const { user } = useAuth();
-  const [planType, setPlanType] = useState<PlanType>("FREE");
-  const [entitlements, setEntitlements] = useState<Entitlements>(FREE_DEFAULTS);
+  const [planType, setPlanType] = useState<PlanType | null>(null);
+  const [entitlements, setEntitlements] = useState<Entitlements | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchEntitlements = useCallback(async () => {
     if (!user) {
+      setPlanType("FREE");
+      setEntitlements(FREE_DEFAULTS);
+      setError(null);
       setLoading(false);
       return;
     }
 
-    const [subRes, entRes] = await Promise.all([
-      supabase
-        .from("subscriptions")
-        .select("plan_type, status")
-        .eq("user_id", user.id)
-        .eq("status", "ACTIVE")
-        .maybeSingle(),
-      supabase
-        .from("user_entitlements")
-        .select("*")
-        .eq("user_id", user.id)
-        .maybeSingle(),
-    ]);
+    try {
+      setError(null);
 
-    if (subRes.data) {
-      setPlanType(subRes.data.plan_type as PlanType);
+      const [subRes, entRes] = await Promise.all([
+        supabase
+          .from("subscriptions")
+          .select("plan_type, status")
+          .eq("user_id", user.id)
+          .eq("status", "ACTIVE")
+          .maybeSingle(),
+        supabase
+          .from("user_entitlements")
+          .select("*")
+          .eq("user_id", user.id)
+          .maybeSingle(),
+      ]);
+
+      if (subRes.error) throw subRes.error;
+      if (entRes.error) throw entRes.error;
+
+      setPlanType((subRes.data?.plan_type as PlanType | undefined) ?? "FREE");
+      setEntitlements(
+        entRes.data
+          ? {
+              max_courses: entRes.data.max_courses,
+              max_students_per_course: entRes.data.max_students_per_course,
+              max_weekly_sessions: entRes.data.max_weekly_sessions,
+              max_classes_per_session: entRes.data.max_classes_per_session,
+              watermark_enabled: entRes.data.watermark_enabled,
+              history_enabled: entRes.data.history_enabled,
+              copiloto_mode: entRes.data.copiloto_mode as CopilotoMode,
+              auto_complete_forms_enabled: entRes.data.auto_complete_forms_enabled,
+              persistent_storage_enabled: entRes.data.persistent_storage_enabled,
+            }
+          : FREE_DEFAULTS
+      );
+    } catch (error) {
+      setError(formatErrorMessage(error, "No se pudieron cargar los permisos de tu cuenta."));
     }
-
-    if (entRes.data) {
-      setEntitlements({
-        max_courses: entRes.data.max_courses,
-        max_students_per_course: entRes.data.max_students_per_course,
-        max_weekly_sessions: entRes.data.max_weekly_sessions,
-        max_classes_per_session: entRes.data.max_classes_per_session,
-        watermark_enabled: entRes.data.watermark_enabled,
-        history_enabled: entRes.data.history_enabled,
-        copiloto_mode: entRes.data.copiloto_mode as CopilotoMode,
-        auto_complete_forms_enabled: entRes.data.auto_complete_forms_enabled,
-        persistent_storage_enabled: entRes.data.persistent_storage_enabled,
-      });
-    }
-
     setLoading(false);
   }, [user]);
 
   useEffect(() => {
+    if (user) {
+      setLoading(true);
+      setError(null);
+      setPlanType(null);
+      setEntitlements(null);
+    }
+
     fetchEntitlements();
+
+    if (!user) return;
 
     // Polling every 30s for hot upgrades
     const interval = setInterval(fetchEntitlements, 30_000);
     return () => clearInterval(interval);
-  }, [fetchEntitlements]);
+  }, [fetchEntitlements, user]);
 
-  return { planType, entitlements, loading, refetch: fetchEntitlements };
+  return { planType, entitlements, loading, error, refetch: fetchEntitlements };
 }

@@ -25,6 +25,7 @@ import PlanEditor from "@/components/plan/PlanEditor";
 import AgendaView from "@/components/plan/AgendaView";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { SkeletonList } from "@/components/ui/SkeletonList";
+import { LoadingState } from "@/components/ui/LoadingState";
 import { StatusBadge, briefLabel, briefTone, lessonStatusLabel, lessonStatusTone } from "@/components/ui/StatusBadge";
 import { useEntitlements } from "@/hooks/useEntitlements";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -93,7 +94,13 @@ type BriefStatusRow = Pick<Tables<"lesson_briefs">, "lesson_id" | "status">;
 export default function Course() {
   const { courseId } = useParams<{ courseId: string }>();
   const [searchParams] = useSearchParams();
-  const { planType, entitlements } = useEntitlements();
+  const {
+    planType,
+    entitlements,
+    loading: entitlementsLoading,
+    error: entitlementsError,
+    refetch: refetchEntitlements,
+  } = useEntitlements();
   const [course, setCourse] = useState<CourseInfo | null>(null);
   const [curriculum, setCurriculum] = useState<CurriculumInfo | null>(null);
   const [plan, setPlan] = useState<PlanInfo | null>(null);
@@ -105,9 +112,10 @@ export default function Course() {
   const [preparingFreeView, setPreparingFreeView] = useState(false);
   const [freePreparationError, setFreePreparationError] = useState<string | null>(null);
   const fallbackCurriculumId = searchParams.get("curriculum_document_id");
+  const resolvedPlanType = planType ?? "FREE";
   const isArchived = course?.status === "ARCHIVED";
   const planValidated = plan?.status === "VALIDATED" || plan?.status === "EDITED";
-  const isFreePlan = planType === "FREE";
+  const isFreePlan = resolvedPlanType === "FREE";
   const defaultTab = planValidated ? (isFreePlan ? "agenda" : "planificacion") : "planificacion";
   const tabGridCols = planValidated
     ? isFreePlan
@@ -120,7 +128,7 @@ export default function Course() {
     [lessons, selectedLessonIds]
   );
   const requiredFreeSelectionCount = 3;
-  const maxSelectableLessons = getMaxSelectableLessons(planType, lessons.length);
+  const maxSelectableLessons = getMaxSelectableLessons(resolvedPlanType, lessons.length);
   const selectedLessonNumbers = selectedLessons
     .map((lesson) => lesson.lesson_number)
     .sort((a, b) => a - b);
@@ -418,6 +426,44 @@ export default function Course() {
     }
     setArchiving(false);
   };
+
+  if ((entitlementsLoading || !planType || !entitlements) && !entitlementsError) {
+    return (
+      <LoadingState
+        variant="page"
+        tips={[
+          "Verificando tu plan...",
+          "Cargando el curso...",
+          "Ya casi estamos...",
+        ]}
+      />
+    );
+  }
+
+  if ((!planType || !entitlements) && entitlementsError) {
+    return (
+      <div className="min-h-screen bg-background">
+        <main className="mx-auto flex min-h-screen max-w-4xl items-center justify-center px-4 py-8">
+          <Card className="w-full max-w-xl">
+            <CardContent className="flex flex-col items-center gap-5 py-14 text-center">
+              <BookOpen className="h-10 w-10 text-muted-foreground" />
+              <div className="space-y-2">
+                <h2 className="text-2xl font-semibold text-foreground">No se pudo cargar tu plan</h2>
+                <p className="text-sm text-muted-foreground">{entitlementsError}</p>
+              </div>
+              <Button size="lg" onClick={() => refetchEntitlements()}>
+                Reintentar
+              </Button>
+            </CardContent>
+          </Card>
+        </main>
+      </div>
+    );
+  }
+
+  if (!planType || !entitlements) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-background">

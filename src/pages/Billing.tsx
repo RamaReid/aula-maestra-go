@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useToast } from "@/components/ui/use-toast";
 import { PageIntro } from "@/components/editorial/PageIntro";
+import { LoadingState } from "@/components/ui/LoadingState";
 import { formatErrorMessage, formatFunctionErrorMessage } from "@/lib/errors";
 
 interface SubscriptionRow {
@@ -59,22 +60,26 @@ const planCardCopy: Record<
     title: string;
     summary: string;
     bullets: string[];
+    cta: string;
   }
 > = {
   FREE: {
     title: "Gratis",
     summary: "Para probar el flujo principal con limites acotados.",
     bullets: ["1 curso activo", "2 sesiones semanales", "3 clases por sesion", "Sin exportacion PDF validada"],
+    cta: "Plan gratuito",
   },
   BASICO: {
     title: "Basico",
     summary: "Operacion docente diaria con cursos multiples y exportacion.",
     bullets: ["Hasta 15 cursos", "Secuencias consecutivas", "PDF validado", "Fuentes propias por archivo"],
+    cta: "Pagar con Mercado Pago",
   },
   PREMIUM: {
     title: "Premium",
     summary: "Mayor profundidad, fuentes online y copiloto completo.",
     bullets: ["Todo Basico", "Fuentes por URL y video", "Busqueda asistida", "Copiloto full"],
+    cta: "Pagar con Mercado Pago",
   },
 };
 
@@ -147,7 +152,13 @@ function manualRequestLabel(status: string): string {
 export default function Billing() {
   const { user, profile } = useAuth();
   const { toast } = useToast();
-  const { planType, entitlements, refetch } = useEntitlements();
+  const {
+    planType,
+    entitlements,
+    loading: entitlementsLoading,
+    error: entitlementsError,
+    refetch,
+  } = useEntitlements();
   const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -210,7 +221,7 @@ export default function Billing() {
     });
   }, [searchParams, toast]);
 
-  const currentPlanCopy = useMemo(() => planCardCopy[planType], [planType]);
+  const currentPlanCopy = useMemo(() => (planType ? planCardCopy[planType] : null), [planType]);
   const hasMercadoPagoSubscription =
     subscription?.provider === "MERCADO_PAGO" && Boolean(subscription.provider_subscription_id);
 
@@ -333,6 +344,44 @@ export default function Billing() {
     }
   };
 
+  if ((!planType || !entitlements) && !entitlementsError) {
+    return (
+      <LoadingState
+        variant="page"
+        tips={[
+          "Verificando tu plan...",
+          "Cargando estado de facturacion...",
+          "Ya casi estamos...",
+        ]}
+      />
+    );
+  }
+
+  if ((!planType || !entitlements || !currentPlanCopy) && entitlementsError) {
+    return (
+      <div className="min-h-screen bg-background">
+        <main className="mx-auto flex min-h-screen max-w-5xl items-center justify-center px-4 py-8">
+          <Card className="w-full max-w-xl">
+            <CardContent className="flex flex-col items-center gap-5 py-14 text-center">
+              <CreditCard className="h-10 w-10 text-muted-foreground" />
+              <div className="space-y-2">
+                <h2 className="text-2xl font-semibold text-foreground">No se pudo cargar tu plan</h2>
+                <p className="text-sm text-muted-foreground">{entitlementsError}</p>
+              </div>
+              <Button size="lg" onClick={() => refetch()}>
+                Reintentar
+              </Button>
+            </CardContent>
+          </Card>
+        </main>
+      </div>
+    );
+  }
+
+  if (!planType || !entitlements || !currentPlanCopy) {
+    return null;
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card">
@@ -365,7 +414,7 @@ export default function Billing() {
               <CardDescription>Resumen del plan que hoy esta habilitado para tu cuenta.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
-              {loading ? (
+              {loading || entitlementsLoading ? (
                 <div className="flex items-center text-sm text-muted-foreground">
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Cargando estado de facturacion
@@ -443,25 +492,30 @@ export default function Billing() {
               <CardTitle>Planes disponibles</CardTitle>
               <CardDescription>Upgrade automatico por Mercado Pago para BASICO y PREMIUM.</CardDescription>
             </CardHeader>
-            <CardContent className="grid gap-4 sm:grid-cols-3">
+            <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {(["FREE", "BASICO", "PREMIUM"] as PlanType[]).map((plan) => {
                 const copy = planCardCopy[plan];
                 const isCurrent = plan === planType;
 
                 return (
-                  <div key={plan} className={`rounded-xl border p-4 ${isCurrent ? "border-primary bg-primary/5" : ""}`}>
+                  <div
+                    key={plan}
+                    className={`flex h-full min-h-[22rem] flex-col rounded-xl border p-4 ${
+                      isCurrent ? "border-primary bg-primary/5" : ""
+                    }`}
+                  >
                     <div className="flex items-center justify-between gap-2">
                       <p className="font-semibold text-foreground">{copy.title}</p>
                       <StatusBadge tone={isCurrent ? "success" : "neutral"} label={plan} />
                     </div>
                     <p className="mt-2 text-sm text-muted-foreground">{copy.summary}</p>
-                    <ul className="mt-4 space-y-2 text-sm text-foreground">
+                    <ul className="mt-4 flex-1 space-y-2 text-sm text-foreground">
                       {copy.bullets.map((item) => (
                         <li key={item}>{item}</li>
                       ))}
                     </ul>
                     <Button
-                      className="mt-4 w-full"
+                      className="mt-5 min-h-11 w-full whitespace-normal px-4 text-center leading-snug"
                       variant={isCurrent ? "outline" : "default"}
                       disabled={isCurrent || plan === "FREE" || checkingOutPlan !== null}
                       onClick={() => handleCheckout(plan as "BASICO" | "PREMIUM")}
@@ -470,7 +524,7 @@ export default function Billing() {
                         ? "Plan actual"
                         : checkingOutPlan === plan
                         ? "Redirigiendo..."
-                        : "Pagar con Mercado Pago"}
+                        : copy.cta}
                     </Button>
                   </div>
                 );

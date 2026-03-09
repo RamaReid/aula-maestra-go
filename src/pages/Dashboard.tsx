@@ -14,6 +14,7 @@ import { PlanSwitcher } from "@/components/PlanSwitcher";
 import { StatusBadge, planTone, planLabel } from "@/components/ui/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { SkeletonList } from "@/components/ui/SkeletonList";
+import { LoadingState } from "@/components/ui/LoadingState";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -73,11 +74,18 @@ const QA_EMAILS = new Set(["rgarciareid@gmail.com", "bigschool@test.docencia.ai"
 
 export default function Dashboard() {
   const { profile, logout } = useAuth();
-  const { planType, entitlements, refetch: refetchEntitlements } = useEntitlements();
+  const {
+    planType,
+    entitlements,
+    loading: entitlementsLoading,
+    error: entitlementsError,
+    refetch: refetchEntitlements,
+  } = useEntitlements();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [courses, setCourses] = useState<CourseWithDetails[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [coursesLoading, setCoursesLoading] = useState(true);
+  const [coursesError, setCoursesError] = useState<string | null>(null);
   const [archivedOpen, setArchivedOpen] = useState(false);
   const [courseToDelete, setCourseToDelete] = useState<CourseWithDetails | null>(null);
   const [courseToArchive, setCourseToArchive] = useState<CourseWithDetails | null>(null);
@@ -87,14 +95,18 @@ export default function Dashboard() {
   const [switchingPlan, setSwitchingPlan] = useState(false);
 
   const fetchCourses = useCallback(async () => {
-    const { data } = await supabase
-      .from("courses")
-      .select("id, subject, year_level, academic_year, status, school_id, schools(official_name), plans(status)")
-      .order("academic_year", { ascending: false });
+    setCoursesError(null);
 
-    if (data) {
+    try {
+      const { data, error } = await supabase
+        .from("courses")
+        .select("id, subject, year_level, academic_year, status, school_id, schools(official_name), plans(status)")
+        .order("academic_year", { ascending: false });
+
+      if (error) throw error;
+
       setCourses(
-        (data as unknown as CourseQueryRow[]).map((c) => ({
+        ((data || []) as unknown as CourseQueryRow[]).map((c) => ({
           id: c.id,
           subject: c.subject,
           year_level: c.year_level,
@@ -105,8 +117,11 @@ export default function Dashboard() {
           plan: c.plans ? { status: c.plans.status } : null,
         }))
       );
+    } catch (error) {
+      setCoursesError(formatErrorMessage(error, "No se pudieron cargar tus cursos."));
+    } finally {
+      setCoursesLoading(false);
     }
-    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -175,9 +190,10 @@ export default function Dashboard() {
   const archivedCourses = courses.filter((c) => c.status === "ARCHIVED");
   const primaryFreeCourse = activeCourses[0] || null;
   const isQaUser = QA_EMAILS.has((profile?.email || "").toLowerCase());
+  const canRenderEntitlements = planType !== null && entitlements !== null;
 
   const handlePlanSwitch = async (nextPlan: PlanType) => {
-    if (!isQaUser || nextPlan === planType) return;
+    if (!isQaUser || !planType || nextPlan === planType) return;
 
     setSwitchingPlan(true);
     try {
@@ -202,6 +218,44 @@ export default function Dashboard() {
       setSwitchingPlan(false);
     }
   };
+
+  if (!canRenderEntitlements && !entitlementsError) {
+    return (
+      <LoadingState
+        variant="page"
+        tips={[
+          "Verificando tu plan...",
+          "Cargando permisos de tu cuenta...",
+          "Ya casi estamos...",
+        ]}
+      />
+    );
+  }
+
+  if (!canRenderEntitlements && entitlementsError) {
+    return (
+      <div className="min-h-screen bg-background">
+        <main className="mx-auto flex min-h-screen max-w-4xl items-center justify-center px-4 py-8">
+          <Card className="w-full max-w-xl">
+            <CardContent className="flex flex-col items-center gap-5 py-14 text-center">
+              <BookOpen className="h-10 w-10 text-muted-foreground" />
+              <div className="space-y-2">
+                <h2 className="text-2xl font-semibold text-foreground">No se pudo cargar tu plan</h2>
+                <p className="text-sm text-muted-foreground">{entitlementsError}</p>
+              </div>
+              <Button size="lg" onClick={() => refetchEntitlements()}>
+                Reintentar
+              </Button>
+            </CardContent>
+          </Card>
+        </main>
+      </div>
+    );
+  }
+
+  if (!planType || !entitlements) {
+    return null;
+  }
 
   if (planType === "FREE") {
     return (
@@ -240,10 +294,20 @@ export default function Dashboard() {
           <Card className="w-full max-w-xl">
             <CardContent className="flex flex-col items-center gap-5 py-14 text-center">
               <BookOpen className="h-10 w-10 text-muted-foreground" />
-              {loading ? (
+              {coursesLoading || entitlementsLoading ? (
                 <div className="w-full">
                   <SkeletonList count={1} />
                 </div>
+              ) : coursesError ? (
+                <>
+                  <div className="space-y-2">
+                    <h2 className="text-2xl font-semibold text-foreground">No se pudieron cargar tus cursos</h2>
+                    <p className="text-sm text-muted-foreground">{coursesError}</p>
+                  </div>
+                  <Button size="lg" onClick={fetchCourses}>
+                    Reintentar
+                  </Button>
+                </>
               ) : primaryFreeCourse ? (
                 <>
                   <div className="space-y-2">
@@ -327,9 +391,15 @@ export default function Dashboard() {
               </Button>
             </div>
           </div>
-
-          {loading ? (
+          {coursesLoading ? (
             <SkeletonList count={4} />
+          ) : coursesError ? (
+            <EmptyState
+              icon={BookOpen}
+              title="No se pudieron cargar los cursos"
+              description={coursesError}
+              action={{ label: "Reintentar", onClick: fetchCourses }}
+            />
           ) : activeCourses.length === 0 ? (
             <EmptyState
               icon={BookOpen}
@@ -481,7 +551,7 @@ export default function Dashboard() {
         onSaved={fetchCourses}
       />
 
-      {!loading && activeCourses.length > 0 && <GuidedTour steps={DASHBOARD_TOUR_STEPS} />}
+      {!coursesLoading && activeCourses.length > 0 && <GuidedTour steps={DASHBOARD_TOUR_STEPS} />}
     </div>
   );
 }

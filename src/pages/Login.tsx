@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, Navigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { lovable } from "@/integrations/lovable/index";
@@ -11,11 +11,19 @@ import { formatErrorMessage } from "@/lib/errors";
 
 export default function Login() {
   const { user, loading, login } = useAuth();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [email, setEmail] = useState(() => searchParams.get("email") || "");
-  const [password, setPassword] = useState(() => searchParams.get("password") || "");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!searchParams.has("password")) return;
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete("password");
+    setSearchParams(nextParams, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   if (!loading && user) return <Navigate to="/dashboard" replace />;
 
