@@ -137,8 +137,27 @@ export default function CurriculumImport() {
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const nextFile = event.target.files?.[0] || null;
     setFile(nextFile);
-    if (nextFile && !officialTitle.trim()) {
-      setOfficialTitle(nextFile.name.replace(/\.pdf$/i, ""));
+    if (nextFile) {
+      const baseName = nextFile.name.replace(/\.pdf$/i, "");
+      
+      // Try to extract year from filename (e.g., "Matemática 5to" or "Historia 5")
+      const yearMatch = baseName.match(/(\d+)(?:to|°|º)?$/i);
+      const extractedYear = yearMatch ? yearMatch[1] : null;
+      
+      // Extract subject (remove year suffix if present)
+      const extractedSubject = baseName
+        .replace(/\s*\d+(?:to|°|º)?$/i, "")
+        .trim();
+      
+      if (!officialTitle.trim()) {
+        setOfficialTitle(baseName);
+      }
+      if (extractedSubject && !subject.trim()) {
+        setSubject(extractedSubject);
+      }
+      if (extractedYear && yearLevel === "6") {
+        setYearLevel(extractedYear);
+      }
     }
   };
 
