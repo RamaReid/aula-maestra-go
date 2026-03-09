@@ -2,7 +2,6 @@ import { Bot, Lock, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import type { CopilotoMode } from "@/hooks/useEntitlements";
 import CopilotChat from "./CopilotChat";
@@ -71,7 +70,7 @@ export default function CopilotSheetTrigger({
       </SheetTrigger>
       <SheetContent side="right" className="w-[380px] sm:w-[420px] p-0 flex flex-col">
         <SheetHeader className="px-5 pt-5 pb-3 border-b">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between pr-10">
             <SheetTitle className="text-base flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-primary" />
               Copiloto
@@ -80,8 +79,8 @@ export default function CopilotSheetTrigger({
           </div>
         </SheetHeader>
 
-        <ScrollArea className="flex-1">
-          <div className="px-5 py-4 space-y-6">
+        <div className="flex-1 min-h-0 flex flex-col">
+          <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-6">
             {isDisabled && (
               <Alert>
                 <Lock className="h-4 w-4" />
@@ -100,12 +99,10 @@ export default function CopilotSheetTrigger({
               </Alert>
             )}
 
-            {/* Full lesson-level panel if provided */}
             {panelContent}
 
-            {/* Chat-only fallback when no panelContent but has access */}
             {!panelContent && !isDisabled && (
-              <div className="space-y-2">
+              <div className="flex-1 min-h-0 flex flex-col">
                 {isPremium ? (
                   <CopilotChat
                     copilotoMode={copilotoMode}
@@ -120,7 +117,7 @@ export default function CopilotSheetTrigger({
               </div>
             )}
           </div>
-        </ScrollArea>
+        </div>
       </SheetContent>
     </Sheet>
   );
