@@ -315,7 +315,7 @@ export default function Dashboard() {
               action={{ label: "Crear primer curso", onClick: () => navigate("/course/new") }}
             />
           ) : (
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-2" data-tour="dashboard-courses">
               {activeCourses.map((course) => (
                 <Card key={course.id} className="flex flex-col rounded-[1.5rem] border-border/80 bg-card/90 transition-colors hover:border-primary/50">
                   <CardHeader className="pb-2">
