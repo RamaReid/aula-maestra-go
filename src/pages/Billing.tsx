@@ -73,13 +73,13 @@ const planCardCopy: Record<
     title: "Basico",
     summary: "Operacion docente diaria con cursos multiples y exportacion.",
     bullets: ["Hasta 15 cursos", "Secuencias consecutivas", "PDF validado", "Fuentes propias por archivo"],
-    cta: "Pagar con Mercado Pago",
+    cta: "Mercado Pago",
   },
   PREMIUM: {
     title: "Premium",
     summary: "Mayor profundidad, fuentes online y copiloto completo.",
     bullets: ["Todo Basico", "Fuentes por URL y video", "Busqueda asistida", "Copiloto full"],
-    cta: "Pagar con Mercado Pago",
+    cta: "Mercado Pago",
   },
 };
 
@@ -399,7 +399,7 @@ export default function Billing() {
         </div>
       </header>
 
-      <main className="mx-auto grid max-w-5xl gap-6 px-4 py-8 lg:grid-cols-[1.15fr_0.85fr]">
+      <main className="mx-auto grid max-w-5xl gap-6 overflow-hidden px-4 py-8 lg:grid-cols-[1.15fr_0.85fr]">
         <div className="lg:col-span-2">
           <PageIntro
             eyebrow="Planes y facturacion"
@@ -429,7 +429,7 @@ export default function Billing() {
                     />
                   </div>
 
-                  <div className="metric-grid">
+                  <div className="grid gap-3 grid-cols-2">
                     <div className="metric-card">
                       <p className="metric-label">Titular</p>
                       <p className="metric-value">{profile?.email || "Sin email"}</p>
@@ -492,7 +492,7 @@ export default function Billing() {
               <CardTitle>Planes disponibles</CardTitle>
               <CardDescription>Upgrade automatico por Mercado Pago para BASICO y PREMIUM.</CardDescription>
             </CardHeader>
-            <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <CardContent className="grid gap-4 sm:grid-cols-3">
               {(["FREE", "BASICO", "PREMIUM"] as PlanType[]).map((plan) => {
                 const copy = planCardCopy[plan];
                 const isCurrent = plan === planType;
@@ -500,7 +500,7 @@ export default function Billing() {
                 return (
                   <div
                     key={plan}
-                    className={`flex h-full min-h-[22rem] flex-col rounded-xl border p-4 ${
+                    className={`flex h-full flex-col rounded-xl border p-4 ${
                       isCurrent ? "border-primary bg-primary/5" : ""
                     }`}
                   >

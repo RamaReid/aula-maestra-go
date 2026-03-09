@@ -1,36 +1,20 @@
 
+**Modificación de la pestaña "Contenidos" para ocultar la trazabilidad técnica**
 
-## Plan: Polish responsive design of /billing page
+He analizado la estructura de la pestaña "Contenidos" dentro de `PlanEditor.tsx`. Actualmente, debajo del editor de bloques anuales (`PlanContentBlocksEditor`), se está renderizando una tarjeta visible y desplegada por defecto con el listado completo de los nodos crudos del anclaje curricular, lo que efectivamente ensucia la lectura.
 
-### Issues identified from the screenshot and code
+### Cambios a realizar
 
-1. **CTA text** — Lines 76, 82: "Pagar con Mercado Pago" should be just "Mercado Pago"
-2. **Metric grid overflow** — The `metric-grid` CSS class uses `xl:grid-cols-4`, but inside the left column of a 2-column layout, `xl` breakpoint still renders 4 cols in a narrow container, causing cramped cards (visible in screenshot: "Proveedor" and "Estado de cobro" row looks tight)
-3. **Plan cards grid** — Line 495: `md:grid-cols-2 xl:grid-cols-3` inside the left column causes overflow; 3 columns never fit
-4. **Plan card min-height** — `min-h-[22rem]` is excessive for the content
-5. **Main layout** — Needs `overflow-hidden` to prevent horizontal scroll on resize
+1.  **Relegar el Anclaje Curricular a una Capa Secundaria (`src/components/plan/PlanEditor.tsx`)**
+    Modificaremos el bloque de "Anclaje curricular mapeado" para que deje de ser una tarjeta visible a simple vista. En su lugar, lo envolveremos dentro de un componente `Accordion` colapsado por defecto, tratándolo como un metadato técnico/interno.
 
-### Changes
+    *   **Vista por defecto:** Se verá únicamente el título y el editor de los bloques anuales de contenido (con sus temas, descripciones y unidades), dejando la pantalla completamente limpia.
+    *   **Capa técnica (Expandible):** Al final de la vista se añadirá un pequeño texto/botón discreto (ej: *"Ver detalles técnicos de trazabilidad curricular"*). Solo si el docente o el sistema necesitan auditar de dónde viene el plan, podrán desplegarlo para ver la lista de nodos.
 
-**File: `src/pages/Billing.tsx`**
+2.  **Importar y aplicar los componentes visuales necesarios**
+    *   Importaremos `Accordion`, `AccordionItem`, `AccordionTrigger` y `AccordionContent` desde `@/components/ui/accordion`.
+    *   Añadiremos un estilo sutil y atenuado (colores `muted` y fuentes pequeñas) para la lista de nodos crudos, reafirmando que no es contenido de lectura principal.
 
-| Line | Change |
-|------|--------|
-| 76 | `cta: "Pagar con Mercado Pago"` → `cta: "Mercado Pago"` |
-| 82 | `cta: "Pagar con Mercado Pago"` → `cta: "Mercado Pago"` |
-| 402 | Add `overflow-hidden` to main element |
-| 432 | Change `metric-grid` to `metric-grid` + override: `grid gap-3 grid-cols-2 lg:grid-cols-2` (cap at 2 cols since it's inside a constrained column) |
-| 495 | `md:grid-cols-2 xl:grid-cols-3` → `sm:grid-cols-3` (3 plan cards side by side only on wider screens, otherwise stack) |
-| 503 | `min-h-[22rem]` → `min-h-0` (remove forced height, let content dictate) |
-
-**File: `src/index.css`** (line 318)
-
-| Change |
-|--------|
-| `metric-grid`: change `xl:grid-cols-4` to `lg:grid-cols-4` so it adapts better, but this is a global class — instead, override inline in Billing only |
-
-Actually, keep CSS global unchanged. Override only in Billing via inline classes on line 432.
-
-### Summary
-- 6 small edits in `Billing.tsx` to fix text, grid responsiveness, and overflow
+3.  **Mantener la funcionalidad intacta**
+    *   La trazabilidad del sistema y los metadatos internos (`visibleMappedNodes`) seguirán presentes en el DOM y en el estado del componente, garantizando que el PDF exportable y la base de datos sigan funcionando correctamente sin verse afectados por esta limpieza de la interfaz.
 
