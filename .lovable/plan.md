@@ -1,20 +1,30 @@
 
-**Modificación de la pestaña "Contenidos" para ocultar la trazabilidad técnica**
 
-He analizado la estructura de la pestaña "Contenidos" dentro de `PlanEditor.tsx`. Actualmente, debajo del editor de bloques anuales (`PlanContentBlocksEditor`), se está renderizando una tarjeta visible y desplegada por defecto con el listado completo de los nodos crudos del anclaje curricular, lo que efectivamente ensucia la lectura.
+## Plan: Create QA Test User with Plan Switching
 
-### Cambios a realizar
+### What We Need
 
-1.  **Relegar el Anclaje Curricular a una Capa Secundaria (`src/components/plan/PlanEditor.tsx`)**
-    Modificaremos el bloque de "Anclaje curricular mapeado" para que deje de ser una tarjeta visible a simple vista. En su lugar, lo envolveremos dentro de un componente `Accordion` colapsado por defecto, tratándolo como un metadato técnico/interno.
+Create a test user `bigschool@test.docencia.ai` with password `bigshool` that can log in and switch between FREE, BASICO, and PREMIUM plans using the existing PlanSwitcher component.
 
-    *   **Vista por defecto:** Se verá únicamente el título y el editor de los bloques anuales de contenido (con sus temas, descripciones y unidades), dejando la pantalla completamente limpia.
-    *   **Capa técnica (Expandible):** Al final de la vista se añadirá un pequeño texto/botón discreto (ej: *"Ver detalles técnicos de trazabilidad curricular"*). Solo si el docente o el sistema necesitan auditar de dónde viene el plan, podrán desplegarlo para ver la lista de nodos.
+### Steps
 
-2.  **Importar y aplicar los componentes visuales necesarios**
-    *   Importaremos `Accordion`, `AccordionItem`, `AccordionTrigger` y `AccordionContent` desde `@/components/ui/accordion`.
-    *   Añadiremos un estilo sutil y atenuado (colores `muted` y fuentes pequeñas) para la lista de nodos crudos, reafirmando que no es contenido de lectura principal.
+1. **Create the user in the database** using a one-time edge function (`create-qa-user`) that:
+   - Uses the admin/service-role client to call `auth.admin.createUser` with email `bigschool@test.docencia.ai`, password `bigshool`, and `email_confirm: true` (so no verification email needed)
+   - The existing `handle_new_user` trigger will automatically create the profile, role, subscription (FREE), entitlements, and usage counter
 
-3.  **Mantener la funcionalidad intacta**
-    *   La trazabilidad del sistema y los metadatos internos (`visibleMappedNodes`) seguirán presentes en el DOM y en el estado del componente, garantizando que el PDF exportable y la base de datos sigan funcionando correctamente sin verse afectados por esta limpieza de la interfaz.
+2. **Fix QA_EMAILS in two places** — the current entries have a typo (`bigscholl` with double L). Update to `bigschool@test.docencia.ai`:
+   - `src/pages/Dashboard.tsx` line 72
+   - `supabase/functions/set-test-plan/index.ts` line 10
+
+3. **Invoke the edge function once** to create the user, then optionally delete the function since it's a one-time operation.
+
+### Result
+
+- Login at `/login` with email `bigschool@test.docencia.ai` and password `bigshool`
+- Dashboard shows a plan dropdown (FREE / BASICO / PREMIUM) to switch roles instantly
+- All app features accessible based on the selected plan level
+
+### Notes
+- The existing `handle_new_user` trigger handles all provisioning (profile, role, subscription, entitlements, usage counter)
+- The existing `PlanSwitcher` + `set-test-plan` edge function already support plan switching for QA users
 
