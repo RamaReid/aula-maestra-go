@@ -699,6 +699,7 @@ export default function Course() {
           </div>
         ) : null}
       </main>
+      {plan && <GuidedTour steps={COURSE_TOUR_STEPS} />}
     </div>
   );
 }
