@@ -682,7 +682,7 @@ export default function Lesson() {
                   </Card>
                 )}
 
-                <section id="brief-form">
+                <section id="brief-form" data-tour="lesson-brief">
                   <StepHeader
                     stepNumber={1}
                     title="Indicaciones"
