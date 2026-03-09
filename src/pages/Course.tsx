@@ -1,6 +1,7 @@
 ﻿import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { Archive, ArrowLeft, BookOpen, Sparkles } from "lucide-react";
+import CopilotSheetTrigger from "@/components/lesson/CopilotSheetTrigger";
 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
