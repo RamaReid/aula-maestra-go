@@ -564,6 +564,8 @@ export default function Lesson() {
               </SheetContent>
             </Sheet>
           )}
+        </div>
+      </header>
 
       <main className="mx-auto max-w-6xl px-4 py-8">
         <div className="grid grid-cols-1 gap-8">
