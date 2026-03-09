@@ -491,7 +491,7 @@ export default function Lesson() {
     : null;
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="h-screen flex flex-col bg-background">
       <header className="border-b bg-card">
         <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-4">
           <Button variant="ghost" size="sm" asChild className="shrink-0">
