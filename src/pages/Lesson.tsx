@@ -502,15 +502,17 @@ export default function Lesson() {
           </Button>
 
           <div className="flex-1 min-w-0">
-            <h1 className="text-lg font-semibold text-foreground truncate">
-              Lección {lesson.lesson_number}
-              {planLesson?.theme ? ` — ${planLesson.theme}` : ""}
-            </h1>
-            <div className="flex gap-2 mt-1">
+            <div className="flex items-center gap-2">
+              <h1 className="text-lg font-semibold text-foreground truncate">
+                Lección {lesson.lesson_number}
+              </h1>
               <StatusBadge tone={lessonStatusTone(lesson.status)} label={lessonStatusLabel(lesson.status)} />
               {lesson.is_generating && (
                 <StatusBadge tone="warning" label="Generando..." />
               )}
+              {planLesson?.theme ? (
+                <span className="text-sm text-muted-foreground truncate">— {planLesson.theme}</span>
+              ) : null}
             </div>
           </div>
 
