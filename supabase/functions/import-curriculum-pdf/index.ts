@@ -97,15 +97,6 @@ serve(async (req) => {
     );
   }
 
-  if (wantsManualUpload && planType === "FREE") {
-    return new Response(
-      JSON.stringify({ error: "La carga manual de PDF requiere un plan BASICO o PREMIUM." }),
-      {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
-  }
 
   try {
     const result = await ingestCurriculumDocument(adminClient, {
