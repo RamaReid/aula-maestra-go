@@ -127,7 +127,7 @@ async function streamChat({
   onDone();
 }
 
-export default function CopilotChat({ lessonContext, copilotoMode }: CopilotChatProps) {
+export default function CopilotChat({ lessonContext, copilotoMode, placeholder = "Preguntá algo sobre tu clase..." }: CopilotChatProps) {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
