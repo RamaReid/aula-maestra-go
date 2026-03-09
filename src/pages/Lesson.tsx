@@ -303,6 +303,8 @@ export default function Lesson() {
   }, [fetchData]);
 
   const handleGenerate = async () => {
+    // Optimistic: immediately show generating state
+    setLesson((prev) => prev ? { ...prev, is_generating: true } : prev);
     try {
       const { data, error } = await supabase.functions.invoke("generate-materials", {
         body: { lesson_id: lessonId },
@@ -313,11 +315,13 @@ export default function Lesson() {
           description: await formatFunctionErrorMessage(error),
           variant: "destructive",
         });
+        await fetchData();
         return;
       }
       const responseData = data as GenerateMaterialsResponse | null;
       if (responseData?.error) {
         toast({ title: "Error", description: responseData.error, variant: "destructive" });
+        await fetchData();
         return;
       }
       if (responseData?.reading_pdf_base64) {
@@ -341,6 +345,7 @@ export default function Lesson() {
   };
 
   const handleRegenerateTeaching = async () => {
+    setLesson((prev) => prev ? { ...prev, is_generating: true } : prev);
     try {
       const { data, error } = await supabase.functions.invoke("generate-materials", {
         body: { lesson_id: lessonId, regenerate_only: "teaching" },
@@ -351,11 +356,13 @@ export default function Lesson() {
           description: await formatFunctionErrorMessage(error),
           variant: "destructive",
         });
+        await fetchData();
         return;
       }
       const responseData = data as GenerateMaterialsResponse | null;
       if (responseData?.error) {
         toast({ title: "Error", description: responseData.error, variant: "destructive" });
+        await fetchData();
         return;
       }
       toast({ title: "Material didáctico regenerado" });
@@ -367,6 +374,7 @@ export default function Lesson() {
   };
 
   const handleRegenerateReading = async () => {
+    setLesson((prev) => prev ? { ...prev, is_generating: true } : prev);
     try {
       const { data, error } = await supabase.functions.invoke("generate-materials", {
         body: { lesson_id: lessonId, regenerate_only: "reading" },
@@ -377,11 +385,13 @@ export default function Lesson() {
           description: await formatFunctionErrorMessage(error),
           variant: "destructive",
         });
+        await fetchData();
         return;
       }
       const responseData = data as GenerateMaterialsResponse | null;
       if (responseData?.error) {
         toast({ title: "Error", description: responseData.error, variant: "destructive" });
+        await fetchData();
         return;
       }
       if (responseData?.reading_pdf_base64) {
@@ -513,14 +523,19 @@ export default function Lesson() {
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-8">
           <div className="space-y-8">
             {lesson.is_generating && (
-              <Card>
-                <CardContent className="pt-6">
-                  <ThinkingBook
-                    title="Estamos elaborando el material de la clase"
-                    detail="Cuando termine, la seccion de materiales se actualiza automaticamente."
-                  />
-                </CardContent>
-              </Card>
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+                <Card className="w-full max-w-md mx-4 shadow-2xl border-primary/20">
+                  <CardContent className="flex flex-col items-center gap-5 py-10 text-center">
+                    <ThinkingBook
+                      title="Estamos elaborando el material de la clase"
+                      detail="Este proceso puede tardar entre 30 segundos y 2 minutos. No cierres ni recargues la pagina."
+                    />
+                    <p className="text-xs text-muted-foreground animate-pulse">
+                      Procesando con inteligencia artificial...
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
             )}
 
             {planLesson && (
