@@ -1,20 +1,43 @@
 
-**Modificación de la pestaña "Contenidos" para ocultar la trazabilidad técnica**
 
-He analizado la estructura de la pestaña "Contenidos" dentro de `PlanEditor.tsx`. Actualmente, debajo del editor de bloques anuales (`PlanContentBlocksEditor`), se está renderizando una tarjeta visible y desplegada por defecto con el listado completo de los nodos crudos del anclaje curricular, lo que efectivamente ensucia la lectura.
+## Plan: Copiloto como panel lateral persistente (side-by-side)
 
-### Cambios a realizar
+Reemplazar el `Sheet` (drawer overlay) por un layout de dos columnas con `ResizablePanel` para que el Copiloto ocupe un panel lateral fijo al lado del contenido principal. El usuario puede trabajar en ambos simultáneamente.
 
-1.  **Relegar el Anclaje Curricular a una Capa Secundaria (`src/components/plan/PlanEditor.tsx`)**
-    Modificaremos el bloque de "Anclaje curricular mapeado" para que deje de ser una tarjeta visible a simple vista. En su lugar, lo envolveremos dentro de un componente `Accordion` colapsado por defecto, tratándolo como un metadato técnico/interno.
+### Cambios
 
-    *   **Vista por defecto:** Se verá únicamente el título y el editor de los bloques anuales de contenido (con sus temas, descripciones y unidades), dejando la pantalla completamente limpia.
-    *   **Capa técnica (Expandible):** Al final de la vista se añadirá un pequeño texto/botón discreto (ej: *"Ver detalles técnicos de trazabilidad curricular"*). Solo si el docente o el sistema necesitan auditar de dónde viene el plan, podrán desplegarlo para ver la lista de nodos.
+1. **`src/pages/Lesson.tsx`** — Reemplazar la estructura actual de `<main>` con un `ResizablePanelGroup` horizontal:
+   - Panel izquierdo (default ~65%): contenido actual de la lección (brief, materiales, canon)
+   - Panel derecho (default ~35%, min 25%): Copilot panel/chat, visible cuando el usuario lo abre via botón en header
+   - Estado `copilotOpen` (boolean) controlado por el botón del header. Cuando está cerrado, el contenido ocupa 100%.
+   - El botón en el header cambia de `CopilotSheetTrigger` a un simple `Button` que hace toggle de `copilotOpen`.
 
-2.  **Importar y aplicar los componentes visuales necesarios**
-    *   Importaremos `Accordion`, `AccordionItem`, `AccordionTrigger` y `AccordionContent` desde `@/components/ui/accordion`.
-    *   Añadiremos un estilo sutil y atenuado (colores `muted` y fuentes pequeñas) para la lista de nodos crudos, reafirmando que no es contenido de lectura principal.
+2. **`src/pages/Lesson.tsx`** — El panel derecho del Copiloto contendrá directamente el header (Copiloto + badge + botón cerrar) y el contenido (`CopilotPanel` o `CopilotChat`) con scroll independiente via `ScrollArea`.
 
-3.  **Mantener la funcionalidad intacta**
-    *   La trazabilidad del sistema y los metadatos internos (`visibleMappedNodes`) seguirán presentes en el DOM y en el estado del componente, garantizando que el PDF exportable y la base de datos sigan funcionando correctamente sin verse afectados por esta limpieza de la interfaz.
+3. **`src/pages/Course.tsx`** — Mantener el `CopilotSheetTrigger` como Sheet/drawer en la página de curso (donde no hay trabajo simultáneo intensivo). Sin cambios.
+
+4. **No se elimina `CopilotSheetTrigger.tsx`** — sigue usándose en Course.tsx. En Lesson.tsx se reemplaza por el panel inline.
+
+### Estructura visual
+
+```text
+┌─ Header ──────────────────────────────────────┐
+│ ← Volver  │ Lección N — Tema │ [Copiloto] btn │
+├───────────────────────┬───────────────────────┤
+│                       │ ┌───────────────────┐ │
+│   Contenido lección   │ │ Copiloto IA  [×]  │ │
+│   (scroll propio)     ↕ │ ─────────────────  │ │
+│                       │ │ Panel / Chat       │ │
+│                       │ │ (scroll propio)    │ │
+│                       │ │                    │ │
+│                       │ │ [input ───] [↑]    │ │
+│                       │ └───────────────────┘ │
+└───────────────────────┴───────────────────────┘
+```
+
+### Detalles técnicos
+- Usa `ResizablePanelGroup`, `ResizablePanel`, `ResizableHandle` ya disponibles en el proyecto
+- El panel del Copiloto tiene `minSize={25}` y `defaultSize={35}`
+- Al cerrar, se oculta el panel derecho y el handle, el panel izquierdo pasa a 100%
+- Ambos paneles usan `overflow-y-auto` independiente para scroll separado
 
