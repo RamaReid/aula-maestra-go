@@ -79,7 +79,7 @@ const planCardCopy: Record<
     title: "Premium",
     summary: "Mayor profundidad, fuentes online y copiloto completo.",
     bullets: ["Todo Basico", "Fuentes por URL y video", "Busqueda asistida", "Copiloto full"],
-    cta: "Pagar con Mercado Pago",
+    cta: "Mercado Pago",
   },
 };
 
