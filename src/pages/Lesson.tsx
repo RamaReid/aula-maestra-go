@@ -573,6 +573,7 @@ export default function Lesson() {
               ) : undefined
             }
           />
+          </div>
         </div>
       </header>
 
