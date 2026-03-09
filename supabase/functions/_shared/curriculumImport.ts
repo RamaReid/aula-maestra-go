@@ -747,6 +747,91 @@ async function upsertDocument(
   return inserted.id;
 }
 
+/**
+ * Fetch PDF bytes from abc.gob.ar using Firecrawl as a proxy.
+ * This bypasses SSL/TLS handshake issues between Deno and abc.gob.ar servers.
+ */
+async function fetchViaFirecrawl(url: string): Promise<Uint8Array> {
+  const apiKey = Deno.env.get("FIRECRAWL_API_KEY");
+  if (!apiKey) {
+    throw new Error("FIRECRAWL_API_KEY no está configurado. Contacte al administrador.");
+  }
+
+  console.log(`Fetching via Firecrawl proxy: ${url}`);
+
+  const response = await fetch("https://api.firecrawl.dev/v1/scrape", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      url,
+      formats: ["rawHtml"],
+      waitFor: 5000,
+    }),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    console.error("Firecrawl API error:", data);
+    throw new Error(data.error || `Error de Firecrawl: ${response.status}`);
+  }
+
+  const rawHtml = data.data?.rawHtml || data.rawHtml;
+  
+  if (!rawHtml) {
+    throw new Error("No se recibió contenido del recurso remoto via Firecrawl");
+  }
+
+  // Check if we got HTML instead of PDF (error page)
+  if (rawHtml.includes("<!DOCTYPE") || rawHtml.includes("<html")) {
+    // Try to extract PDF links from the HTML page
+    const linkRegex = /href=["']([^"']*\.pdf[^"']*)/gi;
+    const pdfLinks: string[] = [];
+    let match;
+    while ((match = linkRegex.exec(rawHtml)) !== null) {
+      try {
+        const resolved = new URL(match[1], url).href;
+        const host = new URL(resolved).hostname.toLowerCase();
+        if (host.endsWith("abc.gob.ar") || host.endsWith("abc.gov.ar")) {
+          pdfLinks.push(resolved);
+        }
+      } catch {
+        // ignore malformed URLs
+      }
+    }
+
+    if (pdfLinks.length > 0) {
+      console.log(`Found ${pdfLinks.length} PDF links in HTML, fetching first: ${pdfLinks[0]}`);
+      // Recursively fetch the PDF link
+      return fetchViaFirecrawl(pdfLinks[0]);
+    }
+
+    throw new Error(
+      "La URL devolvió una página HTML en lugar del PDF. " +
+      "Proporcione la URL directa al archivo PDF."
+    );
+  }
+
+  // Convert raw content to bytes
+  // Firecrawl returns binary content as string, encode to bytes
+  const encoder = new TextEncoder();
+  const bytes = encoder.encode(rawHtml);
+  
+  // Verify it's a PDF by checking magic bytes
+  if (bytes.length > 4) {
+    const header = String.fromCharCode(bytes[0], bytes[1], bytes[2], bytes[3]);
+    if (!header.startsWith("%PDF")) {
+      console.warn("Downloaded content doesn't appear to be a PDF");
+    }
+  }
+
+  console.log(`Successfully fetched ${bytes.length} bytes via Firecrawl`);
+  return bytes;
+}
+
 async function downloadPdfBytesFromUrl(
   url: string,
   options?: { allowExternalUrl?: boolean; subjectHint?: string; yearLevelHint?: number }
@@ -755,6 +840,18 @@ async function downloadPdfBytesFromUrl(
     throw new Error("La URL oficial no pertenece a un dominio permitido.");
   }
 
+  // Check if this is an abc.gob.ar URL - use Firecrawl proxy to bypass SSL issues
+  const parsedUrl = new URL(url);
+  const hostname = parsedUrl.hostname.toLowerCase();
+  
+  if (hostname === "abc.gob.ar" || hostname.endsWith(".abc.gob.ar")) {
+    const bytes = await fetchViaFirecrawl(url);
+    const pathname = parsedUrl.pathname;
+    const fileName = pathname.split("/").pop() || "programa_oficial.pdf";
+    return { bytes, fileName };
+  }
+
+  // For other domains, use direct fetch
   const fetchHeaders = { "User-Agent": "Mozilla/5.0 (compatible; CurriculumBot/1.0)" };
   const response = await fetch(url, { headers: fetchHeaders });
   if (!response.ok) {
