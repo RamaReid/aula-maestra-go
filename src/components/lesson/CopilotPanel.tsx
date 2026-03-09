@@ -3,9 +3,11 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
 import { Lock, RefreshCw, Sparkles, Target, Wand2 } from "lucide-react";
 import type { CopilotoMode } from "@/hooks/useEntitlements";
 import { ThinkingBook } from "@/components/ui/ThinkingBook";
+import CopilotChat from "./CopilotChat";
 
 interface CurriculumNode {
   id: string;
