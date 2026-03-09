@@ -3,9 +3,11 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
 import { Lock, RefreshCw, Sparkles, Target, Wand2 } from "lucide-react";
 import type { CopilotoMode } from "@/hooks/useEntitlements";
 import { ThinkingBook } from "@/components/ui/ThinkingBook";
+import CopilotChat from "./CopilotChat";
 
 interface CurriculumNode {
   id: string;
@@ -52,6 +54,8 @@ interface CopilotPanelProps {
   isGenerating: boolean;
   isLocked: boolean;
   copilotoMode?: CopilotoMode;
+  subject?: string | null;
+  yearLevel?: number | null;
 }
 
 function normalize(value: string | null | undefined): string {
@@ -220,6 +224,8 @@ export default function CopilotPanel({
   isGenerating,
   isLocked,
   copilotoMode = "full",
+  subject,
+  yearLevel,
 }: CopilotPanelProps) {
   const isDisabled = copilotoMode === "none";
   const isPremium = copilotoMode === "full";
@@ -452,6 +458,34 @@ export default function CopilotPanel({
           </Button>
         </div>
       </div>
+
+      {!isDisabled && (
+        <>
+          <Separator />
+          <div className="space-y-2">
+            <Label className="text-xs">Chat con el copiloto</Label>
+            <CopilotChat
+              copilotoMode={copilotoMode}
+              lessonContext={{
+                theme: planTheme,
+                learningOutcome,
+                canonOperation,
+                canonEvidence,
+                briefFocus,
+                briefDynamic,
+                depthLevel,
+                teachingStatus,
+                readingStatus,
+                subject,
+                yearLevel,
+                curriculumNodeNames: mappedCurriculumNodes.map((n) => n.name),
+                bibliographyNames: bibliographyNodes.map((n) => n.name),
+                authorizedSourceTitles: authorizedSources.map((s) => s.title),
+              }}
+            />
+          </div>
+        </>
+      )}
     </div>
   );
 }
