@@ -490,15 +490,16 @@ export default function Lesson() {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card">
-        <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-4">
-          <Button variant="ghost" size="sm" asChild>
+        <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-4">
+          <Button variant="ghost" size="sm" asChild className="shrink-0">
             <Link to={`/course/${lesson.course_id}`}>
               <ArrowLeft className="h-4 w-4 mr-2" />
               Volver al curso
             </Link>
           </Button>
-          <div className="flex-1">
-            <h1 className="text-lg font-semibold text-foreground">
+
+          <div className="flex-1 min-w-0">
+            <h1 className="text-lg font-semibold text-foreground truncate">
               Lección {lesson.lesson_number}
               {planLesson?.theme ? ` — ${planLesson.theme}` : ""}
             </h1>
@@ -510,13 +511,14 @@ export default function Lesson() {
             </div>
           </div>
 
-          {/* Canonical CTA */}
-          {briefIsDraft && (
-            <Button onClick={scrollToBrief}>
-              <ClipboardEdit className="h-4 w-4 mr-2" />
-              Completar indicaciones
-            </Button>
-          )}
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Canonical CTA */}
+            {briefIsDraft && (
+              <Button onClick={scrollToBrief}>
+                <ClipboardEdit className="h-4 w-4 mr-2" />
+                Completar indicaciones
+              </Button>
+            )}
 
           {/* Copilot sidebar trigger — always visible */}
           <CopilotSheetTrigger
@@ -571,6 +573,7 @@ export default function Lesson() {
               ) : undefined
             }
           />
+          </div>
         </div>
       </header>
 
