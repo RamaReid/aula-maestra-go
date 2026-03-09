@@ -128,7 +128,7 @@ function lineFromItems(items: Array<{ str: string; x: number; width: number }>):
 }
 
 async function extractPdfText(bytes: Uint8Array): Promise<string> {
-  const pdf = await getDocument(bytes);
+  const pdf = await getDocument(bytes).promise;
   const pages: string[] = [];
 
   for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
