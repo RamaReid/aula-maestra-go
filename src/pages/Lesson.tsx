@@ -494,10 +494,10 @@ export default function Lesson() {
   const canExportValidatedPdf = planType === "BASICO" || planType === "PREMIUM";
   const lessonSlug = `leccion-${lesson.lesson_number}`;
   const documentMeta = [
-    { label: "Institucion", value: courseContext?.schools?.official_name || null },
+    { label: "Institución", value: courseContext?.schools?.official_name || null },
     { label: "Materia", value: courseContext?.subject || null },
-    { label: "Curso", value: courseContext?.year_level ? `${courseContext.year_level} a\u00f1o` : null },
-    { label: "Clase", value: `Leccion ${lesson.lesson_number}` },
+    { label: "Curso", value: courseContext?.year_level ? `${courseContext.year_level} año` : null },
+    { label: "Clase", value: `Lección ${lesson.lesson_number}` },
     { label: "Tema", value: planLesson?.theme || null },
     { label: "Ciclo", value: courseContext?.academic_year || null },
   ];
