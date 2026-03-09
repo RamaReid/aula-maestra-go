@@ -29,6 +29,29 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { EditCourseDialog } from "@/components/EditCourseDialog";
 import type { Tables } from "@/integrations/supabase/types";
 import { formatErrorMessage } from "@/lib/errors";
+import GuidedTour from "@/components/GuidedTour";
+import type { TourStep } from "@/hooks/useTour";
+
+const DASHBOARD_TOUR_STEPS: TourStep[] = [
+  {
+    id: "new-course",
+    targetSelector: '[data-tour="dashboard-new-course"]',
+    title: "Crear un curso",
+    description: "Creá un nuevo curso desde acá. Es el primer paso para empezar a planificar.",
+  },
+  {
+    id: "courses",
+    targetSelector: '[data-tour="dashboard-courses"]',
+    title: "Tus cursos",
+    description: "Cada tarjeta muestra un curso con su estado. Hacé clic en 'Abrir curso' para entrar.",
+  },
+  {
+    id: "sync-abc",
+    targetSelector: '[data-tour="dashboard-sync-abc"]',
+    title: "Sincronizar diseño curricular",
+    description: "Importá el diseño curricular oficial de tu provincia para que el sistema lo use como referencia.",
+  },
+];
 
 interface CourseWithDetails {
   id: string;
