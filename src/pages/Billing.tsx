@@ -506,7 +506,7 @@ export default function Billing() {
                   >
                     <div className="flex items-center justify-between gap-2">
                       <p className="font-semibold text-foreground">{copy.title}</p>
-                      <StatusBadge tone={isCurrent ? "success" : "neutral"} label={plan} />
+                      {isCurrent && <StatusBadge tone="success" label="Actual" />}
                     </div>
                     <p className="mt-2 text-sm text-muted-foreground">{copy.summary}</p>
                     <ul className="mt-4 flex-1 space-y-2 text-sm text-foreground">
