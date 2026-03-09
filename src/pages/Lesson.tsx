@@ -747,6 +747,8 @@ export default function Lesson() {
                 isGenerating={lesson.is_generating}
                 isLocked={lesson.status === "LOCKED"}
                 copilotoMode={entitlements.copiloto_mode}
+                subject={courseContext?.subject}
+                yearLevel={courseContext?.year_level}
               />
             </aside>
           )}
