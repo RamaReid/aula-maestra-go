@@ -875,6 +875,7 @@ export default function Lesson() {
           </>
         )}
       </ResizablePanelGroup>
+      <GuidedTour steps={LESSON_TOUR_STEPS} />
     </div>
   );
 }
