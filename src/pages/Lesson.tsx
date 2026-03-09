@@ -567,7 +567,7 @@ export default function Lesson() {
                 {planLesson && (
                   <Card>
                     <CardHeader className="pb-3">
-                      <div className="flex items-baseline justify-between gap-4">
+                      <div className="flex items-baseline gap-4">
                         <CardTitle className="text-base">Canon de esta clase</CardTitle>
                         <p className="text-sm text-muted-foreground">
                           <span className="text-[10px] font-bold uppercase tracking-wide">Tema: </span>
