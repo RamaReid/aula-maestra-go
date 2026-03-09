@@ -480,6 +480,8 @@ export default function Dashboard() {
         onOpenChange={(open) => !open && setCourseToEdit(null)}
         onSaved={fetchCourses}
       />
+
+      {!loading && activeCourses.length > 0 && <GuidedTour steps={DASHBOARD_TOUR_STEPS} />}
     </div>
   );
 }
