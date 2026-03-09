@@ -571,7 +571,7 @@ export default function Lesson() {
                     </CardHeader>
                     <CardContent className="grid gap-4 md:grid-cols-3">
                       <div className="space-y-1">
-                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Foco</p>
+                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Tema</p>
                         <p className="text-sm">{planLesson.theme}</p>
                       </div>
                       <div className="space-y-1">
