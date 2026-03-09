@@ -7,8 +7,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { ArrowLeft, ClipboardEdit } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import BriefForm from "@/components/lesson/BriefForm";
 import TeachingMaterialView from "@/components/lesson/TeachingMaterialView";
 import ReadingMaterialView from "@/components/lesson/ReadingMaterialView";
