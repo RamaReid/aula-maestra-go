@@ -719,6 +719,47 @@ export default function BriefForm({
     });
   };
 
+  const handleAiAutocomplete = useCallback(async () => {
+    if (!canUsePremiumQuery) return;
+    setAiAutocompleting(true);
+    try {
+      const lessonContext = {
+        theme: planTheme,
+        learningOutcome,
+        canonOperation,
+        canonEvidence,
+        subject: null as string | null,
+        yearLevel: null as number | null,
+        curriculumNodeNames: mappedCurriculumNodes.map((n) => n.name || "").filter(Boolean),
+        bibliographyNames: bibliographyNodes.map((n) => n.name || "").filter(Boolean),
+        authorizedSourceTitles: authorizedSourceNodes.map((n) => n.title || "").filter(Boolean),
+      };
+
+      const { data, error } = await supabase.functions.invoke("copilot-autocomplete", {
+        body: { lessonContext },
+      });
+
+      if (error) {
+        toast({ title: "Error de IA", description: "No se pudieron generar las indicaciones automáticas.", variant: "destructive" });
+        // Fallback to heuristic
+        handleApplyPremiumAutocomplete();
+        return;
+      }
+
+      if (data?.enfoque) setEnfoque(data.enfoque);
+      if (data?.dinamica) setDinamica(data.dinamica);
+      if (data?.profundidad) setProfundidad(data.profundidad);
+      if (data?.observaciones) setObservaciones(data.observaciones);
+      toast({ title: "Indicaciones generadas con IA", description: "Revisá y ajustá antes de confirmar." });
+    } catch (err) {
+      console.error("AI autocomplete error:", err);
+      // Fallback to heuristic
+      handleApplyPremiumAutocomplete();
+    } finally {
+      setAiAutocompleting(false);
+    }
+  }, [canUsePremiumQuery, planTheme, learningOutcome, canonOperation, canonEvidence, mappedCurriculumNodes, bibliographyNodes, authorizedSourceNodes]);
+
   return (
     <div className="space-y-4">
       {canUsePremiumQuery && isEditable && (
