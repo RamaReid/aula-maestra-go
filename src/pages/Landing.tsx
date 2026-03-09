@@ -286,6 +286,7 @@ export default function Landing() {
               {
                 name: "Gratis",
                 highlight: false,
+                price: null as null | { monthly: number; annual: number },
                 summary: "Para probar el flujo completo en 1 curso.",
                 items: [
                   "1 curso activo",
@@ -301,6 +302,7 @@ export default function Landing() {
               {
                 name: "Básico",
                 highlight: true,
+                price: { monthly: 15, annual: 150 },
                 summary: "Produccion docente diaria con control de curso.",
                 items: [
                   "Hasta 15 cursos activos",
@@ -316,6 +318,7 @@ export default function Landing() {
               {
                 name: "Premium",
                 highlight: false,
+                price: { monthly: 25, annual: 250 },
                 summary: "Maxima profundidad para planificar y enriquecer materiales.",
                 items: [
                   "Incluye todo Básico",
@@ -328,13 +331,32 @@ export default function Landing() {
                 cta: "Empezar Premium",
                 to: "/register",
               },
-            ].map(({ name, highlight, summary, items, cta, to }) => (
+            ].map(({ name, highlight, price, summary, items, cta, to }) => (
               <Card
                 key={name}
                 className={highlight ? "flex h-full flex-col border-primary ring-1 ring-primary/20" : "flex h-full flex-col border"}
               >
                 <CardHeader className="pb-2">
                   <CardTitle className="text-lg">{name}</CardTitle>
+                  {price ? (
+                    <div className="mt-1">
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-3xl font-bold text-foreground">€{price.monthly}</span>
+                        <span className="text-sm text-muted-foreground">/ mes</span>
+                      </div>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        o <span className="font-medium text-foreground">€{price.annual}</span> / año{" "}
+                        <span className="text-success">(ahorras 2 meses)</span>
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="mt-1">
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-3xl font-bold text-foreground">€0</span>
+                        <span className="text-sm text-muted-foreground">/ siempre</span>
+                      </div>
+                    </div>
+                  )}
                 </CardHeader>
                 <CardContent className="flex h-full flex-col space-y-4">
                   <p className="text-sm text-muted-foreground">{summary}</p>
