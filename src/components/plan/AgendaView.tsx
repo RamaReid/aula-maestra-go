@@ -34,7 +34,7 @@ export default function AgendaView({ courseId, readOnly = false }: Props) {
   const [scheduleSlots, setScheduleSlots] = useState<CourseScheduleSlot[]>([]);
   const [academicYear, setAcademicYear] = useState<number>(new Date().getFullYear());
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
+  
 
   useEffect(() => {
     const fetch = async () => {
