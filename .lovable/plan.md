@@ -1,56 +1,20 @@
 
+**Modificación de la pestaña "Contenidos" para ocultar la trazabilidad técnica**
 
-## Opciones para resolver el problema SSL con abc.gob.ar
+He analizado la estructura de la pestaña "Contenidos" dentro de `PlanEditor.tsx`. Actualmente, debajo del editor de bloques anuales (`PlanContentBlocksEditor`), se está renderizando una tarjeta visible y desplegada por defecto con el listado completo de los nodos crudos del anclaje curricular, lo que efectivamente ensucia la lectura.
 
-### Diagnóstico del problema
-El servidor de `abc.gob.ar` usa protocolos SSL/TLS antiguos o mal configurados que Deno (el runtime de Supabase Edge Functions) rechaza por sus estándares de seguridad estrictos. Esto causa `HandshakeFailure` en cualquier intento de conexión directa.
+### Cambios a realizar
 
-### Opción recomendada: Firecrawl como proxy
+1.  **Relegar el Anclaje Curricular a una Capa Secundaria (`src/components/plan/PlanEditor.tsx`)**
+    Modificaremos el bloque de "Anclaje curricular mapeado" para que deje de ser una tarjeta visible a simple vista. En su lugar, lo envolveremos dentro de un componente `Accordion` colapsado por defecto, tratándolo como un metadato técnico/interno.
 
-**Firecrawl** es un servicio de scraping que usa sus propios servidores con compatibilidad SSL más amplia. Puede actuar como intermediario para descargar los PDFs de ABC.
+    *   **Vista por defecto:** Se verá únicamente el título y el editor de los bloques anuales de contenido (con sus temas, descripciones y unidades), dejando la pantalla completamente limpia.
+    *   **Capa técnica (Expandible):** Al final de la vista se añadirá un pequeño texto/botón discreto (ej: *"Ver detalles técnicos de trazabilidad curricular"*). Solo si el docente o el sistema necesitan auditar de dónde viene el plan, podrán desplegarlo para ver la lista de nodos.
 
-**Flujo propuesto:**
-```text
-Usuario → Edge Function → Firecrawl API → abc.gob.ar → PDF
-                              ↓
-                    Devuelve contenido/base64
-                              ↓
-              Edge Function procesa e ingesta
-```
+2.  **Importar y aplicar los componentes visuales necesarios**
+    *   Importaremos `Accordion`, `AccordionItem`, `AccordionTrigger` y `AccordionContent` desde `@/components/ui/accordion`.
+    *   Añadiremos un estilo sutil y atenuado (colores `muted` y fuentes pequeñas) para la lista de nodos crudos, reafirmando que no es contenido de lectura principal.
 
-**Ventajas:**
-- Firecrawl maneja la negociación SSL en sus servidores
-- Puede scrapear tanto páginas índice como descargar PDFs directos
-- Tiene formato `rawHtml` que permite obtener binarios
-
-**Implementación:**
-1. Conectar Firecrawl al proyecto (requiere cuenta/API key)
-2. Crear edge function `firecrawl-proxy-abc` que:
-   - Recibe URL de abc.gob.ar
-   - Usa Firecrawl para obtener el contenido
-   - Retorna el PDF en base64
-3. Modificar `import-curriculum-pdf` para usar este proxy cuando la URL sea de abc.gob.ar
-
----
-
-### Alternativas adicionales
-
-| Opción | Complejidad | Costo | Viabilidad |
-|--------|-------------|-------|------------|
-| **Firecrawl** | Baja | Tiene plan gratuito limitado | ✅ Alta |
-| **Proxy HTTP externo** | Alta | Variable | ⚠️ Requiere infraestructura propia |
-| **Cloudflare Worker como proxy** | Media | Gratuito hasta límites | ⚠️ Requiere cuenta Cloudflare |
-| **Mantener solo subida manual** | Ninguna | Gratis | ✅ Ya funciona |
-
----
-
-### Recomendación
-
-Si quieres automatizar la descarga desde ABC, **Firecrawl es la opción más rápida** ya que está disponible como conector en Lovable. Solo necesitas:
-
-1. Conectar Firecrawl al proyecto
-2. Implementar una función proxy (~50 líneas)
-3. Actualizar el flujo de importación
-
-¿Procedemos con Firecrawl o prefieres mantener el flujo manual actual?
+3.  **Mantener la funcionalidad intacta**
+    *   La trazabilidad del sistema y los metadatos internos (`visibleMappedNodes`) seguirán presentes en el DOM y en el estado del componente, garantizando que el PDF exportable y la base de datos sigan funcionando correctamente sin verse afectados por esta limpieza de la interfaz.
 

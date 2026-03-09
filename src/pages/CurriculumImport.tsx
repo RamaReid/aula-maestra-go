@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
-import { formatFunctionErrorMessage } from "@/lib/errors";
+import { formatErrorMessage } from "@/lib/errors";
 
 type SchoolType = "COMUN" | "TECNICA";
 type CurriculumCycle = "BASIC" | "UPPER";
@@ -208,7 +208,7 @@ export default function CurriculumImport() {
     } catch (error) {
       toast({
         title: "No se pudo importar el programa",
-        description: await formatFunctionErrorMessage(error),
+        description: formatErrorMessage(error),
         variant: "destructive",
       });
     } finally {
@@ -236,34 +236,69 @@ export default function CurriculumImport() {
       <main className="mx-auto grid max-w-5xl gap-6 px-4 py-8 lg:grid-cols-[1.15fr_0.85fr]">
         <Card>
           <CardHeader>
-            <CardTitle>Sincronizar programa oficial desde ABC</CardTitle>
+            <CardTitle>Importar programa oficial desde ABC</CardTitle>
             <CardDescription>
-              `FREE` usa solo URLs oficiales de `abc.gob.ar`. `BASICO` y `PREMIUM` tambien pueden cargar un PDF manual.
+              Sube el PDF del diseño curricular descargado de abc.gob.ar para extraer contenidos y ejes.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
+            {/* Workflow explanation */}
+            <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
+              <h4 className="font-medium text-foreground mb-2">¿Cómo importar un programa?</h4>
+              <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
+                <li>
+                  Abrir el{" "}
+                  <a href={officialIndexUrl} target="_blank" rel="noreferrer" className="text-primary underline">
+                    índice de diseños curriculares de ABC
+                  </a>
+                </li>
+                <li>Buscar y descargar el PDF del programa deseado</li>
+                <li>Subir el PDF aquí y completar los datos</li>
+              </ol>
+            </div>
+
             {canUploadManualPdf ? (
               <div className="space-y-2">
-                <Label htmlFor="pdf-file">PDF manual del diseno curricular</Label>
+                <Label htmlFor="pdf-file">Subir PDF del diseño curricular</Label>
                 <Input id="pdf-file" type="file" accept="application/pdf" onChange={handleFileChange} />
-                <p className="text-sm text-muted-foreground">
-                  Disponible para planes `BASICO` y `PREMIUM`. Si cargas un PDF, la URL oficial sigue siendo opcional.
-                </p>
-                {file && <p className="text-sm text-muted-foreground">Archivo seleccionado: {file.name}</p>}
+                {file && (
+                  <p className="text-sm text-primary">
+                    <CheckCircle2 className="inline h-4 w-4 mr-1" />
+                    Archivo seleccionado: {file.name}
+                  </p>
+                )}
               </div>
             ) : (
               <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-                Tu plan actual usa solo URLs oficiales de `https://abc.gob.ar/...` para base curricular.
+                <p className="font-medium">Plan FREE: Solo sincronización por URL</p>
+                <p className="mt-1">
+                  Tu plan actual permite usar URLs oficiales de abc.gob.ar. Para subir PDFs manualmente, actualiza a plan BASICO o PREMIUM.
+                </p>
+              </div>
+            )}
+
+            {!canUploadManualPdf && (
+              <div className="space-y-2">
+                <Label htmlFor="official-url">URL oficial del programa en ABC</Label>
+                <Input
+                  id="official-url"
+                  value={officialUrl}
+                  onChange={(e) => setOfficialUrl(e.target.value)}
+                  placeholder="https://abc.gob.ar/.../programa.pdf"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Pega la URL directa al PDF desde abc.gob.ar. Nota: Algunos servidores de ABC pueden tener problemas de conexión.
+                </p>
               </div>
             )}
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="subject">Materia</Label>
-                <Input id="subject" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Ej. Filosofia" />
+                <Label htmlFor="subject">Materia *</Label>
+                <Input id="subject" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Ej. Filosofía" />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="year-level">Año</Label>
+                <Label htmlFor="year-level">Año *</Label>
                 <Input id="year-level" type="number" min={1} max={6} value={yearLevel} onChange={(e) => setYearLevel(e.target.value)} />
               </div>
             </div>
@@ -276,8 +311,8 @@ export default function CurriculumImport() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="BASIC">Basico</SelectItem>
-                    <SelectItem value="UPPER">Superior</SelectItem>
+                    <SelectItem value="BASIC">Básico (1°-3°)</SelectItem>
+                    <SelectItem value="UPPER">Superior (4°-6°)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -288,9 +323,9 @@ export default function CurriculumImport() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ANY">Generico / mas de un tipo</SelectItem>
-                    <SelectItem value="COMUN">Comun</SelectItem>
-                    <SelectItem value="TECNICA">Tecnica</SelectItem>
+                    <SelectItem value="ANY">Genérico / todos los tipos</SelectItem>
+                    <SelectItem value="COMUN">Común</SelectItem>
+                    <SelectItem value="TECNICA">Técnica</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -298,8 +333,8 @@ export default function CurriculumImport() {
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="orientation">Orientacion</Label>
-                <Input id="orientation" value={orientation} onChange={(e) => setOrientation(e.target.value)} placeholder="Opcional" />
+                <Label htmlFor="orientation">Orientación</Label>
+                <Input id="orientation" value={orientation} onChange={(e) => setOrientation(e.target.value)} placeholder="Ej. Ciencias Sociales" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="speciality">Especialidad</Label>
@@ -308,68 +343,60 @@ export default function CurriculumImport() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="official-title">Titulo oficial</Label>
+              <Label htmlFor="official-title">Título oficial del documento</Label>
               <Textarea
                 id="official-title"
                 value={officialTitle}
                 onChange={(e) => setOfficialTitle(e.target.value)}
-                placeholder="Conviene cargar el titulo tal como figura en el documento"
-                rows={3}
+                placeholder="Copiar el título tal como figura en el PDF"
+                rows={2}
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="official-url">URL oficial del programa en ABC</Label>
-              <Input
-                id="official-url"
-                value={officialUrl}
-                onChange={(e) => setOfficialUrl(e.target.value)}
-                placeholder="https://abc.gob.ar/.../programa.pdf"
-              />
-              <p className="text-sm text-muted-foreground">
-                Puede pegar la URL directa del PDF o una pagina indice de ABC. Si recibe una pagina de listado,
-                el sistema intentara derivarla a un PDF oficial directo, por ejemplo
-                {" "}
-                <span className="font-mono text-xs">
-                  https://abc.gob.ar/secretarias/sites/default/files/.../programa.pdf
-                </span>
-                .
-              </p>
+            {canUploadManualPdf && (
+              <div className="space-y-2">
+                <Label htmlFor="official-url">URL oficial (opcional)</Label>
+                <Input
+                  id="official-url"
+                  value={officialUrl}
+                  onChange={(e) => setOfficialUrl(e.target.value)}
+                  placeholder="https://abc.gob.ar/.../programa.pdf"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Si conoces la URL original del documento en ABC, inclúyela para trazabilidad.
+                </p>
+              </div>
+            )}
+
+            <div className="flex flex-wrap gap-3">
+              <Button asChild variant="outline">
+                <a href={officialIndexUrl} target="_blank" rel="noreferrer">
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  Abrir índice ABC
+                </a>
+              </Button>
+
+              <Button onClick={handleImport} disabled={!canSubmit || importing}>
+                {importing ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Procesando PDF...
+                  </>
+                ) : (
+                  <>
+                    <FileUp className="mr-2 h-4 w-4" />
+                    Importar programa
+                  </>
+                )}
+              </Button>
             </div>
-
-            <div className="rounded-lg border bg-muted/30 p-4 text-sm text-muted-foreground">
-              <p>{profile?.email || "usuario autenticado"}</p>
-              <p>Plan activo: {planType}.</p>
-              <p>Provincia fija de esta etapa: PBA.</p>
-              <p>Si el mismo programa aplica a comun y tecnica, usar "Generico / mas de un tipo".</p>
-              <p>Si usas URL, debe pertenecer a `abc.gob.ar`. Puede ser una URL de indice o del PDF directo publicado por ABC.</p>
-              <p>Si el programa ya aparece en "Base curricular reciente", puede usarlo directo para crear un curso.</p>
-            </div>
-
-            <Button asChild variant="outline" className="w-full sm:w-auto">
-              <a href={officialIndexUrl} target="_blank" rel="noreferrer">
-                <ExternalLink className="mr-2 h-4 w-4" />
-                Abrir indice oficial de ABC
-              </a>
-            </Button>
-
-            <Button onClick={handleImport} disabled={!canSubmit || importing} className="w-full sm:w-auto">
-              {importing ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Importando
-                </>
-              ) : (
-                <>
-                  {file ? <FileUp className="mr-2 h-4 w-4" /> : <ExternalLink className="mr-2 h-4 w-4" />}
-                  {file ? "Importar PDF manual" : "Sincronizar programa"}
-                </>
-              )}
-            </Button>
 
             {useSelectedDocUrl && (
-              <Button asChild variant="outline" className="w-full sm:w-auto">
-                <Link to={useSelectedDocUrl}>Usar programa seleccionado</Link>
+              <Button asChild variant="secondary" className="w-full">
+                <Link to={useSelectedDocUrl}>
+                  <CheckCircle2 className="mr-2 h-4 w-4" />
+                  Usar programa seleccionado para crear curso
+                </Link>
               </Button>
             )}
           </CardContent>

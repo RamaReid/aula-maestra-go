@@ -144,25 +144,26 @@ Via `fetch_secrets`:
 
 ---
 
-## 3. Inventario: 13 Edge Functions
+## 3. Inventario: 14 Edge Functions
 
 | # | Funcion | Lineas | Modelo IA | Secretos extra | Estado |
 |---|---|---|---|---|---|
 | 1 | `bootstrap-course-plan` | 1008 | gemini-2.5-pro | LOVABLE_API_KEY | **Operativa** |
 | 2 | `generate-materials` | 1665 | gemini-2.5-flash + pro | LOVABLE_API_KEY | **Operativa parcial** (authorized_sources falta) |
 | 3 | `resolve-curriculum-document` | 413 | — | — | **Operativa** |
-| 4 | `import-curriculum-pdf` | 121 | — | — | **BLOQUEADA** (`npm:pdfjs-dist`) |
-| 5 | `process-authorized-source` | 372 | — | LOVABLE_API_KEY | **BLOQUEADA** (`npm:` + tabla falta) |
-| 6 | `repair-curriculum-bibliography` | ~50 | — | — | **Parcial** (depende curriculumImport.ts) |
-| 7 | `check-course-limit` | 61 | — | — | **Operativa** |
-| 8 | `create-checkout` | 147 | — | MP_ACCESS_TOKEN, MP_WEBHOOK_SECRET, MP_PRICES | **BLOQUEADA** (secretos) |
-| 9 | `billing-webhook` | 120 | — | MP_ACCESS_TOKEN, MP_WEBHOOK_SECRET | **BLOQUEADA** (secretos + tablas) |
-| 10 | `cancel-subscription` | 91 | — | MP_ACCESS_TOKEN | **BLOQUEADA** (secretos + cols) |
-| 11 | `reconcile-billing` | 90 | — | MP_ACCESS_TOKEN | **BLOQUEADA** (secretos + cols) |
-| 12 | `set-test-plan` | 121 | — | — | **Operativa** (whitelist: `rgarciareid@gmail.com`) |
-| 13 | `resolve-premium-query` | 498 | — | — | **BLOQUEADA** (tabla falta) |
+| 4 | `import-curriculum-pdf` | 137 | — | FIRECRAWL_API_KEY | **Operativa** (Firecrawl proxy para abc.gob.ar) |
+| 5 | `firecrawl-proxy-abc` | 140 | — | FIRECRAWL_API_KEY | **Operativa** (proxy standalone) |
+| 6 | `process-authorized-source` | 372 | — | LOVABLE_API_KEY | **BLOQUEADA** (`npm:` + tabla falta) |
+| 7 | `repair-curriculum-bibliography` | ~50 | — | — | **Parcial** (depende curriculumImport.ts) |
+| 8 | `check-course-limit` | 61 | — | — | **Operativa** |
+| 9 | `create-checkout` | 147 | — | MP_ACCESS_TOKEN, MP_WEBHOOK_SECRET, MP_PRICES | **BLOQUEADA** (secretos) |
+| 10 | `billing-webhook` | 120 | — | MP_ACCESS_TOKEN, MP_WEBHOOK_SECRET | **BLOQUEADA** (secretos + tablas) |
+| 11 | `cancel-subscription` | 91 | — | MP_ACCESS_TOKEN | **BLOQUEADA** (secretos + cols) |
+| 12 | `reconcile-billing` | 90 | — | MP_ACCESS_TOKEN | **BLOQUEADA** (secretos + cols) |
+| 13 | `set-test-plan` | 121 | — | — | **Operativa** (whitelist: `rgarciareid@gmail.com`) |
+| 14 | `resolve-premium-query` | 498 | — | — | **BLOQUEADA** (tabla falta) |
 
-**Confirmacion:** No existe `seed-demo-course` como edge function. La referencia es a `src/pages/Demo.tsx` (componente frontend).
+**Nota:** `import-curriculum-pdf` usa Firecrawl como proxy para URLs de abc.gob.ar debido a problemas de SSL/TLS entre Deno y los servidores de ABC. Sin embargo, Firecrawl `scrape` puede timeout en PDFs grandes. Se recomienda subida manual del PDF para mejor confiabilidad.
 
 ---
 
