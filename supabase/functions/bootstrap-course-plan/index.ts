@@ -147,6 +147,7 @@ function isCurriculumNoiseNode(node: CurriculumNodeRow): boolean {
   if (!normalized) return true;
   if (isCurriculumNoiseText(normalized)) return true;
   if (/^\d+$/.test(normalized)) return true;
+  if (node.name.trim().length > 150) return true; // Descarta párrafos largos sin estructura temática
   return false;
 }
 
