@@ -110,19 +110,39 @@ serve(async (req) => {
     const hasRawText = doc?.raw_text && doc.raw_text.trim().length >= 500;
 
     if (!hasRawText && doc) {
-      // Try to re-ingest from known official URL
+      // Try to re-ingest from known seed PDF in storage
       const key = `${doc.subject}|${doc.cycle}|${doc.year_level}`;
-      const officialUrl = KNOWN_OFFICIAL_URLS[key];
+      const storagePath = KNOWN_SEED_STORAGE_PATHS[key];
 
-      if (officialUrl) {
-        console.log(`[repair-bibliography] Re-ingesting from official URL: ${key}`);
+      if (storagePath) {
+        console.log(`[repair-bibliography] Re-ingesting from storage: ${key} -> ${storagePath}`);
+
+        // Download PDF from Supabase storage using service role
+        const storageUrl = `${supabaseUrl}/storage/v1/object/authenticated/authorized-sources/${storagePath}`;
+        const pdfResponse = await fetch(storageUrl, {
+          headers: { Authorization: `Bearer ${serviceRoleKey}` },
+        });
+
+        if (!pdfResponse.ok) {
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: `No se pudo descargar el PDF seed desde storage (${pdfResponse.status})`,
+            }),
+            { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        const pdfBytes = new Uint8Array(await pdfResponse.arrayBuffer());
+        const fileBase64 = btoa(String.fromCharCode(...pdfBytes));
+
         const ingestResult = await ingestCurriculumDocument(adminClient, {
+          file_base64: fileBase64,
+          file_name: storagePath.split("/").pop() || "programa.pdf",
           subject: doc.subject,
           cycle: doc.cycle,
           year_level: doc.year_level,
-          official_url: officialUrl,
-          source_provider: "ABC_PBA_WEB",
-          allow_external_url: false,
+          source_provider: "ABC_PBA_UPLOAD",
         });
 
         return new Response(
@@ -140,7 +160,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({
           success: false,
-          error: "El documento curricular no tiene raw_text y no se encontro URL oficial conocida para re-importar.",
+          error: "El documento curricular no tiene raw_text y no se encontro PDF seed para re-importar.",
         }),
         { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
