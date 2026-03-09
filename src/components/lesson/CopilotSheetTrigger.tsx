@@ -42,6 +42,7 @@ export default function CopilotSheetTrigger({
   lessonContext,
   subject,
   yearLevel,
+  chatPlaceholder = "Preguntá algo...",
 }: CopilotSheetTriggerProps) {
   const isDisabled = copilotoMode === "none";
   const isPremium = copilotoMode === "full";
