@@ -523,6 +523,7 @@ export default function Lesson() {
             copilotoMode={entitlements.copiloto_mode}
             subject={courseContext?.subject}
             yearLevel={courseContext?.year_level}
+            chatPlaceholder="¿Cómo mejorar las indicaciones o los materiales de esta clase?"
             lessonContext={{
               theme: planLesson?.theme,
               learningOutcome: planLesson?.learning_outcome,
