@@ -73,7 +73,7 @@ const planCardCopy: Record<
     title: "Basico",
     summary: "Operacion docente diaria con cursos multiples y exportacion.",
     bullets: ["Hasta 15 cursos", "Secuencias consecutivas", "PDF validado", "Fuentes propias por archivo"],
-    cta: "Pagar con Mercado Pago",
+    cta: "Mercado Pago",
   },
   PREMIUM: {
     title: "Premium",
