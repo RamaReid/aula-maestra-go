@@ -1,34 +1,20 @@
 
+**Modificación de la pestaña "Contenidos" para ocultar la trazabilidad técnica**
 
-## Diagnóstico
+He analizado la estructura de la pestaña "Contenidos" dentro de `PlanEditor.tsx`. Actualmente, debajo del editor de bloques anuales (`PlanContentBlocksEditor`), se está renderizando una tarjeta visible y desplegada por defecto con el listado completo de los nodos crudos del anclaje curricular, lo que efectivamente ensucia la lectura.
 
-Hay **dos problemas** que impiden importar el PDF:
+### Cambios a realizar
 
-### 1. Gate de plan FREE no fue eliminado (líneas 100-108 del edge function)
-El código del edge function `import-curriculum-pdf/index.ts` todavía tiene el bloqueo que rechaza uploads manuales para usuarios FREE con un 403. El cambio anterior no se aplicó correctamente.
+1.  **Relegar el Anclaje Curricular a una Capa Secundaria (`src/components/plan/PlanEditor.tsx`)**
+    Modificaremos el bloque de "Anclaje curricular mapeado" para que deje de ser una tarjeta visible a simple vista. En su lugar, lo envolveremos dentro de un componente `Accordion` colapsado por defecto, tratándolo como un metadato técnico/interno.
 
-### 2. Error de pdfjs-dist: `No "GlobalWorkerOptions.workerSrc" specified`
-La librería `pdfjs-dist` importada desde `esm.sh` falla en el entorno Deno Edge Function. La opción `disableWorker: true` no está funcionando con esta versión. La solución es migrar a `pdfjs-serverless`, una distribución específica para entornos serverless (Deno, Cloudflare Workers) que no requiere worker ni configuración adicional.
+    *   **Vista por defecto:** Se verá únicamente el título y el editor de los bloques anuales de contenido (con sus temas, descripciones y unidades), dejando la pantalla completamente limpia.
+    *   **Capa técnica (Expandible):** Al final de la vista se añadirá un pequeño texto/botón discreto (ej: *"Ver detalles técnicos de trazabilidad curricular"*). Solo si el docente o el sistema necesitan auditar de dónde viene el plan, podrán desplegarlo para ver la lista de nodos.
 
-## Plan
+2.  **Importar y aplicar los componentes visuales necesarios**
+    *   Importaremos `Accordion`, `AccordionItem`, `AccordionTrigger` y `AccordionContent` desde `@/components/ui/accordion`.
+    *   Añadiremos un estilo sutil y atenuado (colores `muted` y fuentes pequeñas) para la lista de nodos crudos, reafirmando que no es contenido de lectura principal.
 
-### Archivo 1: `supabase/functions/import-curriculum-pdf/index.ts`
-- **Eliminar líneas 100-108**: el bloque `if (wantsManualUpload && planType === "FREE")` que devuelve 403
-
-### Archivo 2: `supabase/functions/_shared/curriculumImport.ts`
-- **Cambiar el import** de `pdfjs-dist` a `pdfjs-serverless`:
-  ```
-  // Antes:
-  import { getDocument } from "https://esm.sh/pdfjs-dist@4.10.38/legacy/build/pdf.mjs";
-  
-  // Después:
-  import { getDocument } from "https://esm.sh/pdfjs-serverless";
-  ```
-- **Actualizar `extractPdfText`** para usar la API de `pdfjs-serverless` (que es compatible pero no necesita `disableWorker`, `useSystemFonts`, ni `isEvalSupported`)
-
-### Archivo 3: `supabase/functions/process-authorized-source/index.ts`
-- Verificar si también importa `pdfjs-dist` y actualizarlo igualmente
-
-### Deploy
-- Redesplegar `import-curriculum-pdf` después de los cambios
+3.  **Mantener la funcionalidad intacta**
+    *   La trazabilidad del sistema y los metadatos internos (`visibleMappedNodes`) seguirán presentes en el DOM y en el estado del componente, garantizando que el PDF exportable y la base de datos sigan funcionando correctamente sin verse afectados por esta limpieza de la interfaz.
 
