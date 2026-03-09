@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
-import { formatErrorMessage } from "@/lib/errors";
+import { formatFunctionErrorMessage } from "@/lib/errors";
 
 type SchoolType = "COMUN" | "TECNICA";
 type CurriculumCycle = "BASIC" | "UPPER";
@@ -208,7 +208,7 @@ export default function CurriculumImport() {
     } catch (error) {
       toast({
         title: "No se pudo importar el programa",
-        description: formatErrorMessage(error),
+        description: await formatFunctionErrorMessage(error),
         variant: "destructive",
       });
     } finally {
@@ -326,8 +326,14 @@ export default function CurriculumImport() {
                 onChange={(e) => setOfficialUrl(e.target.value)}
                 placeholder="https://abc.gob.ar/.../programa.pdf"
               />
-              <p className="text-xs text-muted-foreground">
-                Puede ser la URL directa al PDF <em>o</em> la URL de la página índice de ABC (por ejemplo, la de Diseños Curriculares). El sistema detecta el PDF automáticamente.
+              <p className="text-sm text-muted-foreground">
+                Puede pegar la URL directa del PDF o una pagina indice de ABC. Si recibe una pagina de listado,
+                el sistema intentara derivarla a un PDF oficial directo, por ejemplo
+                {" "}
+                <span className="font-mono text-xs">
+                  https://abc.gob.ar/secretarias/sites/default/files/.../programa.pdf
+                </span>
+                .
               </p>
             </div>
 
@@ -336,7 +342,7 @@ export default function CurriculumImport() {
               <p>Plan activo: {planType}.</p>
               <p>Provincia fija de esta etapa: PBA.</p>
               <p>Si el mismo programa aplica a comun y tecnica, usar "Generico / mas de un tipo".</p>
-              <p>Si usas URL, debe pertenecer a `abc.gob.ar` y apuntar al documento oficial publicado por ABC.</p>
+              <p>Si usas URL, debe pertenecer a `abc.gob.ar`. Puede ser una URL de indice o del PDF directo publicado por ABC.</p>
               <p>Si el programa ya aparece en "Base curricular reciente", puede usarlo directo para crear un curso.</p>
             </div>
 
