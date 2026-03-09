@@ -429,7 +429,7 @@ export default function Billing() {
                     />
                   </div>
 
-                  <div className="metric-grid">
+                  <div className="grid gap-3 grid-cols-2">
                     <div className="metric-card">
                       <p className="metric-label">Titular</p>
                       <p className="metric-value">{profile?.email || "Sin email"}</p>
