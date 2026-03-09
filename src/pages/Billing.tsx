@@ -492,7 +492,7 @@ export default function Billing() {
               <CardTitle>Planes disponibles</CardTitle>
               <CardDescription>Upgrade automatico por Mercado Pago para BASICO y PREMIUM.</CardDescription>
             </CardHeader>
-            <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <CardContent className="grid gap-4 sm:grid-cols-3">
               {(["FREE", "BASICO", "PREMIUM"] as PlanType[]).map((plan) => {
                 const copy = planCardCopy[plan];
                 const isCurrent = plan === planType;
