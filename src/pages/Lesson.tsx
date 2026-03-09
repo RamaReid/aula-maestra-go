@@ -188,6 +188,7 @@ export default function Lesson() {
   const [mappedCurriculumNodes, setMappedCurriculumNodes] = useState<CurriculumNodeRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [pdfBase64, setPdfBase64] = useState<string | null>(null);
+  const [copilotOpen, setCopilotOpen] = useState(false);
 
   const fetchData = useCallback(async () => {
     if (!lessonId) return;
