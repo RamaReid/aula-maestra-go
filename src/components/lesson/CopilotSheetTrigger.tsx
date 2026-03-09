@@ -110,6 +110,7 @@ export default function CopilotSheetTrigger({
                   <CopilotChat
                     copilotoMode={copilotoMode}
                     lessonContext={defaultContext}
+                    placeholder={chatPlaceholder}
                   />
                 ) : (
                   <p className="text-xs text-muted-foreground text-center py-4">

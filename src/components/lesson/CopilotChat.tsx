@@ -246,7 +246,7 @@ export default function CopilotChat({ lessonContext, copilotoMode, placeholder =
           ref={inputRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Preguntá algo sobre tu clase..."
+          placeholder={placeholder}
           disabled={isLoading}
           className="text-sm h-9"
         />
