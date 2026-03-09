@@ -618,8 +618,8 @@ export default function Course() {
                         {lessons.map((lesson) => (
                           <Card key={lesson.id} className="transition-colors hover:border-primary/50">
                             <CardHeader className="pb-2">
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="flex items-center gap-3">
+                              <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
+                                <div className="flex items-center gap-3 min-w-0">
                                   <Checkbox
                                     checked={selectedLessonIds.includes(lesson.id)}
                                     onCheckedChange={() => toggleLessonSelection(lesson.id)}
@@ -629,7 +629,7 @@ export default function Course() {
                                     }
                                     aria-label={`Seleccionar lección ${lesson.lesson_number}`}
                                   />
-                                  <div className="space-y-1">
+                                  <div className="min-w-0 space-y-1">
                                     <CardTitle className="text-base">
                                       Leccion {lesson.lesson_number}
                                       {lesson.plan_lesson?.theme ? ` - ${lesson.plan_lesson.theme}` : ""}
@@ -646,7 +646,7 @@ export default function Course() {
                                     </p>
                                   </div>
                                 </div>
-                                <div className="flex flex-col items-end gap-1.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">
+                                <div className="flex flex-col gap-2 md:min-w-[172px] md:items-start md:self-stretch">
                                   <div className="flex flex-wrap gap-1.5">
                                     <StatusBadge
                                       tone={lessonStatusTone(lesson.status)}
@@ -662,7 +662,7 @@ export default function Course() {
                                       label={briefLabel(lesson.brief_status)}
                                     />
                                   </div>
-                                  <Button asChild variant="outline" size="sm">
+                                  <Button asChild variant="outline" size="sm" className="w-fit">
                                     <Link to={`/lesson/${lesson.id}`}>Abrir clase</Link>
                                   </Button>
                                 </div>

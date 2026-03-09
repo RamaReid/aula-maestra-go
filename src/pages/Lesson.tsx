@@ -80,6 +80,10 @@ function extractCanonSummary(activitiesSummary?: string | null, fallbackTheme?: 
   };
 }
 
+function stripTechnicalLabel(value: string | null | undefined) {
+  return (value || "").replace(/^(?:\[[^\]]+\]\s*)+/g, "").trim();
+}
+
 function isLikelyBibliographyEntry(name: string): boolean {
   const trimmed = name.trim();
   const commaCount = (trimmed.match(/,/g) || []).length;
@@ -555,7 +559,7 @@ export default function Lesson() {
                       {mappedCurriculumNodes.length > 0 ? (
                         mappedCurriculumNodes.map((node) => (
                           <Badge key={node.id} variant="outline">
-                            [{node.node_type}] {node.name}
+                            {stripTechnicalLabel(node.name)}
                           </Badge>
                         ))
                       ) : (
@@ -574,7 +578,7 @@ export default function Lesson() {
                       {bibliographyNodes.length > 0 ? (
                         bibliographyNodes.map((node) => (
                           <Badge key={node.id} variant="secondary">
-                            [BIBLIOGRAFIA SUGERIDA] {node.name}
+                            {stripTechnicalLabel(node.name)}
                           </Badge>
                         ))
                       ) : (
@@ -594,7 +598,7 @@ export default function Lesson() {
                         {authorizedSourceNodes.length > 0 ? (
                           authorizedSourceNodes.map((source) => (
                             <Badge key={source.id} variant="secondary">
-                              [DOCENTE/{source.media_type}] {source.title}
+                              {stripTechnicalLabel(source.title)}
                             </Badge>
                           ))
                         ) : (
@@ -618,7 +622,7 @@ export default function Lesson() {
                         {referencedNodes.length > 0 ? (
                           referencedNodes.map((node) => (
                             <Badge key={node.id} variant="outline">
-                              [FUENTE] {node.name}
+                              {stripTechnicalLabel(node.name)}
                             </Badge>
                           ))
                         ) : (
