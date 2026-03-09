@@ -120,58 +120,6 @@ export default function AgendaView({ courseId, readOnly = false }: Props) {
     }
   };
 
-  const handleSyncAll = async () => {
-    if (scheduleSlots.length === 0) {
-      toast({
-        title: "Sin horarios configurados",
-        description: "Configurá los días y horarios del curso antes de sincronizar.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setSyncing(true);
-    const updates = lessons
-      .filter((l) => l.computed_date && l.scheduled_date !== l.computed_date)
-      .map((l) => ({ id: l.id, scheduled_date: l.computed_date }));
-
-    if (updates.length === 0) {
-      toast({ title: "Todo sincronizado", description: "Las fechas ya están al día." });
-      setSyncing(false);
-      return;
-    }
-
-    let errorCount = 0;
-    for (const upd of updates) {
-      const { error } = await supabase
-        .from("lessons")
-        .update({ scheduled_date: upd.scheduled_date })
-        .eq("id", upd.id);
-      if (error) errorCount++;
-    }
-
-    if (errorCount > 0) {
-      toast({
-        title: "Sincronización parcial",
-        description: `${updates.length - errorCount} de ${updates.length} fechas actualizadas.`,
-        variant: "destructive",
-      });
-    } else {
-      toast({
-        title: "Agenda sincronizada",
-        description: `${updates.length} fechas actualizadas según la planificación.`,
-      });
-    }
-
-    setLessons((prev) =>
-      prev.map((l) => {
-        const upd = updates.find((u) => u.id === l.id);
-        return upd ? { ...l, scheduled_date: upd.scheduled_date } : l;
-      })
-    );
-    setSyncing(false);
-  };
-
   if (loading) {
     return (
       <Card>
