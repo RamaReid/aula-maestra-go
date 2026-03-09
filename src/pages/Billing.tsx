@@ -399,7 +399,7 @@ export default function Billing() {
         </div>
       </header>
 
-      <main className="mx-auto grid max-w-5xl gap-6 px-4 py-8 lg:grid-cols-[1.15fr_0.85fr]">
+      <main className="mx-auto grid max-w-5xl gap-6 overflow-hidden px-4 py-8 lg:grid-cols-[1.15fr_0.85fr]">
         <div className="lg:col-span-2">
           <PageIntro
             eyebrow="Planes y facturacion"
