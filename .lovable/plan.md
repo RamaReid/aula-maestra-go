@@ -1,86 +1,43 @@
-# Plan consolidado: Flexibilizar edicion de clases y busqueda de material
-
-## Resumen
-
-Hay 4 mejoras pendientes que discutimos. Las presento juntas para implementar en orden.
-
----
-
-## 1. Permitir reabrir un brief confirmado
-
-**Problema actual:** Cuando el brief pasa a `READY_FOR_PRODUCTION` o `PRODUCED`, el formulario queda bloqueado (`isEditable = false` en linea 300). No hay forma de volver a editarlo.
-
-**Cambio en `src/components/lesson/BriefForm.tsx`:**
-
-- Agregar boton "Editar indicaciones" visible cuando `isConfirmed = true` y `!hasInvalidSelections`
-- Al presionarlo, actualizar el status del brief a `IN_PROGRESS` via update a `lesson_briefs`
-- No eliminar materiales existentes; solo habilitar la re-edicion y futura re-generacion
-- Mostrar aviso: "Al modificar las indicaciones podras regenerar los materiales"
-
----
-
-## 2. Simplificar busqueda premium
-
-**Problema actual:** La edge function `resolve-premium-query` rechaza consultas naturales con `isConcreteQuery` (exige 4+ palabras, tipo de recurso, preposiciones especificas). El frontend muestra un dropdown de tipo de recurso innecesario.
-
-**Cambios:**
-
-`**supabase/functions/resolve-premium-query/index.ts`:**
-
-- Eliminar la funcion `isConcreteQuery` y el bloque que la invoca
-- Unica validacion: minimo 2 palabras
-- Mantener `inferResourceType` y `extractEntityAndTopic` como metadata (nunca bloquean)
-
-`**src/components/lesson/BriefForm.tsx`:**
-
-- Eliminar state `premiumResourceType` y el dropdown `<Select>`
-- Enviar siempre `resource_type: null`
-- Layout simplificado: input + boton en una linea con `flex gap-2`
-- Agregar soporte Enter para disparar busqueda
-- Placeholder: `"Ej: fotosintesis, video revolucion francesa"`
-- Quitar texto "Solo se acepta consulta concreta"
-
----
-
-## 3. Edicion parcial de materiales generados
-
-**Problema actual:** Los materiales didacticos y de lectura son read-only despues de generarse. La unica opcion es regenerar completo.
-
-**Cambios:**
-
-`**src/components/lesson/TeachingMaterialView.tsx`:**
-
-- Agregar boton "Editar" que habilita edicion inline de `purpose`, `expected_product`, `closure` y `achievement_criteria`
-- Guardado directo a tabla `teaching_materials` via update
-- Mantener boton "Regenerar" como alternativa
-
-`**src/components/lesson/ReadingMaterialView.tsx`:**
-
-- Agregar boton "Editar lectura" que muestra un `<Textarea>` con el HTML para edicion manual
-- Guardar cambios a `reading_materials.content_html`
-- Recalcular `word_count` al guardar
-- Mantener boton "Regenerar" como alternativa
-
-`**src/pages/Lesson.tsx`:**
-
-- Pasar callbacks `onUpdateTeaching` y `onUpdateReading` a los componentes de material para que puedan guardar cambios
-
----
-
-## Archivos a modificar
 
 
-| Archivo                                             | Cambios                                                        |
-| --------------------------------------------------- | -------------------------------------------------------------- |
-| `src/components/lesson/BriefForm.tsx`               | Boton reabrir brief, simplificar busqueda premium              |
-| `supabase/functions/resolve-premium-query/index.ts` | Eliminar `isConcreteQuery`, minimo 2 palabras                  |
-| `src/components/lesson/TeachingMaterialView.tsx`    | Campos editables inline                                        |
-| `src/components/lesson/ReadingMaterialView.tsx`     | Editor de contenido HTML                                       |
-| `src/pages/Lesson.tsx`                              | Callbacks de guardado para materiales, handler de reopen brief |
+## Plan: Hacer visible el botón "Editar indicaciones" en la parte superior del brief
 
+### Problema
 
-## Orden de implementacion
+El botón "Editar indicaciones" existe pero está al final del formulario (línea 945). El usuario ve los campos deshabilitados y no sabe que tiene que scrollear hasta abajo para encontrar el botón. Necesita estar visible junto al StepHeader de "Paso 1 — Indicaciones", donde dice "Producido".
 
-1. Reabrir brief (cambio pequeno, impacto inmediato)
-2. Simplificar busqueda premium (edge function + frontend)
-3. Edicion parcial de materiales (mas complejo)
+### Solución
+
+**Archivo: `src/components/lesson/BriefForm.tsx`**
+
+1. **Mover el botón "Editar indicaciones" arriba**, justo después del StepHeader (donde dice "Producido"), dentro de un banner visible con fondo suave que diga: "Las indicaciones están confirmadas" + botón "Editar indicaciones" en la misma línea.
+
+2. **Eliminar el bloque duplicado del fondo** (líneas 945-968) que ya no será necesario.
+
+3. El banner se muestra solo cuando `isConfirmed && !manualReopen && !hasInvalidSelections`, igual que ahora pero en posición prominente.
+
+### Cambio concreto
+
+Después del `<StepHeader>` del Paso 1 (que ya muestra "Producido"), agregar:
+
+```tsx
+{isConfirmed && !manualReopen && !hasInvalidSelections && (
+  <div className="flex items-center justify-between rounded-xl border bg-muted/30 px-4 py-3">
+    <p className="text-sm text-muted-foreground">
+      Las indicaciones están confirmadas. Podés reabrir para modificar y regenerar.
+    </p>
+    <Button variant="outline" size="sm" onClick={handleReopenBrief} disabled={saving}>
+      Editar indicaciones
+    </Button>
+  </div>
+)}
+```
+
+Extraer la lógica del `onClick` actual a una función `handleReopenBrief` para no duplicar código.
+
+### Archivos a modificar
+
+| Archivo | Cambio |
+|---------|--------|
+| `src/components/lesson/BriefForm.tsx` | Mover botón "Editar indicaciones" arriba junto al StepHeader, eliminar el bloque del fondo |
+
