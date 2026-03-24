@@ -795,13 +795,14 @@ export default function Lesson() {
                   {normalizedTeachingMaterial && (
                     <div className="mt-6">
                       <TeachingMaterialView
-                        material={normalizedTeachingMaterial}
+                        material={{ ...normalizedTeachingMaterial, id: teachingMaterial!.id }}
                         canExportPdf={canExportValidatedPdf}
                         exportFileName={`${lessonSlug}-material-didactico.pdf`}
                         documentTitle={planLesson?.theme ? `Material didactico - ${planLesson.theme}` : "Material didactico"}
                         documentSummary="Documento de trabajo para aula con proposito, actividades, criterios y cierre listo para uso real."
                         documentMeta={documentMeta}
                         generatedAt={normalizedTeachingMaterial.created_at}
+                        onUpdated={fetchData}
                       />
                     </div>
                   )}
@@ -809,7 +810,7 @@ export default function Lesson() {
                   {readingMaterial && (
                     <div className="mt-6">
                       <ReadingMaterialView
-                        material={readingMaterial}
+                        material={{ ...readingMaterial, id: readingMaterial.id }}
                         pdfBase64={pdfBase64}
                         canExportPdf={canExportValidatedPdf}
                         exportFileName={`${lessonSlug}-material-lectura.pdf`}
@@ -817,6 +818,7 @@ export default function Lesson() {
                         documentSummary="Lectura continua y trazable, preparada como pieza pedagogica presentable y lista para compartir."
                         documentMeta={documentMeta}
                         generatedAt={readingMaterial.created_at}
+                        onUpdated={fetchData}
                       />
                     </div>
                   )}
