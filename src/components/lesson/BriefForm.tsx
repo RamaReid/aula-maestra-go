@@ -252,7 +252,6 @@ export default function BriefForm({
   const [uploading, setUploading] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [premiumQuery, setPremiumQuery] = useState("");
-  const [premiumResourceType, setPremiumResourceType] = useState<PremiumResourceOption>("AUTO");
   const [premiumCandidates, setPremiumCandidates] = useState<PremiumCandidate[]>([]);
   const [premiumRequestId, setPremiumRequestId] = useState<string | null>(null);
   const [premiumResolvedType, setPremiumResolvedType] = useState<string | null>(null);
@@ -297,8 +296,9 @@ export default function BriefForm({
   }, [isDirty]);
 
   const isConfirmed = brief?.status === "READY_FOR_PRODUCTION" || brief?.status === "PRODUCED";
-  const isEditable = !isConfirmed || hasInvalidSelections;
-  const canUploadTeacherSources = planType === "BASICO" || planType === "PREMIUM";
+  const [manualReopen, setManualReopen] = useState(false);
+  const isEditable = !isConfirmed || hasInvalidSelections || manualReopen;
+  const canUploadTeacherSources = true;
   const canUsePremiumQuery = planType === "PREMIUM";
 
   useEffect(() => {
@@ -558,7 +558,7 @@ export default function BriefForm({
           course_id: courseId,
           lesson_id: lessonId,
           query: cleanQuery,
-          resource_type: premiumResourceType === "AUTO" ? null : premiumResourceType,
+          resource_type: null,
           max_results: 3,
         },
       });
@@ -854,45 +854,31 @@ export default function BriefForm({
 
       {canUsePremiumQuery && isEditable && (
         <div className="field-shell">
-          <Label className="field-label">Busqueda premium (consulta concreta)</Label>
-          <Input
-            value={premiumQuery}
-            onChange={(event) => setPremiumQuery(event.target.value)}
-            placeholder="Ej: video de Darío Sztajnszrajber sobre filosofía antigua para 4to año"
-            disabled={resolvingPremium || saving || uploading}
-          />
-          <div className="grid gap-2 md:grid-cols-[1fr_auto]">
-            <Select
-              value={premiumResourceType}
-              onValueChange={(value) => setPremiumResourceType(value as PremiumResourceOption)}
+          <Label className="field-label">Búsqueda premium</Label>
+          <div className="flex gap-2">
+            <Input
+              value={premiumQuery}
+              onChange={(event) => setPremiumQuery(event.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && !resolvingPremium && handleResolvePremiumQuery()}
+              placeholder="Ej: fotosíntesis, video revolución francesa, mitosis celular"
               disabled={resolvingPremium || saving || uploading}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Tipo de recurso" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="AUTO">Auto-detectar</SelectItem>
-                <SelectItem value="VIDEO">Video</SelectItem>
-                <SelectItem value="ARTICULO">Articulo</SelectItem>
-                <SelectItem value="DOCUMENTO">Documento</SelectItem>
-                <SelectItem value="SITIO">Sitio web</SelectItem>
-                <SelectItem value="DATO">Dato/estadistica</SelectItem>
-              </SelectContent>
-            </Select>
+              className="flex-1"
+            />
             <Button
               type="button"
               variant="outline"
               onClick={handleResolvePremiumQuery}
               disabled={resolvingPremium || saving || uploading}
+              className="shrink-0"
             >
-              {resolvingPremium ? "Buscando..." : "Buscar candidatos"}
+              {resolvingPremium ? "Buscando..." : "Buscar"}
             </Button>
           </div>
           {premiumCorrectedQuery && (
             <p className="field-help text-xs">Sugerencia aplicada: {premiumCorrectedQuery}</p>
           )}
           {premiumCandidates.length > 0 && (
-            <div className="space-y-2">
+            <div className="space-y-2 mt-2">
               {premiumCandidates.map((candidate, index) => {
                 const isApproving = approvingCandidateUrl === candidate.url;
                 const confidencePct = Math.max(0, Math.min(100, Math.round((candidate.confidence || 0) * 100)));
@@ -927,7 +913,7 @@ export default function BriefForm({
             </div>
           )}
           <p className="field-help text-xs">
-            Solo se acepta consulta concreta. La fuente elegida queda autorizada para esta clase.
+            La fuente elegida queda autorizada para esta clase.
           </p>
         </div>
       )}
@@ -955,6 +941,31 @@ export default function BriefForm({
         disabled={!isEditable}
         planType={planType}
       />
+
+      {isConfirmed && !manualReopen && !hasInvalidSelections && (
+        <div className="space-y-2">
+          <p className="field-help text-sm">Las indicaciones están confirmadas. Al reabrir podrás modificarlas y regenerar materiales.</p>
+          <Button
+            variant="outline"
+            onClick={async () => {
+              if (!brief) return;
+              setSaving(true);
+              try {
+                await supabase.from("lesson_briefs").update({ status: "IN_PROGRESS" as any }).eq("id", brief.id);
+                setManualReopen(true);
+                toast({ title: "Indicaciones reabiertas para edición" });
+                onUpdate();
+              } catch {
+                toast({ title: "Error al reabrir", variant: "destructive" });
+              }
+              setSaving(false);
+            }}
+            disabled={saving}
+          >
+            Editar indicaciones
+          </Button>
+        </div>
+      )}
 
       {isEditable && (
         <div className="flex gap-2">
