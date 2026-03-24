@@ -760,8 +760,32 @@ export default function BriefForm({
     }
   }, [canUsePremiumQuery, planTheme, learningOutcome, canonOperation, canonEvidence, mappedCurriculumNodes, bibliographyNodes, authorizedSourceNodes]);
 
+  const handleReopenBrief = useCallback(async () => {
+    if (!brief) return;
+    setSaving(true);
+    try {
+      await supabase.from("lesson_briefs").update({ status: "IN_PROGRESS" as any }).eq("id", brief.id);
+      setManualReopen(true);
+      toast({ title: "Indicaciones reabiertas para edición" });
+      onUpdate();
+    } catch {
+      toast({ title: "Error al reabrir", variant: "destructive" });
+    }
+    setSaving(false);
+  }, [brief, onUpdate]);
+
   return (
     <div className="space-y-4">
+      {isConfirmed && !manualReopen && !hasInvalidSelections && (
+        <div className="flex items-center justify-between rounded-xl border border-border/70 bg-muted/30 px-4 py-3">
+          <p className="text-sm text-muted-foreground">
+            Las indicaciones están confirmadas. Podés reabrir para modificar y regenerar.
+          </p>
+          <Button variant="outline" size="sm" onClick={handleReopenBrief} disabled={saving}>
+            Editar indicaciones
+          </Button>
+        </div>
+      )}
       {canUsePremiumQuery && isEditable && (
         <div className="section-shell space-y-3 border-primary/20 bg-primary/5">
           <div className="space-y-1">
@@ -942,30 +966,6 @@ export default function BriefForm({
         planType={planType}
       />
 
-      {isConfirmed && !manualReopen && !hasInvalidSelections && (
-        <div className="space-y-2">
-          <p className="field-help text-sm">Las indicaciones están confirmadas. Al reabrir podrás modificarlas y regenerar materiales.</p>
-          <Button
-            variant="outline"
-            onClick={async () => {
-              if (!brief) return;
-              setSaving(true);
-              try {
-                await supabase.from("lesson_briefs").update({ status: "IN_PROGRESS" as any }).eq("id", brief.id);
-                setManualReopen(true);
-                toast({ title: "Indicaciones reabiertas para edición" });
-                onUpdate();
-              } catch {
-                toast({ title: "Error al reabrir", variant: "destructive" });
-              }
-              setSaving(false);
-            }}
-            disabled={saving}
-          >
-            Editar indicaciones
-          </Button>
-        </div>
-      )}
 
       {isEditable && (
         <div className="flex gap-2">
