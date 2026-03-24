@@ -1,15 +1,18 @@
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertTriangle, Copy, Download, Eye } from "lucide-react";
+import { AlertTriangle, Copy, Download, Eye, Pencil, Save } from "lucide-react";
 import { DocumentSheet } from "@/components/editorial/DocumentSheet";
 import { supabase } from "@/integrations/supabase/client";
 import { downloadStructuredPdf } from "@/lib/pdfExport";
 import { formatDocumentDate, stripHtmlToParagraphs, type DocumentMetaItem } from "@/lib/editorial";
+import { toast } from "@/hooks/use-toast";
 
 interface ReadingMaterialViewProps {
   material: {
+    id?: string;
     content_html: string;
     word_count: number;
     pdf_url: string | null;
@@ -23,12 +26,14 @@ interface ReadingMaterialViewProps {
   documentSummary?: string;
   documentMeta?: DocumentMetaItem[];
   generatedAt?: string | null;
+  onUpdated?: () => void;
 }
 
 const statusLabel: Record<string, string> = {
   GENERATED: "Generado",
   VALIDATED: "Validado",
   INVALIDATED: "Invalidado",
+  EDITED: "Editado",
 };
 
 const statusVariant = (s: string): "default" | "secondary" | "destructive" => {
@@ -58,6 +63,11 @@ function downloadBlob(blob: Blob, fileName: string) {
   URL.revokeObjectURL(url);
 }
 
+function countWords(html: string): number {
+  const text = html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+  return text ? text.split(" ").length : 0;
+}
+
 export default function ReadingMaterialView({
   material,
   pdfBase64,
@@ -67,8 +77,12 @@ export default function ReadingMaterialView({
   documentSummary = "Texto de apoyo preparado para lectura real, con jerarquía de lectura y formato de documento listo para compartir.",
   documentMeta = [],
   generatedAt,
+  onUpdated,
 }: ReadingMaterialViewProps) {
   const [downloadError, setDownloadError] = useState("");
+  const [editing, setEditing] = useState(false);
+  const [editHtml, setEditHtml] = useState(material.content_html);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const displayHtml = material.content_html
     .replace(/```(?:html|HTML)?\s*/gi, "")
@@ -80,7 +94,37 @@ export default function ReadingMaterialView({
     material.status === "INVALIDATED" &&
     material.validation_reasons &&
     material.validation_reasons.length > 0;
-  const exportEnabled = canExportPdf && material.status === "VALIDATED";
+  const exportEnabled = canExportPdf && (material.status === "VALIDATED" || material.status === "EDITED");
+
+  const canEdit = !!material.id && (material.status === "GENERATED" || material.status === "VALIDATED" || material.status === "EDITED");
+
+  const startEditing = () => {
+    setEditHtml(material.content_html);
+    setEditing(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!material.id) return;
+    setSavingEdit(true);
+    try {
+      const newWordCount = countWords(editHtml);
+      const { error } = await supabase
+        .from("reading_materials")
+        .update({
+          content_html: editHtml,
+          word_count: newWordCount,
+          status: "EDITED" as any,
+        })
+        .eq("id", material.id);
+      if (error) throw error;
+      toast({ title: "Material de lectura actualizado" });
+      setEditing(false);
+      onUpdated?.();
+    } catch {
+      toast({ title: "Error al guardar cambios", variant: "destructive" });
+    }
+    setSavingEdit(false);
+  };
 
   const handleViewTempPdf = () => {
     if (!pdfBase64) return;
@@ -153,8 +197,25 @@ export default function ReadingMaterialView({
   };
 
   const exportActions = (
-    <>
-      {exportEnabled && material.pdf_url ? (
+    <div className="flex gap-2 flex-wrap">
+      {canEdit && !editing && (
+        <Button variant="outline" size="sm" className="text-xs" onClick={startEditing}>
+          <Pencil className="mr-1 h-3 w-3" />
+          Editar lectura
+        </Button>
+      )}
+      {editing && (
+        <Button variant="default" size="sm" className="text-xs" onClick={handleSaveEdit} disabled={savingEdit}>
+          <Save className="mr-1 h-3 w-3" />
+          {savingEdit ? "Guardando..." : "Guardar"}
+        </Button>
+      )}
+      {editing && (
+        <Button variant="ghost" size="sm" className="text-xs" onClick={() => setEditing(false)} disabled={savingEdit}>
+          Cancelar
+        </Button>
+      )}
+      {exportEnabled && material.pdf_url && !editing ? (
         <>
           <Button variant="outline" size="sm" className="text-xs" asChild>
             <a href={material.pdf_url} target="_blank" rel="noopener noreferrer" download>
@@ -172,25 +233,25 @@ export default function ReadingMaterialView({
           </Button>
         </>
       ) : null}
-      {exportEnabled && !material.pdf_url && pdfBase64 ? (
+      {exportEnabled && !material.pdf_url && pdfBase64 && !editing ? (
         <Button variant="outline" size="sm" className="text-xs" onClick={handleDownloadTempPdf}>
           <Download className="mr-1 h-3 w-3" />
           Exportar PDF
         </Button>
       ) : null}
-      {exportEnabled && !material.pdf_url && !pdfBase64 ? (
+      {exportEnabled && !material.pdf_url && !pdfBase64 && !editing ? (
         <Button variant="outline" size="sm" className="text-xs" onClick={handleExportHtmlFallback}>
           <Download className="mr-1 h-3 w-3" />
           Exportar PDF
         </Button>
       ) : null}
-      {!exportEnabled && !material.pdf_url && pdfBase64 ? (
+      {!exportEnabled && !material.pdf_url && pdfBase64 && !editing ? (
         <Button variant="outline" size="sm" className="text-xs" onClick={handleViewTempPdf}>
           <Eye className="mr-1 h-3 w-3" />
           Ver PDF temporal
         </Button>
       ) : null}
-    </>
+    </div>
   );
 
   return (
@@ -223,13 +284,22 @@ export default function ReadingMaterialView({
 
       <section className="document-section">
         <p className="document-section-label">Vista previa editorial</p>
-        <div
-          className="editorial-prose"
-          dangerouslySetInnerHTML={{ __html: displayHtml }}
-        />
+        {editing ? (
+          <Textarea
+            value={editHtml}
+            onChange={(e) => setEditHtml(e.target.value)}
+            className="min-h-[300px] font-mono text-xs"
+            placeholder="Contenido HTML del material de lectura"
+          />
+        ) : (
+          <div
+            className="editorial-prose"
+            dangerouslySetInnerHTML={{ __html: displayHtml }}
+          />
+        )}
       </section>
 
-      {exportEnabled && material.pdf_url && (
+      {exportEnabled && material.pdf_url && !editing && (
         <p className="helper-note">
           Si tu navegador bloquea el dominio de Supabase (`ERR_BLOCKED_BY_CLIENT`), usa la descarga alternativa.
         </p>
@@ -251,7 +321,7 @@ export default function ReadingMaterialView({
         </Alert>
       )}
 
-      {paragraphs.length === 0 && (
+      {paragraphs.length === 0 && !editing && (
         <div className="helper-note">
           El sistema no pudo componer una vista legible del texto. Usa la exportación PDF para revisar la salida completa.
         </div>

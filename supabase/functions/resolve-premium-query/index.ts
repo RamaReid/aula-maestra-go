@@ -102,23 +102,12 @@ function extractEntityAndTopic(rawQuery: string): { entity: string | null; topic
   };
 }
 
-function isConcreteQuery(query: string, resourceType: ResourceType, entity: string | null, topic: string | null): string | null {
+function isQueryTooShort(query: string): string | null {
   const normalized = normalizeText(query);
   const words = normalized.split(" ").filter(Boolean);
-
-  if (words.length < 4) {
-    return "La consulta es demasiado corta. Inclui tipo de recurso, referente y contenido puntual.";
+  if (words.length < 2) {
+    return "La consulta debe tener al menos 2 palabras.";
   }
-  if (resourceType === "OTRO") {
-    return "La consulta debe indicar un tipo de recurso concreto (video, articulo, documento, sitio o dato).";
-  }
-  if (!entity && !topic) {
-    return "La consulta debe indicar referente/fuente y contenido puntual.";
-  }
-  if (/^buscame informacion\b/.test(normalized)) {
-    return "No se acepta busqueda abierta. Reformula en modo consulta concreta.";
-  }
-
   return null;
 }
 
@@ -423,19 +412,17 @@ serve(async (req) => {
   }
 
   const requestId = createdRequest.id as string;
-  const concretenessError = isConcreteQuery(rawQuery, inferredType, parsed.entity, parsed.topic);
-  if (concretenessError) {
+  const shortError = isQueryTooShort(rawQuery);
+  if (shortError) {
     await adminClient
       .from("premium_query_requests")
-      .update({ status: "REJECTED", rejection_reason: concretenessError })
+      .update({ status: "REJECTED", rejection_reason: shortError })
       .eq("id", requestId);
 
     return new Response(
       JSON.stringify({
-        error: concretenessError,
+        error: shortError,
         request_id: requestId,
-        required_format:
-          "Inclui tipo de recurso (video/articulo/documento/sitio/dato), referente/fuente y contenido puntual.",
       }),
       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

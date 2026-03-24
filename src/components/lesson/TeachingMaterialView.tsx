@@ -1,10 +1,14 @@
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowDown, ArrowUp, Download, RotateCcw } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { ArrowDown, ArrowUp, Download, Pencil, RotateCcw, Save } from "lucide-react";
 import { DocumentSheet } from "@/components/editorial/DocumentSheet";
 import { formatDocumentDate, type DocumentMetaItem } from "@/lib/editorial";
 import { downloadStructuredPdf } from "@/lib/pdfExport";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
 
 interface Activity {
   title: string;
@@ -20,6 +24,7 @@ interface Differentiation {
 
 interface TeachingMaterialViewProps {
   material: {
+    id?: string;
     purpose: string;
     activities: Activity[];
     expected_product: string;
@@ -34,6 +39,7 @@ interface TeachingMaterialViewProps {
   documentSummary?: string;
   documentMeta?: DocumentMetaItem[];
   generatedAt?: string | null;
+  onUpdated?: () => void;
 }
 
 type TeachingSectionKey =
@@ -66,6 +72,7 @@ const statusLabel: Record<string, string> = {
   GENERATED: "Generado",
   VALIDATED: "Validado",
   INVALIDATED: "Invalidado",
+  EDITED: "Editado",
 };
 
 const statusVariant = (s: string): "default" | "secondary" | "destructive" => {
@@ -82,11 +89,55 @@ export default function TeachingMaterialView({
   documentSummary = "Guia de trabajo organizada para aula real, con secciones claras, evidencias visibles y orden de lectura profesional.",
   documentMeta = [],
   generatedAt,
+  onUpdated,
 }: TeachingMaterialViewProps) {
   const activities = Array.isArray(material.activities) ? material.activities : [];
   const differentiation = Array.isArray(material.differentiation) ? material.differentiation : [];
-  const exportEnabled = canExportPdf && material.status === "VALIDATED";
+  const exportEnabled = canExportPdf && (material.status === "VALIDATED" || material.status === "EDITED");
   const [exportOrder, setExportOrder] = useState<TeachingSectionKey[]>(DEFAULT_EXPORT_ORDER);
+
+  const [editing, setEditing] = useState(false);
+  const [editPurpose, setEditPurpose] = useState(material.purpose);
+  const [editProduct, setEditProduct] = useState(material.expected_product);
+  const [editClosure, setEditClosure] = useState(material.closure);
+  const [editCriteria, setEditCriteria] = useState(material.achievement_criteria.join("\n"));
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const startEditing = () => {
+    setEditPurpose(material.purpose);
+    setEditProduct(material.expected_product);
+    setEditClosure(material.closure);
+    setEditCriteria(material.achievement_criteria.join("\n"));
+    setEditing(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!material.id) {
+      toast({ title: "No se puede guardar sin ID de material", variant: "destructive" });
+      return;
+    }
+    setSavingEdit(true);
+    try {
+      const criteriaArray = editCriteria.split("\n").map((c) => c.trim()).filter(Boolean);
+      const { error } = await supabase
+        .from("teaching_materials")
+        .update({
+          purpose: editPurpose,
+          expected_product: editProduct,
+          closure: editClosure,
+          achievement_criteria: criteriaArray,
+          status: "EDITED" as any,
+        })
+        .eq("id", material.id);
+      if (error) throw error;
+      toast({ title: "Material didáctico actualizado" });
+      setEditing(false);
+      onUpdated?.();
+    } catch {
+      toast({ title: "Error al guardar cambios", variant: "destructive" });
+    }
+    setSavingEdit(false);
+  };
 
   const moveSection = (index: number, offset: -1 | 1) => {
     const nextIndex = index + offset;
@@ -130,6 +181,8 @@ export default function TeachingMaterialView({
     });
   };
 
+  const canEdit = !!material.id && (material.status === "GENERATED" || material.status === "VALIDATED" || material.status === "EDITED");
+
   return (
     <DocumentSheet
       eyebrow="Didactico"
@@ -137,12 +190,31 @@ export default function TeachingMaterialView({
       summary={documentSummary}
       status={<Badge variant={statusVariant(material.status)}>{statusLabel[material.status] || material.status}</Badge>}
       actions={
-        exportEnabled ? (
-          <Button variant="outline" size="sm" className="text-xs" onClick={handleExportPdf}>
-            <Download className="mr-1 h-3 w-3" />
-            Exportar PDF
-          </Button>
-        ) : null
+        <div className="flex gap-2">
+          {canEdit && !editing && (
+            <Button variant="outline" size="sm" className="text-xs" onClick={startEditing}>
+              <Pencil className="mr-1 h-3 w-3" />
+              Editar
+            </Button>
+          )}
+          {editing && (
+            <Button variant="default" size="sm" className="text-xs" onClick={handleSaveEdit} disabled={savingEdit}>
+              <Save className="mr-1 h-3 w-3" />
+              {savingEdit ? "Guardando..." : "Guardar cambios"}
+            </Button>
+          )}
+          {editing && (
+            <Button variant="ghost" size="sm" className="text-xs" onClick={() => setEditing(false)} disabled={savingEdit}>
+              Cancelar
+            </Button>
+          )}
+          {exportEnabled && !editing ? (
+            <Button variant="outline" size="sm" className="text-xs" onClick={handleExportPdf}>
+              <Download className="mr-1 h-3 w-3" />
+              Exportar PDF
+            </Button>
+          ) : null}
+        </div>
       }
       meta={[
         ...documentMeta,
@@ -150,7 +222,7 @@ export default function TeachingMaterialView({
         { label: "Actividades", value: activities.length || null },
       ]}
     >
-      {exportEnabled && (
+      {exportEnabled && !editing && (
         <section className="document-section">
           <div className="mb-4 flex items-center justify-between gap-2">
             <div>
@@ -210,7 +282,11 @@ export default function TeachingMaterialView({
       <section className="document-section">
         <p className="document-section-label">Apertura</p>
         <h4 className="document-section-heading">Proposito</h4>
-        <p className="document-copy">{material.purpose}</p>
+        {editing ? (
+          <Textarea value={editPurpose} onChange={(e) => setEditPurpose(e.target.value)} className="min-h-[80px]" />
+        ) : (
+          <p className="document-copy">{material.purpose}</p>
+        )}
       </section>
 
       <section className="document-section">
@@ -235,17 +311,30 @@ export default function TeachingMaterialView({
       <section className="document-section">
         <p className="document-section-label">Cierre verificable</p>
         <h4 className="document-section-heading">Producto o evidencia minima</h4>
-        <p className="document-copy">{material.expected_product}</p>
+        {editing ? (
+          <Textarea value={editProduct} onChange={(e) => setEditProduct(e.target.value)} className="min-h-[60px]" />
+        ) : (
+          <p className="document-copy">{material.expected_product}</p>
+        )}
       </section>
 
       <section className="document-section">
         <p className="document-section-label">Seguimiento</p>
         <h4 className="document-section-heading">Criterios de logro</h4>
-        <ul className="document-list">
-          {material.achievement_criteria.map((criterion, index) => (
-            <li key={index}>{criterion}</li>
-          ))}
-        </ul>
+        {editing ? (
+          <Textarea
+            value={editCriteria}
+            onChange={(e) => setEditCriteria(e.target.value)}
+            placeholder="Un criterio por línea"
+            className="min-h-[100px]"
+          />
+        ) : (
+          <ul className="document-list">
+            {material.achievement_criteria.map((criterion, index) => (
+              <li key={index}>{criterion}</li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <section className="document-section">
@@ -264,7 +353,11 @@ export default function TeachingMaterialView({
       <section className="document-section">
         <p className="document-section-label">Cierre</p>
         <h4 className="document-section-heading">Cierre de la clase</h4>
-        <p className="document-copy">{material.closure}</p>
+        {editing ? (
+          <Textarea value={editClosure} onChange={(e) => setEditClosure(e.target.value)} className="min-h-[80px]" />
+        ) : (
+          <p className="document-copy">{material.closure}</p>
+        )}
       </section>
     </DocumentSheet>
   );
