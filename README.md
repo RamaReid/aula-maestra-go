@@ -1,95 +1,83 @@
-README 
-Proyecto
-Nombre visible en la UI: DocencIA
-Repo de trabajo: aula-maestra-go
+# DocencIA
 
-DocencIA es una aplicacion web para docentes de secundaria que concentra en un mismo flujo:
+Working repository: `aula-maestra-go`
 
-seleccion del programa oficial
-creacion del curso
-armado del plan anual
-agenda de clases
-preparacion de clases
-generacion de materiales didacticos y de lectura
-gestion de planes y upgrades
-El estado descrito en este documento sale del codigo actual del repo, de sus migraciones y de sus edge functions.
+DocencIA is an AI-assisted web platform for secondary school teachers. It concentrates curriculum selection, course creation, annual planning, class scheduling, lesson preparation, reading material generation, teaching resources, billing, and plan upgrades into a single operational flow.
 
-Problema que resuelve
-La app esta construida para evitar que la planificacion docente quede fragmentada entre:
+The project is not a static prototype. The current repository includes a working React/TypeScript application, Supabase backend structure, migrations, edge functions, AI-assisted curriculum and planning flows, billing logic, source handling, and validation mechanisms.
 
-documentos curriculares sueltos
-formularios manuales
-cronogramas separados
-materiales de clase armados fuera del sistema
-decisiones de bibliografia y fuentes sin trazabilidad
-En la implementacion actual, el curso, el plan, las clases, el brief docente, la bibliografia confirmada y los materiales generados quedan vinculados en una misma estructura de datos.
+## Problem
 
-Solucion implementada hoy
-La solucion actual no es un prototipo estatico. El codigo implementa:
+Teachers often manage planning, curriculum documents, lesson schedules, bibliographies, classroom materials, and generated resources across disconnected tools.
 
-landing publica
-modo demo publico
-registro, login y auth con Supabase
-dashboard con cursos y estado del plan
-importacion y resolucion de diseños curriculares
-asistente de alta de curso
-bootstrap del plan anual con IA
-edicion y validacion del plan anual
-agenda de clases
-preparacion de clase con brief docente
-generacion de material didactico y material de lectura
-exportacion PDF de salidas validadas
-fuentes propias del docente y busqueda premium guiada
-billing con Mercado Pago y solicitudes manuales
-Usuarios objetivo inferidos desde el codigo
-Los flujos implementados apuntan a:
+DocencIA addresses that fragmentation by linking the course, annual plan, class agenda, teacher brief, confirmed bibliography, authorized sources, and generated materials within the same product and data structure.
 
-docentes de secundaria de Provincia de Buenos Aires
-cursos de escuela comun y tecnica
-materias con anclaje curricular formal
-usuarios con tres niveles de plan: FREE, BASICO, PREMIUM
-La UI, los textos y el resolver curricular estan orientados especificamente a abc.gob.ar y a diseños curriculares de PBA.
+## Current implemented scope
 
-Funcionalidades efectivamente implementadas
-Landing y demo: pantallas publicas para explicar el producto y mostrar un caso ya cargado.
-Auth: login por email/password, registro y login con Google.
-Dashboard: lista cursos activos/archivados, alta de curso, acceso a billing y sincronizacion curricular.
-Curriculum import: seleccion de documentos verificados existentes o importacion desde URL oficial / PDF.
-Creacion de curso: wizard de 8 pasos con escuela, ciclo, año, horario y curriculum.
-Plan anual: editor estructurado con fundamentacion, objetivos, bloques, rubricas, bibliografia docente y clases.
-Validacion: RPC validate_plan para pasar un plan a estado VALIDATED.
-Agenda y secuencias: sincronizacion entre plan_lessons y lessons.
-Clase individual: brief docente, bibliografia, fuentes autorizadas, copiloto y generacion.
-Materiales: material didactico estructurado y texto de lectura validable/exportable.
-Planes y billing: checkout, reconciliacion, cancelacion y solicitudes manuales.
-Stack real
-Frontend: React 18, TypeScript, Vite, React Router
-UI: Tailwind CSS, shadcn/ui, Radix UI
-Estado y datos: TanStack Query, Supabase JS
-Auth: Supabase Auth + @lovable.dev/cloud-auth-js
-Backend: Supabase Postgres, Storage, Edge Functions
-IA: Lovable AI Gateway con modelos Gemini
-Pagos: Mercado Pago
-OCR y parsing: pdfjs-serverless, Mammoth, XLSX, OCR por IA para imagenes
-Busquedas externas: DuckDuckGo, YouTube, Wikipedia, Firecrawl, abc.gob.ar
+- Public landing and demo mode
+- Supabase authentication with email/password and Google login
+- Teacher dashboard with active and archived courses
+- Curriculum import and resolution from official sources or PDFs
+- 8-step course creation wizard
+- AI-assisted annual plan bootstrap
+- Structured annual plan editor and validation flow
+- Class agenda and lesson sequencing
+- Individual lesson preparation with teacher brief, bibliography, authorized sources, and AI copilot
+- Didactic material and reading material generation
+- PDF export for validated outputs
+- Teacher-owned sources and guided premium source search
+- Billing flows with Mercado Pago and manual payment requests
+
+## AI / workflow relevance
+
+This project includes AI-assisted operational flows rather than isolated prompting.
+
+Relevant components include:
+
+- curriculum resolution and parsing workflows;
+- AI-assisted planning generation;
+- structured prompt and output constraints;
+- validation logic for generated educational outputs;
+- source authorization and bibliography control;
+- role-sensitive teacher workflows;
+- edge functions for AI, curriculum, billing, premium sources, and QA support;
+- explicit product canons and PRDs governing how AI should behave inside the platform.
+
+## My contribution
+
+I designed the product concept, functional architecture, AI-assisted workflow logic, pedagogical output rules, validation structure, product canons, PRDs, and implementation direction.
+
+My work focused on transforming a complex educational and operational problem into a structured SaaS-oriented product with traceable workflows, contextual knowledge rules, AI-assisted generation, and validation mechanisms.
+
+## Stack
+
+Frontend: React 18, TypeScript, Vite, React Router  
+UI: Tailwind CSS, shadcn/ui, Radix UI  
+State/data: TanStack Query, Supabase JS  
+Auth: Supabase Auth + Lovable Cloud Auth  
+Backend: Supabase Postgres, Storage, Edge Functions  
+AI: Lovable AI Gateway with Gemini models  
+Payments: Mercado Pago  
+Parsing/OCR: pdfjs-serverless, Mammoth, XLSX, AI OCR for images  
+External search/source tooling: DuckDuckGo, YouTube, Wikipedia, Firecrawl, abc.gob.ar  
 Tests: Vitest
-Estado actual verificable
-La app tiene rutas publicas y privadas operativas en el frontend.
-El backend esperado esta modelado en migraciones y types de Supabase.
-Hay edge functions para curriculum, IA, billing, premium sources y soporte QA.
-Existen tests automatizados chicos pero reales para reglas de seleccion y export PDF.
-Hay evidencia fuerte de iteracion rapida con Lovable en .lovable/plan.md, PRDs y commits.
-Lo que no conviene afirmar sin matiz
-No hay transcript completo de todas las conversaciones de construccion.
-El repo no prueba por si solo que todos los secretos de produccion esten cargados.
-El repo no confirma por si solo el estado actual de la nube; eso depende del proyecto Supabase desplegado.
-Archivos base usados para este resumen
-src/App.tsx
-src/pages/*.tsx
-src/components/plan/*
-src/components/lesson/*
-src/hooks/useEntitlements.ts
-supabase/functions/*
-supabase/migrations/*
-src/integrations/supabase/types.ts
-package.json
+
+## Product canon and PRDs
+
+The repo includes explicit product behavior and AI-output governance documents:
+
+- `docs/CANON_INDEX.md`
+- `docs/CANON_OPERATIONAL.md`
+- `docs/CANON_GOLDEN_FYHCT_6EESA.md`
+- `docs/PRD_LOVABLE_ENV_BASE.md`
+- `docs/PRD_LOVABLE_CORE_FLOW.md`
+
+These files define how planning, class generation, reading material generation, AI behavior, platform dependencies, and rollout should be handled.
+
+## Current state
+
+The frontend includes public and private routes. The expected backend is modeled through Supabase migrations and generated types. Edge functions cover curriculum processing, AI workflows, billing, premium sources, and QA support. The repository also includes small but real automated tests for selection logic and PDF export behavior.
+
+## Important note
+
+This repository demonstrates the product structure, codebase, AI-assisted workflows, and architectural direction. Production secrets, deployment configuration, and cloud runtime state depend on the connected Supabase/Lovable environment and are not fully represented in the public repository.
